@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dist-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "dist", "--single"],
+      "port": 3002,
+      "autoPort": true
+    }
+  ]
+}

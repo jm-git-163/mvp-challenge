@@ -20,6 +20,9 @@ const GENRES: Array<{ label: string; value: Template['genre'] | 'all' }> = [
   { label: '힙합', value: 'hiphop' },
   { label: '피트니스', value: 'fitness' },
   { label: '챌린지', value: 'challenge' },
+  { label: '여행', value: 'travel' },
+  { label: '일상', value: 'daily' },
+  { label: '프로모션', value: 'promotion' },
 ];
 
 export default function HomeScreen() {
@@ -42,17 +45,24 @@ export default function HomeScreen() {
 
       {/* 장르 필터 */}
       <View style={styles.filterRow}>
-        {GENRES.map((g) => (
-          <TouchableOpacity
-            key={g.value}
-            style={[styles.filterChip, selectedGenre === g.value && styles.filterChipActive]}
-            onPress={() => setSelectedGenre(g.value)}
-          >
-            <Text style={[styles.filterText, selectedGenre === g.value && styles.filterTextActive]}>
-              {g.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={GENRES}
+          keyExtractor={(g) => g.value}
+          renderItem={({ item: g }) => (
+            <TouchableOpacity
+              style={[styles.filterChip, selectedGenre === g.value && styles.filterChipActive]}
+              onPress={() => setSelectedGenre(g.value)}
+            >
+              <Text style={[styles.filterText, selectedGenre === g.value && styles.filterTextActive]}>
+                {g.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+          ItemSeparatorComponent={() => <View style={{ width: 8 }} />}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+        />
       </View>
 
       {loading && (
@@ -103,10 +113,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
     paddingBottom: 12,
-    gap: 8,
   },
   filterChip: {
     paddingHorizontal: 12,

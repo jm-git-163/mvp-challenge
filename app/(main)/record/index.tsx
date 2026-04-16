@@ -1,19 +1,18 @@
 /**
  * record/index.tsx
  *
- * 촬영 메인 화면 — Sprint 1-2 + 1-3 통합
+ * 촬영 메인 화면 — 제스처 판정 + 효과음 + 미션 오버레이
  *
  * 레이아웃:
  *   ┌─────────────────────────┐
- *   │  [상단 20%] 판정 / 점수  │  JudgementFeedback
+ *   │  [상단 18%] 판정 / 점수  │  JudgementFeedback
  *   ├─────────────────────────┤
- *   │                         │
- *   │  [중앙 60%] 카메라       │  RecordingCamera
- *   │            + 포즈 오버레이│  PoseOverlay
- *   │                         │
+ *   │  [카메라 62%]            │  RecordingCamera
+ *   │    └ 미션 오버레이 (상단)│
+ *   │    └ 포즈 오버레이       │
+ *   │    └ 카운트다운           │
  *   ├─────────────────────────┤
- *   │  [하단 20%] 타이밍바     │  TimingBar
- *   │             + 버튼       │
+ *   │  [하단 20%] 타이밍바     │  TimingBar + 버튼
  *   └─────────────────────────┘
  */
 
@@ -40,6 +39,8 @@ import { usePoseDetection }  from '../../../hooks/usePoseDetection';
 import { useJudgement }      from '../../../hooks/useJudgement';
 import { useRecording }      from '../../../hooks/useRecording';
 import { useSessionStore }   from '../../../store/sessionStore';
+import { playSound, initAudio } from '../../../utils/soundUtils';
+import type { JudgementTag } from '../../../types/session';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -63,9 +64,14 @@ export default function RecordScreen() {
   // 판정 결과 상태
   const [judgement, setJudgement] = useState<{
     score: number;
-    tag: 'perfect' | 'good' | 'fail';
+    tag: JudgementTag;
     currentMission: ReturnType<typeof judge>['currentMission'];
   }>({ score: 0, tag: 'fail', currentMission: null });
+
+  // 사운드용 이전 태그 추적
+  const prevTagRef = useRef<JudgementTag>('fail');
+  // 카운트다운 이전 값 추적 (tick 소리용)
+  const prevCountdownRef = useRef<number>(3);
 
   // ── 템플릿 없으면 뒤로 ──────────────────────
   useEffect(() => {
@@ -77,7 +83,32 @@ export default function RecordScreen() {
     if (state !== 'recording' || !landmarks.length) return;
     const result = judge(landmarks);
     setJudgement(result);
+
+    // 태그 변경 시에만 효과음 재생
+    if (result.tag !== prevTagRef.current) {
+      prevTagRef.current = result.tag;
+      if (result.tag === 'perfect') playSound('perfect');
+      else if (result.tag === 'good') playSound('good');
+      else playSound('fail');
+    }
   }, [landmarks, state]);
+
+  // ── 카운트다운 tick 소리 ──────────────────
+  useEffect(() => {
+    if (state === 'countdown' && countdown !== prevCountdownRef.current) {
+      prevCountdownRef.current = countdown;
+      if (countdown > 0) {
+        playSound('tick');
+      }
+    }
+  }, [state, countdown]);
+
+  // ── 녹화 시작 시 start 소리 ──────────────
+  useEffect(() => {
+    if (state === 'recording') {
+      playSound('start');
+    }
+  }, [state]);
 
   // ── 카메라 프레임 → 포즈 추정 ───────────────
   const handleFrame = useCallback(
@@ -104,8 +135,9 @@ export default function RecordScreen() {
   const isRecording  = state === 'recording';
   const isPaused     = state === 'idle' || state === 'processing';
 
-  // 현재 목표 관절 (현재 미션 기준)
+  // 현재 목표 관절 (현재 미션 기준 — 레거시 pose 타입)
   const targetJoints = judgement.currentMission?.target_joints;
+  const currentMission = judgement.currentMission;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -122,11 +154,18 @@ export default function RecordScreen() {
         ) : (
           <View style={styles.titleArea}>
             <Text style={styles.templateName} numberOfLines={1}>
-              {activeTemplate.name}
+              {(activeTemplate as any).theme_emoji
+                ? `${(activeTemplate as any).theme_emoji} ${activeTemplate.name}`
+                : activeTemplate.name}
             </Text>
             <Text style={styles.templateMeta}>
               {activeTemplate.duration_sec}초 · {activeTemplate.missions.length}개 미션 · BPM {activeTemplate.bpm}
             </Text>
+            {(activeTemplate as any).scene ? (
+              <Text style={styles.sceneText} numberOfLines={2}>
+                {(activeTemplate as any).scene}
+              </Text>
+            ) : null}
             {!isReady && (
               <Text style={styles.loadingText}>포즈 AI 로딩 중...</Text>
             )}
@@ -152,6 +191,22 @@ export default function RecordScreen() {
             width={Dimensions.get('window').width}
             height={CAMERA_HEIGHT}
           />
+
+          {/* 미션 오버레이 — 카메라 상단, 얼굴 영역 위 */}
+          {isRecording && currentMission && (
+            <View style={styles.missionOverlay}>
+              <View style={styles.missionOverlayInner}>
+                {currentMission.guide_emoji ? (
+                  <Text style={styles.missionOverlayEmoji}>
+                    {currentMission.guide_emoji}
+                  </Text>
+                ) : null}
+                <Text style={styles.missionOverlayText}>
+                  {currentMission.guide_text}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* 카운트다운 오버레이 */}
           {isCountdown && (
@@ -188,7 +243,10 @@ export default function RecordScreen() {
           <View style={styles.startArea}>
             <TouchableOpacity
               style={[styles.startBtn, !isReady && styles.startBtnDisabled]}
-              onPress={() => cameraRef.current && start(cameraRef.current)}
+              onPress={() => {
+                initAudio();
+                if (cameraRef.current) start(cameraRef.current);
+              }}
               disabled={isCountdown || state === 'processing'}
             >
               <Text style={styles.startBtnText}>
@@ -228,6 +286,12 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 13,
   },
+  sceneText: {
+    color: '#888',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
   loadingText: {
     color: '#e94560',
     fontSize: 12,
@@ -236,6 +300,37 @@ const styles = StyleSheet.create({
   // ── 카메라 ──
   cameraSection: {
     overflow: 'hidden',
+  },
+  // ── 미션 오버레이 ──
+  missionOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  missionOverlayInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  missionOverlayEmoji: {
+    fontSize: 24,
+  },
+  missionOverlayText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+    textShadowColor: '#000',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   countdownOverlay: {
     ...StyleSheet.absoluteFillObject,

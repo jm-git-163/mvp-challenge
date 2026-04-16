@@ -26,7 +26,12 @@
       "Bash(vercel deploy:*)",
       "Bash(git commit -m 'fix: Vercel 빌드 peer dep 충돌 해결 \\(.npmrc legacy-peer-deps\\):*)",
       "WebFetch(domain:mvp-ivory-kappa.vercel.app)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(npx serve:*)",
+      "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\app\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node -e \"const e = require\\('./node_modules/expo/package.json'\\); console.log\\(JSON.stringify\\(e.peerDependencies || e.dependencies || {}, null, 2\\)\\)\")"
     ]
   }
 }

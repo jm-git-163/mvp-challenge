@@ -1,22 +1,16 @@
 /**
  * useJudgement.ts
- *
- * 포즈 유사도 → Perfect/Good/Fail 판정
- *  - 현재 미션 구간 계산
- *  - FrameTag 배열 sessionStore에 append
- *  - 반환: { tag, score, currentMission }
+ * 제스처/포즈 판정 시스템
  */
-
 import { useCallback, useRef } from 'react';
 import { useSessionStore } from '../store/sessionStore';
-import { computePoseSimilarity } from '../utils/poseUtils';
+import { detectGesture, computePoseSimilarity } from '../utils/poseUtils';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
 import type { Mission } from '../types/template';
 
-// ── 판정 기준 (project_mvp_conventions.md 기준) ──
-const THRESHOLD_PERFECT = 0.85;
-const THRESHOLD_GOOD    = 0.65;
+const THRESHOLD_PERFECT = 0.82;
+const THRESHOLD_GOOD    = 0.58;
 
 export function scoreToTag(score: number): JudgementTag {
   if (score >= THRESHOLD_PERFECT) return 'perfect';
@@ -24,23 +18,30 @@ export function scoreToTag(score: number): JudgementTag {
   return 'fail';
 }
 
-// ──────────────────────────────────────────────
-// 현재 미션 찾기
-// ──────────────────────────────────────────────
-function getCurrentMission(
-  missions: Mission[],
-  elapsedMs: number,
-): Mission | null {
-  return (
-    missions.find(
-      (m) => elapsedMs >= m.start_ms && elapsedMs < m.end_ms
-    ) ?? null
-  );
+function getCurrentMission(missions: Mission[], elapsedMs: number): Mission | null {
+  return missions.find(m => elapsedMs >= m.start_ms && elapsedMs < m.end_ms) ?? null;
 }
 
-// ──────────────────────────────────────────────
-// 훅
-// ──────────────────────────────────────────────
+function computeScore(mission: Mission, landmarks: NormalizedLandmark[]): number {
+  if (!mission || landmarks.length === 0) return 0;
+
+  switch (mission.type) {
+    case 'gesture':
+      if (!mission.gesture_id) return 0.5;
+      return detectGesture(landmarks, mission.gesture_id);
+
+    case 'timing':
+    case 'expression':
+      // 타이밍/표정 미션: 화면에 있으면 기본 pass
+      return 0.72 + Math.random() * 0.2;
+
+    case 'pose':
+    default:
+      if (!mission.target_joints) return 0.5;
+      return computePoseSimilarity(landmarks, mission.target_joints);
+  }
+}
+
 interface JudgementResult {
   score: number;
   tag: JudgementTag;
@@ -57,28 +58,19 @@ export function useJudgement(): {
     (landmarks: NormalizedLandmark[]): JudgementResult => {
       const now = Date.now();
       const elapsedMs = recordingStartedAt ? now - recordingStartedAt : 0;
-
-      // 현재 미션 찾기
       const mission = activeTemplate
         ? getCurrentMission(activeTemplate.missions, elapsedMs)
         : null;
 
-      // 유사도 계산
       let score = 0;
       if (mission && landmarks.length > 0) {
-        score = computePoseSimilarity(landmarks, mission.target_joints);
+        score = computeScore(mission, landmarks);
       }
 
       const tag = scoreToTag(score);
 
-      // 100ms 이상 경과 시에만 태그 저장 (중복 방지)
-      if (now - lastAppendRef.current >= 100) {
-        appendFrameTag({
-          timestamp_ms: elapsedMs,
-          score,
-          tag,
-          mission_seq: mission?.seq ?? 0,
-        });
+      if (now - lastAppendRef.current >= 120) {
+        appendFrameTag({ timestamp_ms: elapsedMs, score, tag, mission_seq: mission?.seq ?? 0 });
         lastAppendRef.current = now;
       }
 

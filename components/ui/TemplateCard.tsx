@@ -14,6 +14,8 @@ const GENRE_LABEL: Record<Template['genre'], string> = {
   fitness: '피트니스',
   challenge: '챌린지',
   promotion: '프로모션',
+  travel: '여행',
+  daily: '일상',
 };
 
 const DIFFICULTY_STAR: Record<number, string> = {
@@ -34,14 +36,21 @@ export function TemplateCard({ template, onPress }: Props) {
         <Image source={{ uri: template.thumbnail_url }} style={styles.thumbnail} />
       ) : (
         <View style={[styles.thumbnail, styles.placeholderBg]}>
-          <Text style={styles.placeholderText}>🎬</Text>
+          <Text style={styles.placeholderEmoji}>
+            {(template as any).theme_emoji ?? '🎬'}
+          </Text>
         </View>
       )}
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{template.name}</Text>
+        {(template as any).scene ? (
+          <Text style={styles.scene} numberOfLines={1}>
+            {(template as any).scene}
+          </Text>
+        ) : null}
         <View style={styles.meta}>
-          <Text style={styles.badge}>{GENRE_LABEL[template.genre]}</Text>
+          <Text style={styles.badge}>{GENRE_LABEL[template.genre] ?? template.genre}</Text>
           <Text style={styles.difficulty}>{DIFFICULTY_STAR[template.difficulty]}</Text>
           <Text style={styles.duration}>{template.duration_sec}초</Text>
         </View>
@@ -63,25 +72,31 @@ const styles = StyleSheet.create({
   },
   thumbnail: {
     width: 90,
-    height: 90,
+    height: 100,
   },
   placeholderBg: {
     backgroundColor: '#16213e',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderText: {
-    fontSize: 32,
+  placeholderEmoji: {
+    fontSize: 36,
   },
   info: {
     flex: 1,
     padding: 12,
     justifyContent: 'space-between',
+    gap: 2,
   },
   name: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  scene: {
+    color: '#aaa',
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   meta: {
     flexDirection: 'row',
