@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-expo-app@latest . --template blank-typescript)",
+      "Bash(npx expo:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tsc:*)",
+      "Bash(gh --version)",
+      "Bash(vercel --version)",
+      "Bash(gh auth:*)",
+      "Bash(vercel whoami:*)",
+      "mcp__e202c9ce-10aa-462d-b4c6-c2904d68d8e8__list_organizations",
+      "mcp__e202c9ce-10aa-462d-b4c6-c2904d68d8e8__list_projects",
+      "mcp__e202c9ce-10aa-462d-b4c6-c2904d68d8e8__get_project_url",
+      "mcp__e202c9ce-10aa-462d-b4c6-c2904d68d8e8__get_publishable_keys",
+      "mcp__e202c9ce-10aa-462d-b4c6-c2904d68d8e8__execute_sql",
+      "mcp__e202c9ce-10aa-462d-b4c6-c2904d68d8e8__apply_migration",
+      "Bash(git init:*)",
+      "Bash(git config:*)",
+      "Bash(gh repo:*)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
