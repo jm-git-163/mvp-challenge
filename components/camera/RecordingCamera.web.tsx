@@ -1,7 +1,7 @@
 /**
  * RecordingCamera.web.tsx — 웹 전용
- * expo-camera 없이 브라우저 getUserMedia 사용.
- * 실제 카메라 스트림 표시 + 목 녹화 흐름.
+ * 브라우저 getUserMedia 사용. 전면/후면 카메라 전환 지원.
+ * 실제 카메라 스트림 표시 + MediaRecorder 녹화.
  */
 import React, {
   forwardRef,
@@ -14,6 +14,7 @@ import { View, StyleSheet, Text } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
 
 interface Props {
+  facing?:             'front' | 'back';
   onFrame?:            (base64: string, w: number, h: number) => void;
   onPermissionDenied?: () => void;
   children?:           React.ReactNode;
@@ -21,55 +22,88 @@ interface Props {
 }
 
 const RecordingCameraWeb = forwardRef<RecordingCameraHandle, Props>(
-  ({ onPermissionDenied, children }, ref) => {
+  ({ facing = 'front', onPermissionDenied, children }, ref) => {
     const videoRef  = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const mrRef     = useRef<MediaRecorder | null>(null);
-    const [ready, setReady] = useState(false);
-    const [denied, setDenied] = useState(false);
     const isRecRef  = useRef(false);
+    const [ready,  setReady]  = useState(false);
+    const [denied, setDenied] = useState(false);
 
-    // 브라우저 카메라 스트림 연결
     useEffect(() => {
+      let cancelled = false;
+
+      const facingMode = facing === 'front' ? 'user' : 'environment';
+
+      // Stop any existing stream
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setReady(false);
+
       navigator.mediaDevices
-        ?.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+        ?.getUserMedia({ video: { facingMode }, audio: true })
         .then((stream) => {
+          if (cancelled) {
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
           streamRef.current = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.play();
+            videoRef.current.play().catch(() => {});
           }
           setReady(true);
         })
         .catch(() => {
-          setDenied(true);
-          onPermissionDenied?.();
+          if (!cancelled) {
+            setDenied(true);
+            onPermissionDenied?.();
+          }
         });
 
       return () => {
+        cancelled = true;
         streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
       };
-    }, []);
+    }, [facing]);
 
     useImperativeHandle(ref, () => ({
       startRecording: () =>
         new Promise<string>((resolve) => {
+          const stream = streamRef.current;
+          if (!stream) { resolve(''); return; }
+
           isRecRef.current = true;
-          // 웹: 브라우저 MediaRecorder로 녹화 (간이 구현)
-          if (!streamRef.current) { resolve(''); return; }
           const chunks: BlobPart[] = [];
-          const mr = new MediaRecorder(streamRef.current);
-          mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+          // Pick best supported mime type
+          const mimeTypes = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm',
+            'video/mp4',
+            '',
+          ];
+          const mimeType = mimeTypes.find((m) => !m || MediaRecorder.isTypeSupported(m)) ?? '';
+          const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+          mr.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+          };
           mr.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/webm' });
+            const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
             resolve(URL.createObjectURL(blob));
             isRecRef.current = false;
           };
-          mr.start();
-          // maxDuration 60초 후 자동 stop
-          setTimeout(() => { if (mr.state !== 'inactive') mr.stop(); }, 60000);
-          // stop 호출용으로 컴포넌트 내부 ref에 저장
+
+          mr.start(100); // collect data every 100ms
           mrRef.current = mr;
+
+          // Safety stop after 90s
+          setTimeout(() => {
+            if (mr.state !== 'inactive') mr.stop();
+          }, 90000);
         }),
 
       stopRecording: () => {
@@ -90,6 +124,8 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, Props>(
       );
     }
 
+    const isFront = facing === 'front';
+
     return (
       <View style={styles.container}>
         {/* @ts-ignore — web video element */}
@@ -100,16 +136,19 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, Props>(
           playsInline
           style={{
             position: 'absolute',
-            top: 0, left: 0,
-            width: '100%', height: '100%',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
             objectFit: 'cover',
-            transform: 'scaleX(-1)', // 전면 카메라 미러
+            // Mirror front camera
+            transform: isFront ? 'scaleX(-1)' : 'none',
           }}
         />
         {children}
       </View>
     );
-  }
+  },
 );
 
 RecordingCameraWeb.displayName = 'RecordingCameraWeb';

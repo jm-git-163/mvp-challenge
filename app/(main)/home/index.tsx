@@ -15,14 +15,17 @@ import { useSessionStore } from '../../../store/sessionStore';
 import type { Template } from '../../../types/template';
 
 const GENRES: Array<{ label: string; value: Template['genre'] | 'all' }> = [
-  { label: '전체', value: 'all' },
-  { label: 'K-POP', value: 'kpop' },
-  { label: '힙합', value: 'hiphop' },
-  { label: '피트니스', value: 'fitness' },
-  { label: '챌린지', value: 'challenge' },
-  { label: '여행', value: 'travel' },
-  { label: '일상', value: 'daily' },
-  { label: '프로모션', value: 'promotion' },
+  { label: '전체',       value: 'all' },
+  { label: 'K-POP',     value: 'kpop' },
+  { label: '힙합',       value: 'hiphop' },
+  { label: '피트니스',   value: 'fitness' },
+  { label: '챌린지',     value: 'challenge' },
+  { label: '여행',       value: 'travel' },
+  { label: '일상',       value: 'daily' },
+  { label: '프로모션',   value: 'promotion' },
+  { label: '뉴스',       value: 'news' },
+  { label: '영어',       value: 'english' },
+  { label: '동화/키즈',  value: 'kids' },
 ];
 
 export default function HomeScreen() {
@@ -31,7 +34,7 @@ export default function HomeScreen() {
   const startSession = useSessionStore((s) => s.startSession);
 
   const { templates, loading, error, refetch } = useTemplates(
-    selectedGenre !== 'all' ? { genre: selectedGenre } : undefined
+    selectedGenre !== 'all' ? { genre: selectedGenre } : undefined,
   );
 
   const handleSelectTemplate = (template: Template) => {
@@ -55,7 +58,9 @@ export default function HomeScreen() {
               style={[styles.filterChip, selectedGenre === g.value && styles.filterChipActive]}
               onPress={() => setSelectedGenre(g.value)}
             >
-              <Text style={[styles.filterText, selectedGenre === g.value && styles.filterTextActive]}>
+              <Text
+                style={[styles.filterText, selectedGenre === g.value && styles.filterTextActive]}
+              >
                 {g.label}
               </Text>
             </TouchableOpacity>

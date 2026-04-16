@@ -1,19 +1,18 @@
 /**
  * record/index.tsx
  *
- * 촬영 메인 화면 — 제스처 판정 + 효과음 + 미션 오버레이
+ * 촬영 메인 화면 — 풀스크린 카메라 + 미션 카드 오버레이 + 가상 배경
  *
  * 레이아웃:
- *   ┌─────────────────────────┐
- *   │  [상단 18%] 판정 / 점수  │  JudgementFeedback
- *   ├─────────────────────────┤
- *   │  [카메라 62%]            │  RecordingCamera
- *   │    └ 미션 오버레이 (상단)│
- *   │    └ 포즈 오버레이       │
- *   │    └ 카운트다운           │
- *   ├─────────────────────────┤
- *   │  [하단 20%] 타이밍바     │  TimingBar + 버튼
- *   └─────────────────────────┘
+ *   ┌──────────────────────────────┐
+ *   │  [풀스크린] VirtualBg + Camera │
+ *   │    └ 상단 HUD (score, REC)    │
+ *   │    └ 음성 자막 (voice_read)   │
+ *   │    └ 카운트다운 오버레이       │
+ *   │    └ AnimatedMissionCard (하단)│
+ *   │    └ TimingBar               │
+ *   │    └ JudgementBurst          │
+ *   └──────────────────────────────┘
  */
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
@@ -25,103 +24,149 @@ import {
   Dimensions,
   Alert,
   SafeAreaView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import RecordingCamera, {
   type RecordingCameraHandle,
 } from '../../../components/camera/RecordingCamera';
-import PoseOverlay      from '../../../components/overlay/PoseOverlay';
-import JudgementFeedback from '../../../components/ui/JudgementFeedback';
-import TimingBar         from '../../../components/ui/TimingBar';
+import TimingBar          from '../../../components/ui/TimingBar';
+import VirtualBackgroundFrame from '../../../components/ui/VirtualBackgroundFrame';
+import AnimatedMissionCard   from '../../../components/mission/AnimatedMissionCard';
+import JudgementBurst        from '../../../components/mission/JudgementBurst';
 
-import { usePoseDetection }  from '../../../hooks/usePoseDetection';
-import { useJudgement }      from '../../../hooks/useJudgement';
-import { useRecording }      from '../../../hooks/useRecording';
-import { useSessionStore }   from '../../../store/sessionStore';
-import { playSound, initAudio } from '../../../utils/soundUtils';
+import { usePoseDetection }          from '../../../hooks/usePoseDetection';
+import { useJudgement, scoreToTag }  from '../../../hooks/useJudgement';
+import { useRecording }              from '../../../hooks/useRecording';
+import { useSessionStore }           from '../../../store/sessionStore';
+import { playSound, initAudio, speakJudgement } from '../../../utils/soundUtils';
 import type { JudgementTag } from '../../../types/session';
 
-const { height: SCREEN_H } = Dimensions.get('window');
-
-const TOP_HEIGHT    = SCREEN_H * 0.18;
-const CAMERA_HEIGHT = SCREEN_H * 0.62;
-const BOTTOM_HEIGHT = SCREEN_H * 0.20;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export default function RecordScreen() {
-  const router         = useRouter();
-  const cameraRef      = useRef<RecordingCameraHandle>(null);
-  const { activeTemplate, frameTags } = useSessionStore();
+  const router    = useRouter();
+  const cameraRef = useRef<RecordingCameraHandle>(null);
 
-  // ── 훅 연결 ──────────────────────────────────
-  const { isReady, landmarks, detect }  = usePoseDetection();
-  const { judge }                        = useJudgement();
+  const { activeTemplate } = useSessionStore();
+
+  // Camera facing — selfie or environment
+  const defaultFacing = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
+  const [facing, setFacing] = useState<'front' | 'back'>(defaultFacing);
+
+  const { isReady, landmarks, detect } = usePoseDetection();
+  const { judge, voiceTranscript, resetVoice } = useJudgement();
   const {
     state, countdown, elapsed,
     videoUri, start, stop, reset,
   } = useRecording();
 
-  // 판정 결과 상태
-  const [judgement, setJudgement] = useState<{
-    score: number;
-    tag: JudgementTag;
-    currentMission: ReturnType<typeof judge>['currentMission'];
-  }>({ score: 0, tag: 'fail', currentMission: null });
+  // Judgement state
+  const [currentScore,   setCurrentScore]   = useState(0);
+  const [currentTag,     setCurrentTag]     = useState<JudgementTag>('fail');
+  const [currentMission, setCurrentMission] = useState<ReturnType<typeof judge>['currentMission']>(null);
 
-  // 사운드용 이전 태그 추적
-  const prevTagRef = useRef<JudgementTag>('fail');
-  // 카운트다운 이전 값 추적 (tick 소리용)
+  // Burst effect state
+  const [burstVisible, setBurstVisible] = useState(false);
+  const [burstTag,     setBurstTag]     = useState<JudgementTag | null>(null);
+  const [combo,        setCombo]        = useState(0);
+
+  // Sound tracking refs
+  const prevTagRef       = useRef<JudgementTag>('fail');
   const prevCountdownRef = useRef<number>(3);
+  const comboRef         = useRef(0);
+  const burstTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── 템플릿 없으면 뒤로 ──────────────────────
+  // Redirect if no template
   useEffect(() => {
     if (!activeTemplate) router.back();
   }, [activeTemplate]);
 
-  // ── 포즈 판정 (랜드마크 변경마다) ──────────
+  // Reset voice on unmount
   useEffect(() => {
-    if (state !== 'recording' || !landmarks.length) return;
-    const result = judge(landmarks);
-    setJudgement(result);
+    return () => {
+      resetVoice();
+    };
+  }, [resetVoice]);
 
-    // 태그 변경 시에만 효과음 재생
+  // Pose judgement loop
+  useEffect(() => {
+    if (state !== 'recording') return;
+    const result = judge(landmarks.length > 0 ? landmarks : []);
+    setCurrentScore(result.score);
+    setCurrentTag(result.tag);
+    setCurrentMission(result.currentMission);
+
     if (result.tag !== prevTagRef.current) {
+      const prevTag = prevTagRef.current;
       prevTagRef.current = result.tag;
-      if (result.tag === 'perfect') playSound('perfect');
-      else if (result.tag === 'good') playSound('good');
-      else playSound('fail');
-    }
-  }, [landmarks, state]);
 
-  // ── 카운트다운 tick 소리 ──────────────────
+      // Sound
+      if (result.tag === 'perfect') {
+        playSound('perfect');
+      } else if (result.tag === 'good') {
+        playSound('good');
+      } else {
+        playSound('fail');
+      }
+
+      // Combo tracking
+      if (result.tag !== 'fail') {
+        comboRef.current += 1;
+        setCombo(comboRef.current);
+        if (comboRef.current >= 3) {
+          playSound('combo');
+          speakJudgement('combo');
+        } else if (result.tag === 'perfect') {
+          speakJudgement('perfect');
+        } else {
+          speakJudgement('good');
+        }
+      } else {
+        if (comboRef.current >= 2) {
+          // Lost combo
+          playSound('oops');
+          speakJudgement('fail');
+        }
+        comboRef.current = 0;
+        setCombo(0);
+      }
+
+      // Burst (only on tag transitions to perfect or good)
+      if (result.tag !== 'fail' || prevTag !== 'fail') {
+        if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+        setBurstTag(result.tag);
+        setBurstVisible(true);
+        burstTimerRef.current = setTimeout(() => {
+          setBurstVisible(false);
+        }, 950);
+      }
+    }
+  }, [landmarks, state, elapsed]);
+
+  // Countdown tick sound
   useEffect(() => {
     if (state === 'countdown' && countdown !== prevCountdownRef.current) {
       prevCountdownRef.current = countdown;
-      if (countdown > 0) {
-        playSound('tick');
-      }
+      if (countdown > 0) playSound('tick');
+      else playSound('countdown_end');
     }
   }, [state, countdown]);
 
-  // ── 녹화 시작 시 start 소리 ──────────────
+  // Recording start sound
   useEffect(() => {
     if (state === 'recording') {
       playSound('start');
+      comboRef.current = 0;
+      setCombo(0);
     }
   }, [state]);
 
-  // ── 카메라 프레임 → 포즈 추정 ───────────────
-  const handleFrame = useCallback(
-    async (base64: string, w: number, h: number) => {
-      if (state !== 'recording' || !isReady) return;
-      await detect(base64, w, h);
-    },
-    [state, isReady, detect]
-  );
-
-  // ── 녹화 완료 → 결과 화면 이동 ─────────────
+  // Navigate to result when done
   useEffect(() => {
     if (state === 'done' && videoUri) {
+      resetVoice();
       router.push({
         pathname: '/(main)/result',
         params: { videoUri },
@@ -129,54 +174,31 @@ export default function RecordScreen() {
     }
   }, [state, videoUri]);
 
+  // Camera frame → pose detection
+  const handleFrame = useCallback(
+    async (base64: string, w: number, h: number) => {
+      if (state !== 'recording' || !isReady) return;
+      await detect(base64, w, h);
+    },
+    [state, isReady, detect],
+  );
+
   if (!activeTemplate) return null;
 
-  const isCountdown  = state === 'countdown';
-  const isRecording  = state === 'recording';
-  const isPaused     = state === 'idle' || state === 'processing';
+  const isCountdown = state === 'countdown';
+  const isRecording = state === 'recording';
+  const isPaused    = state === 'idle' || state === 'processing';
 
-  // 현재 목표 관절 (현재 미션 기준 — 레거시 pose 타입)
-  const targetJoints = judgement.currentMission?.target_joints;
-  const currentMission = judgement.currentMission;
+  const virtualBg = activeTemplate.virtual_bg;
 
   return (
     <SafeAreaView style={styles.root}>
+      {/* ── 풀스크린 가상 배경 + 카메라 ──────── */}
+      <VirtualBackgroundFrame bg={virtualBg} width={SCREEN_W} height={SCREEN_H}>
 
-      {/* ── 상단: 판정 영역 ─────────────────── */}
-      <View style={[styles.topSection, { height: TOP_HEIGHT }]}>
-        {isRecording ? (
-          <JudgementFeedback
-            score={judgement.score}
-            tag={judgement.tag}
-            currentMission={judgement.currentMission}
-            elapsed={elapsed}
-          />
-        ) : (
-          <View style={styles.titleArea}>
-            <Text style={styles.templateName} numberOfLines={1}>
-              {(activeTemplate as any).theme_emoji
-                ? `${(activeTemplate as any).theme_emoji} ${activeTemplate.name}`
-                : activeTemplate.name}
-            </Text>
-            <Text style={styles.templateMeta}>
-              {activeTemplate.duration_sec}초 · {activeTemplate.missions.length}개 미션 · BPM {activeTemplate.bpm}
-            </Text>
-            {(activeTemplate as any).scene ? (
-              <Text style={styles.sceneText} numberOfLines={2}>
-                {(activeTemplate as any).scene}
-              </Text>
-            ) : null}
-            {!isReady && (
-              <Text style={styles.loadingText}>포즈 AI 로딩 중...</Text>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* ── 중앙: 카메라 + 오버레이 ─────────── */}
-      <View style={[styles.cameraSection, { height: CAMERA_HEIGHT }]}>
         <RecordingCamera
           ref={cameraRef}
+          facing={facing}
           onFrame={handleFrame}
           paused={isPaused}
           onPermissionDenied={() => {
@@ -184,82 +206,134 @@ export default function RecordScreen() {
             router.back();
           }}
         >
-          {/* 포즈 오버레이 */}
-          <PoseOverlay
-            userPose={landmarks}
-            targetJoints={targetJoints}
-            width={Dimensions.get('window').width}
-            height={CAMERA_HEIGHT}
-          />
 
-          {/* 미션 오버레이 — 카메라 상단, 얼굴 영역 위 */}
-          {isRecording && currentMission && (
-            <View style={styles.missionOverlay}>
-              <View style={styles.missionOverlayInner}>
-                {currentMission.guide_emoji ? (
-                  <Text style={styles.missionOverlayEmoji}>
-                    {currentMission.guide_emoji}
-                  </Text>
-                ) : null}
-                <Text style={styles.missionOverlayText}>
-                  {currentMission.guide_text}
+          {/* ── 상단 HUD ─────────────────────── */}
+          {isRecording && (
+            <View style={styles.topHud}>
+              <View style={styles.recBadge}>
+                <View style={styles.recDot} />
+                <Text style={styles.recText}>REC</Text>
+              </View>
+
+              <View style={[styles.scoreBadge, { borderColor: currentTag === 'perfect' ? '#4caf50' : currentTag === 'good' ? '#ffc107' : '#ff6b6b' }]}>
+                <Text style={[
+                  styles.scoreText,
+                  { color: currentTag === 'perfect' ? '#4caf50' : currentTag === 'good' ? '#ffc107' : '#ff6b6b' },
+                ]}>
+                  {Math.round(currentScore * 100)}
                 </Text>
               </View>
+
+              {combo >= 2 && (
+                <View style={styles.comboBadge}>
+                  <Text style={styles.comboText}>🔥 {combo}x</Text>
+                </View>
+              )}
+
+              {/* 카메라 전환 버튼 */}
+              <TouchableOpacity
+                style={styles.flipBtn}
+                onPress={() => setFacing((f) => (f === 'front' ? 'back' : 'front'))}
+              >
+                <Text style={styles.flipText}>🔄</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          {/* 카운트다운 오버레이 */}
+          {/* ── 대기 중 템플릿 정보 ──────────── */}
+          {!isRecording && !isCountdown && (
+            <View style={styles.infoOverlay}>
+              <Text style={styles.templateEmoji}>{activeTemplate.theme_emoji}</Text>
+              <Text style={styles.templateName}>{activeTemplate.name}</Text>
+              <Text style={styles.templateMeta}>
+                {activeTemplate.duration_sec}초 · {activeTemplate.missions.length}개 미션 · BPM {activeTemplate.bpm}
+              </Text>
+              <Text style={styles.sceneText} numberOfLines={2}>
+                {activeTemplate.scene}
+              </Text>
+              {activeTemplate.camera_mode === 'selfie' && (
+                <Text style={styles.modeHint}>📱 셀카 모드 — 전면 카메라</Text>
+              )}
+              {!isReady && (
+                <Text style={styles.loadingText}>포즈 AI 로딩 중...</Text>
+              )}
+            </View>
+          )}
+
+          {/* ── 음성 자막 (voice_read 미션 중) ── */}
+          {isRecording && currentMission?.type === 'voice_read' && voiceTranscript !== '' && (
+            <View style={styles.voiceSubtitleBox}>
+              <Text style={styles.voiceSubtitleText}>{voiceTranscript}</Text>
+            </View>
+          )}
+
+          {/* ── 카운트다운 오버레이 ───────────── */}
           {isCountdown && (
             <View style={styles.countdownOverlay}>
               <Text style={styles.countdownNumber}>
                 {countdown > 0 ? countdown : 'GO!'}
               </Text>
+              <Text style={styles.countdownSub}>
+                {activeTemplate.theme_emoji} {activeTemplate.name}
+              </Text>
             </View>
           )}
 
-          {/* 녹화 중 REC 표시 */}
+          {/* ── 미션 카드 (하단) ─────────────── */}
           {isRecording && (
-            <View style={styles.recBadge}>
-              <View style={styles.recDot} />
-              <Text style={styles.recText}>REC</Text>
+            <AnimatedMissionCard
+              mission={currentMission}
+              elapsedMs={elapsed}
+              score={currentScore}
+              tag={currentTag}
+            />
+          )}
+
+          {/* ── 타이밍바 (미션 카드 아래) ─────── */}
+          {isRecording && (
+            <View style={styles.timingBarWrapper}>
+              <TimingBar template={activeTemplate} elapsedMs={elapsed} />
             </View>
           )}
-        </RecordingCamera>
-      </View>
 
-      {/* ── 하단: 타이밍바 + 버튼 ───────────── */}
-      <View style={[styles.bottomSection, { height: BOTTOM_HEIGHT }]}>
-        {isRecording ? (
-          <>
-            <TimingBar template={activeTemplate} elapsedMs={elapsed} />
+          {/* ── 판정 버스트 효과 ─────────────── */}
+          {isRecording && (
+            <JudgementBurst tag={burstTag} combo={combo} visible={burstVisible} />
+          )}
+
+          {/* ── 정지 버튼 (녹화 중) ──────────── */}
+          {isRecording && (
             <TouchableOpacity
               style={styles.stopBtn}
               onPress={() => cameraRef.current && stop(cameraRef.current)}
             >
               <View style={styles.stopIcon} />
             </TouchableOpacity>
-          </>
-        ) : (
-          <View style={styles.startArea}>
-            <TouchableOpacity
-              style={[styles.startBtn, !isReady && styles.startBtnDisabled]}
-              onPress={() => {
-                initAudio();
-                if (cameraRef.current) start(cameraRef.current);
-              }}
-              disabled={isCountdown || state === 'processing'}
-            >
-              <Text style={styles.startBtnText}>
-                {isCountdown ? `${countdown}...` : '▶ 챌린지 시작'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-              <Text style={styles.backText}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          )}
 
+          {/* ── 시작 버튼 (대기 중) ──────────── */}
+          {!isRecording && !isCountdown && (
+            <View style={styles.startArea}>
+              <TouchableOpacity
+                style={[styles.startBtn, !isReady && styles.startBtnDisabled]}
+                onPress={() => {
+                  initAudio();
+                  if (cameraRef.current) start(cameraRef.current);
+                }}
+                disabled={isCountdown || state === 'processing'}
+              >
+                <Text style={styles.startBtnText}>
+                  ▶ 챌린지 시작
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <Text style={styles.backText}>취소</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+        </RecordingCamera>
+      </VirtualBackgroundFrame>
     </SafeAreaView>
   );
 }
@@ -269,91 +343,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f0e17',
   },
-  // ── 상단 ──
-  topSection: {
-    justifyContent: 'center',
-  },
-  titleArea: {
-    paddingHorizontal: 16,
-    gap: 4,
-  },
-  templateName: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  templateMeta: {
-    color: '#aaa',
-    fontSize: 13,
-  },
-  sceneText: {
-    color: '#888',
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  loadingText: {
-    color: '#e94560',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  // ── 카메라 ──
-  cameraSection: {
-    overflow: 'hidden',
-  },
-  // ── 미션 오버레이 ──
-  missionOverlay: {
+
+  // ── 상단 HUD ──
+  topHud: {
     position: 'absolute',
     top: 10,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  missionOverlayInner: {
+    left: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  missionOverlayEmoji: {
-    fontSize: 24,
-  },
-  missionOverlayText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '800',
-    textShadowColor: '#000',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  countdownOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  countdownNumber: {
-    fontSize: 96,
-    fontWeight: '900',
-    color: '#fff',
-    textShadowColor: '#e94560',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
+    zIndex: 20,
   },
   recBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
@@ -369,11 +375,140 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  // ── 하단 ──
-  bottomSection: {
-    justifyContent: 'center',
+  scoreBadge: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderWidth: 1.5,
+    borderColor: '#4caf50',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
+  scoreText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#4caf50',
+  },
+  comboBadge: {
+    backgroundColor: 'rgba(255,107,53,0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  comboText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  flipBtn: {
+    marginLeft: 'auto',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 6,
+    borderRadius: 20,
+  },
+  flipText: {
+    fontSize: 18,
+  },
+
+  // ── 대기 정보 오버레이 ──
+  infoOverlay: {
+    position: 'absolute',
+    top: '25%',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 15,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20,
+    padding: 20,
+  },
+  templateEmoji: {
+    fontSize: 48,
+  },
+  templateName: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  templateMeta: {
+    color: '#ccc',
+    fontSize: 13,
+  },
+  sceneText: {
+    color: '#aaa',
+    fontSize: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  modeHint: {
+    color: '#7eb3ff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  loadingText: {
+    color: '#e94560',
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  // ── 음성 자막 ──
+  voiceSubtitleBox: {
+    position: 'absolute',
+    top: '55%',
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 10,
+    padding: 10,
+    zIndex: 18,
+    alignItems: 'center',
+  },
+  voiceSubtitleText: {
+    color: '#ffe082',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // ── 카운트다운 ──
+  countdownOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 30,
+    gap: 12,
+  },
+  countdownNumber: {
+    fontSize: 96,
+    fontWeight: '900',
+    color: '#fff',
+    textShadowColor: '#e94560',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 24,
+  },
+  countdownSub: {
+    color: '#ddd',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  // ── 타이밍바 래퍼 ──
+  timingBarWrapper: {
+    position: 'absolute',
+    bottom: 72,
+    left: 0,
+    right: 0,
+    zIndex: 9,
+  },
+
+  // ── 정지 버튼 ──
   stopBtn: {
+    position: 'absolute',
+    bottom: 16,
     alignSelf: 'center',
     width: 56,
     height: 56,
@@ -383,7 +518,7 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    zIndex: 25,
   },
   stopIcon: {
     width: 20,
@@ -391,33 +526,45 @@ const styles = StyleSheet.create({
     backgroundColor: '#e94560',
     borderRadius: 3,
   },
+
+  // ── 시작 버튼 영역 ──
   startArea: {
+    position: 'absolute',
+    bottom: 32,
+    left: 24,
+    right: 24,
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 24,
+    zIndex: 25,
   },
   startBtn: {
     backgroundColor: '#e94560',
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 40,
-    borderRadius: 30,
+    borderRadius: 32,
     width: '100%',
     alignItems: 'center',
+    shadowColor: '#e94560',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   startBtnDisabled: {
     backgroundColor: '#555',
+    shadowOpacity: 0,
   },
   startBtnText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
     letterSpacing: 1,
   },
   backBtn: {
     paddingVertical: 8,
   },
   backText: {
-    color: '#888',
+    color: '#aaa',
     fontSize: 14,
   },
 });

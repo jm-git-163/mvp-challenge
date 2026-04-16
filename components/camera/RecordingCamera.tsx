@@ -1,8 +1,7 @@
 /**
  * RecordingCamera.tsx
  * expo-camera 기반 카메라 컴포넌트
- * 웹: getUserMedia 카메라 프리뷰 (포즈 추정은 목 모드 동작)
- * 네이티브: 전면 카메라 + 10fps 프레임 캡처 + 영상 녹화
+ * 네이티브: 카메라 방향 지원 + 영상 녹화
  */
 
 import React, {
@@ -16,8 +15,8 @@ import { StyleSheet, View, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import type { CameraView as CameraViewType } from 'expo-camera';
 
-const FRAME_INTERVAL   = 100;   // 10fps
-const CAPTURE_QUALITY  = 0.25;
+const FRAME_INTERVAL  = 100;   // 10fps
+const CAPTURE_QUALITY = 0.25;
 
 export interface RecordingCameraHandle {
   startRecording: () => Promise<string>;
@@ -26,6 +25,7 @@ export interface RecordingCameraHandle {
 }
 
 interface Props {
+  facing?:             'front' | 'back';
   onFrame?:            (base64: string, width: number, height: number) => void;
   onPermissionDenied?: () => void;
   children?:           React.ReactNode;
@@ -33,12 +33,12 @@ interface Props {
 }
 
 const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
-  ({ onFrame, onPermissionDenied, children, paused = false }, ref) => {
+  ({ facing = 'front', onFrame, onPermissionDenied, children, paused = false }, ref) => {
     const [permission, requestPermission] = useCameraPermissions();
-    const cameraRef        = useRef<CameraViewType>(null);
-    const frameTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-    const isRecordingRef   = useRef(false);
-    const isCaptureRef     = useRef(false);
+    const cameraRef      = useRef<CameraViewType>(null);
+    const frameTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+    const isRecordingRef = useRef(false);
+    const isCaptureRef   = useRef(false);
 
     // 권한 요청
     useEffect(() => {
@@ -50,9 +50,9 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
       }
     }, [permission]);
 
-    // 프레임 캡처 루프 (네이티브 전용 — 웹은 목 포즈로 자동 처리)
+    // 프레임 캡처 루프 (네이티브 전용)
     const captureFrame = useCallback(async () => {
-      if (Platform.OS === 'web') return;        // 웹은 목 모드에서 자동 생성
+      if (Platform.OS === 'web') return;
       if (!cameraRef.current || isCaptureRef.current || paused) return;
       isCaptureRef.current = true;
       try {
@@ -66,7 +66,7 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
           onFrame(photo.base64, photo.width || 256, photo.height || 256);
         }
       } catch {
-        // 프레임 단위 실패 무시
+        // frame-level error, ignored
       } finally {
         isCaptureRef.current = false;
       }
@@ -75,15 +75,15 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
     useEffect(() => {
       if (!permission?.granted || Platform.OS === 'web') return;
       frameTimerRef.current = setInterval(captureFrame, FRAME_INTERVAL);
-      return () => { if (frameTimerRef.current) clearInterval(frameTimerRef.current); };
+      return () => {
+        if (frameTimerRef.current) clearInterval(frameTimerRef.current);
+      };
     }, [captureFrame, permission?.granted]);
 
-    // 외부에서 호출 가능한 녹화 핸들
     useImperativeHandle(ref, () => ({
       startRecording: () =>
         new Promise<string>((resolve, reject) => {
           if (Platform.OS === 'web') {
-            // 웹: 5초 후 빈 URI 반환 (시뮬레이션)
             setTimeout(() => resolve(''), 5000);
             return;
           }
@@ -91,7 +91,10 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
           isRecordingRef.current = true;
           cameraRef.current
             .recordAsync({ maxDuration: 60 })
-            .then((r) => { isRecordingRef.current = false; resolve(r?.uri ?? ''); })
+            .then((r) => {
+              isRecordingRef.current = false;
+              resolve(r?.uri ?? '');
+            })
             .catch(reject);
         }),
 
@@ -103,7 +106,6 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
       isRecording: () => isRecordingRef.current,
     }));
 
-    // 웹: 브라우저 카메라 없이도 어두운 배경으로 대체
     if (!permission?.granted && Platform.OS !== 'web') {
       return <View style={styles.container} />;
     }
@@ -114,18 +116,17 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
           <CameraView
             ref={cameraRef}
             style={StyleSheet.absoluteFill}
-            facing={'front' as CameraType}
+            facing={facing as CameraType}
             mode="video"
             videoQuality="720p"
           />
         ) : (
-          // 웹: 카메라 프리뷰 대신 어두운 배경 + 목 오버레이 표시
           <View style={[StyleSheet.absoluteFill, styles.webPlaceholder]} />
         )}
         {children}
       </View>
     );
-  }
+  },
 );
 
 RecordingCamera.displayName = 'RecordingCamera';

@@ -1,15 +1,15 @@
 /**
  * result/index.tsx
  *
- * 촬영 완료 후 결과 화면 — Sprint 1-4
+ * 촬영 완료 후 결과 화면
  *
  * 기능:
  *  1. 세션 요약 (평균 점수, 성공률, Perfect/Good/Fail 분포)
- *  2. 이원화 렌더링 선택:
- *     - '성공 장면만' → POST /edit/auto → 편집 영상
- *     - '전체 기록'   → 원본 영상 그대로 저장
- *  3. 완료 후 Supabase에 세션 저장
- *  4. 홈으로 돌아가기
+ *  2. SNS 공유 (Web Share API / 클립보드 폴백)
+ *  3. 영상 다운로드 버튼
+ *  4. 해시태그 칩 표시
+ *  5. 이원화 렌더링 선택 (성공 장면만 / 전체 기록)
+ *  6. 완료 후 Supabase에 세션 저장
  */
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
@@ -29,106 +29,144 @@ import { useUserStore }    from '../../../store/userStore';
 import { createSession, uploadVideo, upsertUserProfile, fetchUserProfile } from '../../../services/supabase';
 import { requestAutoEdit } from '../../../services/api';
 import type { JudgementTag } from '../../../types/session';
+import type { Template } from '../../../types/template';
 
-// ── 판정별 색상 ──────────────────────────────
 const TAG_COLORS: Record<JudgementTag, string> = {
   perfect: '#4caf50',
   good:    '#ffc107',
   fail:    '#ff6b6b',
 };
 
+// ── SNS 공유 ────────────────────────────────────────────────────────────────
+async function handleShare(
+  videoUri: string,
+  template: Template,
+  avgScore: number,
+): Promise<void> {
+  const caption = template.sns_template.caption_template
+    .replace('{template_name}', template.name)
+    .replace('{score}', String(Math.round(avgScore * 100)));
+
+  const hashtagStr = template.sns_template.hashtags
+    .map((h) => '#' + h)
+    .join(' ');
+  const fullText = caption + '\n' + hashtagStr;
+
+  if (typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share) {
+    try {
+      await (navigator as Navigator & { share: (data: ShareData) => Promise<void> }).share({
+        title: `${template.theme_emoji} ${template.name} 챌린지 완성!`,
+        text: fullText,
+        url: typeof window !== 'undefined' ? window.location.origin : '',
+      });
+    } catch {
+      // User cancelled share — silently ignore
+    }
+    return;
+  }
+
+  // Fallback: copy to clipboard
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    await navigator.clipboard.writeText(fullText);
+    Alert.alert('클립보드에 복사됨!', '캡션이 복사되었습니다. SNS에 붙여넣으세요!');
+  } else {
+    Alert.alert('공유', fullText);
+  }
+}
+
+// ── 영상 다운로드 (웹) ─────────────────────────────────────────────────────
+function handleDownload(videoUri: string, templateName: string): void {
+  if (typeof window === 'undefined' || !videoUri) return;
+  const a = document.createElement('a');
+  a.href = videoUri;
+  a.download = `${templateName}_챌린지.webm`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 export default function ResultScreen() {
-  const router  = useRouter();
-  const params  = useLocalSearchParams<{ videoUri: string }>();
+  const router   = useRouter();
+  const params   = useLocalSearchParams<{ videoUri: string }>();
   const videoUri = params.videoUri ?? '';
 
-  const { frameTags, activeTemplate, lastSession, setLastSession, reset } = useSessionStore();
-  const { userId, profile, setProfile } = useUserStore();
+  const { frameTags, activeTemplate, setLastSession, reset } = useSessionStore();
+  const { userId } = useUserStore();
 
-  const [editMode, setEditMode]     = useState<'auto' | 'full' | null>(null);
-  const [saving,   setSaving]       = useState(false);
-  const [done,     setDone]         = useState(false);
+  const [editMode, setEditMode] = useState<'auto' | 'full' | null>(null);
+  const [saving,   setSaving]   = useState(false);
+  const [done,     setDone]     = useState(false);
+  const [shared,   setShared]   = useState(false);
 
-  // ── 세션 통계 계산 ───────────────────────────
+  // ── 세션 통계 계산 ─────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    if (!frameTags.length) return { avgScore: 0, successRate: 0, counts: { perfect: 0, good: 0, fail: 0 } };
-
+    if (!frameTags.length) {
+      return { avgScore: 0, successRate: 0, counts: { perfect: 0, good: 0, fail: 0 } };
+    }
     const total = frameTags.length;
     const avgScore = frameTags.reduce((s, f) => s + f.score, 0) / total;
-    const counts = { perfect: 0, good: 0, fail: 0 };
-    frameTags.forEach((f) => counts[f.tag]++);
+    const counts: Record<JudgementTag, number> = { perfect: 0, good: 0, fail: 0 };
+    frameTags.forEach((f) => { counts[f.tag]++; });
     const successRate = (counts.perfect + counts.good) / total;
-
     return { avgScore, successRate, counts };
   }, [frameTags]);
 
-  // ── 편집 + 저장 처리 ─────────────────────────
-  const handleSave = useCallback(async (mode: 'auto' | 'full') => {
-    if (!userId || !activeTemplate) {
-      Alert.alert('오류', '로그인이 필요합니다.');
-      return;
-    }
-
-    setEditMode(mode);
-    setSaving(true);
-
-    try {
-      let editedUri: string | null = null;
-
-      if (mode === 'auto' && frameTags.length > 0) {
-        // 성공 구간만 자동 편집
-        editedUri = await requestAutoEdit(videoUri, frameTags);
+  // ── 저장 처리 ──────────────────────────────────────────────────────────
+  const handleSave = useCallback(
+    async (mode: 'auto' | 'full') => {
+      if (!userId || !activeTemplate) {
+        Alert.alert('오류', '로그인이 필요합니다.');
+        return;
       }
+      setEditMode(mode);
+      setSaving(true);
+      try {
+        let editedUri: string | null = null;
+        if (mode === 'auto' && frameTags.length > 0) {
+          editedUri = await requestAutoEdit(videoUri, frameTags);
+        }
+        const session = await createSession({
+          user_id:          userId,
+          template_id:      activeTemplate.id,
+          avg_score:        stats.avgScore,
+          success_rate:     stats.successRate,
+          tag_timeline:     frameTags,
+          video_url:        videoUri || null,
+          edited_video_url: editedUri,
+        });
+        setLastSession(session);
 
-      // Supabase 세션 저장
-      const session = await createSession({
-        user_id:          userId,
-        template_id:      activeTemplate.id,
-        avg_score:        stats.avgScore,
-        success_rate:     stats.successRate,
-        tag_timeline:     frameTags,
-        video_url:        videoUri || null,
-        edited_video_url: editedUri,
-      });
+        const currentProfile = await fetchUserProfile(userId);
+        const totalSessions  = (currentProfile?.total_sessions ?? 0) + 1;
+        const prevRates      = currentProfile?.success_rates ?? {};
 
-      setLastSession(session);
+        await upsertUserProfile({
+          user_id:          userId,
+          preferred_genres: [
+            ...(currentProfile?.preferred_genres ?? []),
+            activeTemplate.genre,
+          ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
+          success_rates: { ...prevRates, [activeTemplate.id]: stats.successRate },
+          total_sessions: totalSessions,
+          weak_joints: currentProfile?.weak_joints ?? [],
+        });
 
-      // 사용자 프로필 업데이트
-      const currentProfile = await fetchUserProfile(userId);
-      const totalSessions  = (currentProfile?.total_sessions ?? 0) + 1;
-      const prevRates      = currentProfile?.success_rates ?? {};
-      const templateKey    = activeTemplate.id;
+        setDone(true);
+      } catch (e) {
+        Alert.alert('저장 실패', e instanceof Error ? e.message : '저장 실패');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [userId, activeTemplate, frameTags, videoUri, stats],
+  );
 
-      await upsertUserProfile({
-        user_id:          userId,
-        preferred_genres: [
-          ...(currentProfile?.preferred_genres ?? []),
-          activeTemplate.genre,
-        ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
-        success_rates: {
-          ...prevRates,
-          [templateKey]: stats.successRate,
-        },
-        total_sessions: totalSessions,
-        weak_joints: currentProfile?.weak_joints ?? [],
-      });
-
-      setDone(true);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '저장 실패';
-      Alert.alert('저장 실패', msg);
-    } finally {
-      setSaving(false);
-    }
-  }, [userId, activeTemplate, frameTags, videoUri, stats]);
-
-  // ── 홈으로 ────────────────────────────────────
   const goHome = useCallback(() => {
     reset();
     router.replace('/(main)/home');
   }, [reset]);
 
-  // ── 완료 후 자동 홈 이동 안내 ─────────────────
+  // ── 완료 화면 ────────────────────────────────────────────────────────────
   if (done) {
     return (
       <SafeAreaView style={styles.root}>
@@ -140,6 +178,17 @@ export default function ResultScreen() {
               ? '성공 장면만 편집된 영상이 저장되었습니다.'
               : '전체 영상이 저장되었습니다.'}
           </Text>
+          {activeTemplate && (
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => handleShare(videoUri, activeTemplate, stats.avgScore).then(() => setShared(true))}
+            >
+              <Text style={styles.shareBtnText}>📤 SNS 공유하기</Text>
+            </TouchableOpacity>
+          )}
+          {shared && (
+            <Text style={styles.sharedHint}>공유 또는 클립보드 복사 완료!</Text>
+          )}
           <TouchableOpacity style={styles.homeBtn} onPress={goHome}>
             <Text style={styles.homeBtnText}>홈으로</Text>
           </TouchableOpacity>
@@ -152,22 +201,30 @@ export default function ResultScreen() {
     <SafeAreaView style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll}>
 
-        {/* ── 헤더 ────────────────────────────── */}
-        <Text style={styles.title}>챌린지 완료!</Text>
+        {/* ── 헤더 ─────────────────────────────── */}
+        <Text style={styles.title}>
+          {activeTemplate?.theme_emoji ?? '🎬'} 챌린지 완료!
+        </Text>
         {activeTemplate && (
           <Text style={styles.subtitle}>{activeTemplate.name}</Text>
         )}
 
-        {/* ── 점수 요약 ────────────────────────── */}
+        {/* ── 점수 요약 ─────────────────────────── */}
         <View style={styles.scoreCard}>
           <Text style={styles.scoreMain}>{Math.round(stats.avgScore * 100)}</Text>
           <Text style={styles.scoreLabel}>평균 점수</Text>
           <Text style={styles.successRate}>
             성공률 {Math.round(stats.successRate * 100)}%
           </Text>
+          {stats.avgScore >= 0.8 && (
+            <Text style={styles.starRating}>🌟🌟🌟 완벽해요!</Text>
+          )}
+          {stats.avgScore >= 0.6 && stats.avgScore < 0.8 && (
+            <Text style={styles.starRating}>⭐⭐ 잘했어요!</Text>
+          )}
         </View>
 
-        {/* ── 판정 분포 ────────────────────────── */}
+        {/* ── 판정 분포 ─────────────────────────── */}
         <View style={styles.tagRow}>
           {(['perfect', 'good', 'fail'] as JudgementTag[]).map((tag) => (
             <View key={tag} style={styles.tagCard}>
@@ -181,8 +238,55 @@ export default function ResultScreen() {
           ))}
         </View>
 
-        {/* ── 이원화 렌더링 선택 ───────────────── */}
-        <Text style={styles.sectionTitle}>영상 저장 방식</Text>
+        {/* ── SNS 공유 섹션 ──────────────────────── */}
+        {activeTemplate && (
+          <View style={styles.snsSection}>
+            <Text style={styles.sectionTitle}>📤 SNS 공유</Text>
+
+            {/* 해시태그 칩 */}
+            <View style={styles.hashtagRow}>
+              {activeTemplate.sns_template.hashtags.map((tag) => (
+                <View key={tag} style={styles.hashtagChip}>
+                  <Text style={styles.hashtagText}>#{tag}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* 캡션 미리보기 */}
+            <View style={styles.captionBox}>
+              <Text style={styles.captionText}>
+                {activeTemplate.sns_template.caption_template
+                  .replace('{template_name}', activeTemplate.name)
+                  .replace('{score}', String(Math.round(stats.avgScore * 100)))}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() =>
+                handleShare(videoUri, activeTemplate, stats.avgScore).then(() => setShared(true))
+              }
+            >
+              <Text style={styles.shareBtnText}>📤 SNS 공유하기</Text>
+            </TouchableOpacity>
+
+            {videoUri !== '' && (
+              <TouchableOpacity
+                style={styles.downloadBtn}
+                onPress={() => handleDownload(videoUri, activeTemplate.name)}
+              >
+                <Text style={styles.downloadBtnText}>⬇ 영상 다운로드</Text>
+              </TouchableOpacity>
+            )}
+
+            {shared && (
+              <Text style={styles.sharedHint}>클립보드에 복사되었습니다!</Text>
+            )}
+          </View>
+        )}
+
+        {/* ── 저장 방식 선택 ─────────────────────── */}
+        <Text style={[styles.sectionTitle, { marginTop: 8 }]}>영상 저장 방식</Text>
 
         <TouchableOpacity
           style={[styles.modeCard, styles.modeCardAuto]}
@@ -212,7 +316,7 @@ export default function ResultScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* ── 로딩 ────────────────────────────── */}
+        {/* ── 로딩 ─────────────────────────────── */}
         {saving && (
           <View style={styles.savingOverlay}>
             <ActivityIndicator size="large" color="#e94560" />
@@ -222,7 +326,7 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ── 취소 ────────────────────────────── */}
+        {/* ── 취소 ─────────────────────────────── */}
         <TouchableOpacity style={styles.cancelBtn} onPress={goHome}>
           <Text style={styles.cancelText}>저장 안 하고 나가기</Text>
         </TouchableOpacity>
@@ -239,11 +343,13 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
+
+  // ── 헤더 ──
   title: {
     color: '#fff',
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     textAlign: 'center',
     marginBottom: 4,
@@ -252,8 +358,9 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
+
   // ── 점수 카드 ──
   scoreCard: {
     backgroundColor: '#1a1a2e',
@@ -278,11 +385,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  starRating: {
+    fontSize: 15,
+    marginTop: 4,
+    color: '#ffd700',
+  },
+
   // ── 판정 분포 ──
   tagRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   tagCard: {
     flex: 1,
@@ -301,13 +414,81 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
   },
-  // ── 모드 카드 ──
+
+  // ── SNS 섹션 ──
+  snsSection: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    gap: 10,
+  },
   sectionTitle: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-    marginBottom: 12,
+    marginBottom: 8,
   },
+  hashtagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  hashtagChip: {
+    backgroundColor: '#e9456022',
+    borderWidth: 1,
+    borderColor: '#e94560',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  hashtagText: {
+    color: '#e94560',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  captionBox: {
+    backgroundColor: '#0f0e17',
+    borderRadius: 10,
+    padding: 12,
+  },
+  captionText: {
+    color: '#ccc',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  shareBtn: {
+    backgroundColor: '#1877f2',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  shareBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  downloadBtn: {
+    backgroundColor: '#0f0e17',
+    borderWidth: 1.5,
+    borderColor: '#555',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  downloadBtnText: {
+    color: '#aaa',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  sharedHint: {
+    color: '#4caf50',
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+
+  // ── 모드 카드 ──
   modeCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -343,6 +524,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+
   // ── 저장 중 ──
   savingOverlay: {
     alignItems: 'center',
@@ -353,6 +535,7 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 14,
   },
+
   // ── 취소 ──
   cancelBtn: {
     marginTop: 12,
@@ -363,6 +546,7 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 13,
   },
+
   // ── 완료 화면 ──
   doneContainer: {
     flex: 1,
