@@ -20,7 +20,13 @@
       "Bash(git config:*)",
       "Bash(gh repo:*)",
       "Bash(git remote:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(vercel deploy:*)",
+      "Bash(git commit -m 'fix: Vercel 빌드 peer dep 충돌 해결 \\(.npmrc legacy-peer-deps\\):*)",
+      "WebFetch(domain:mvp-ivory-kappa.vercel.app)",
+      "Bash(node -e ':*)"
     ]
   }
 }

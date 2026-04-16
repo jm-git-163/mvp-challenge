@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useUserStore } from '../store/userStore';
 import { signInAnonymously, fetchUserProfile, getMockUserId } from '../services/supabase';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
 export default function RootLayout() {
   const { setUserId, setProfile } = useUserStore();
@@ -15,30 +16,35 @@ export default function RootLayout() {
       fetchUserProfile(mockId).then((p) => { if (p) setProfile(p); });
       return;
     }
-
-    // 실 Supabase: 익명 로그인
-    signInAnonymously().then(async (uid) => {
-      if (!uid) return;
-      setUserId(uid);
-      const profile = await fetchUserProfile(uid);
-      if (profile) setProfile(profile);
-    });
+    // 실 Supabase: 익명 로그인 시도
+    signInAnonymously()
+      .then(async (uid) => {
+        if (!uid) return;
+        setUserId(uid);
+        const profile = await fetchUserProfile(uid);
+        if (profile) setProfile(profile);
+      })
+      .catch(() => {
+        // Auth 실패해도 앱은 동작 — 목 유저로 대체
+        const fallback = getMockUserId() ?? 'guest';
+        setUserId(fallback);
+      });
   }, []);
 
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#0f0e17' },
-          headerTintColor: '#fff',
+          headerStyle:      { backgroundColor: '#0f0e17' },
+          headerTintColor:  '#fff',
           headerTitleStyle: { fontWeight: '700' },
-          contentStyle: { backgroundColor: '#0f0e17' },
+          contentStyle:     { backgroundColor: '#0f0e17' },
         }}
       >
         <Stack.Screen name="(main)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)"  options={{ headerShown: false }} />
       </Stack>
-    </>
+    </ErrorBoundary>
   );
 }
