@@ -62,7 +62,10 @@ export function useRecording(): UseRecordingReturn {
     if (!template) return;
 
     setState('recording');
-    startSession(template);
+    // NOTE: startSession already called in home screen; calling stopSession+start
+    // here just updates isRecording flag without resetting frameTags again.
+    useSessionStore.getState().stopSession();
+    useSessionStore.getState().startSession(template);
 
     elapsedRef.current = 0;
     setElapsed(0);

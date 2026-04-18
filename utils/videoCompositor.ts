@@ -33,6 +33,8 @@ const W = 720;
 const H = 1280;
 const FPS = 15;
 const FRAME_MS = 1000 / FPS;
+const INTRO_MS = 4000;   // 4-second pre-made intro animation (countdown + branding)
+const OUTRO_MS = 3000;   // 3-second outro celebration (trophy + hashtags)
 
 // ---------------------------------------------------------------------------
 // Helper: rounded-rect path (no roundRect API dependency)
@@ -736,6 +738,219 @@ function createSimpleBGM(
 }
 
 // ---------------------------------------------------------------------------
+// INTRO phase (elapsed 0 → INTRO_MS):  countdown 3-2-1-GO! + branding
+// ---------------------------------------------------------------------------
+
+function drawIntroFrame(
+  ctx: CanvasRenderingContext2D,
+  template: VideoTemplate,
+  elapsed: number,
+  canvasW: number,
+  canvasH: number,
+): void {
+  const centerX = canvasW / 2;
+  const centerY = canvasH / 2;
+  const ca       = template.clipArea;
+  const cx       = ca.xPct * canvasW;
+  const cy       = ca.yPct * canvasH;
+  const cw       = ca.wPct * canvasW;
+  const ch       = ca.hPct * canvasH;
+
+  // Dark overlay over the clip area placeholder
+  ctx.save();
+  rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
+  ctx.fillStyle = 'rgba(0,0,0,0.60)';
+  ctx.fill();
+  ctx.restore();
+
+  // Countdown label: 3 → 2 → 1 → GO!
+  const secIdx     = Math.min(3, Math.floor(elapsed / 1000)); // 0,1,2,3
+  const secProg    = (elapsed % 1000) / 1000;                 // 0→1 within each second
+  const labels     = ['3', '2', '1', 'GO!'];
+  const label      = labels[secIdx];
+  const isGo       = secIdx === 3;
+  const countScale = isGo ? (0.8 + secProg * 0.4) : (1.5 - secProg * 0.5);
+  const alpha      = isGo ? Math.max(0, 1 - secProg * 0.5) : 1;
+
+  // Pulsing glow ring
+  const ringR = 88;
+  ctx.save();
+  ctx.globalAlpha = 0.45 * (1 - secProg);
+  ctx.strokeStyle = template.accentColor;
+  ctx.lineWidth   = 8;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * secProg);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Radial glow
+  const glowGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ringR + 30);
+  glowGrad.addColorStop(0, template.accentColor + '55');
+  glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, ringR + 30, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Big countdown number
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.scale(countScale, countScale);
+  ctx.globalAlpha = alpha;
+  ctx.font        = `bold ${isGo ? 68 : 100}px sans-serif`;
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth   = 6;
+  ctx.strokeText(label, 0, 0);
+  ctx.fillStyle   = isGo ? '#FFD700' : '#ffffff';
+  ctx.fillText(label, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Template name + subtitle (fade in during first second)
+  const nameAlpha = Math.min(1, elapsed / 800);
+  ctx.save();
+  ctx.globalAlpha = nameAlpha;
+  ctx.font        = 'bold 24px sans-serif';
+  ctx.fillStyle   = '#fff';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor  = template.accentColor;
+  ctx.shadowBlur   = 10;
+  ctx.fillText(template.name, centerX, centerY + ringR + 20);
+  ctx.shadowBlur   = 0;
+  ctx.font         = '16px sans-serif';
+  ctx.fillStyle    = 'rgba(255,255,255,0.70)';
+  ctx.fillText('준비하세요! 곧 시작합니다 ▶', centerX, centerY + ringR + 52);
+  ctx.globalAlpha  = 1;
+  ctx.restore();
+
+  // Clip area border
+  if (ca.borderColor && ca.borderWidth) {
+    ctx.save();
+    rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
+    ctx.strokeStyle = ca.borderColor;
+    ctx.lineWidth   = ca.borderWidth;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OUTRO phase (elapsed MAIN_END → END):  trophy celebration + hashtags + CTA
+// ---------------------------------------------------------------------------
+
+function drawOutroFrame(
+  ctx: CanvasRenderingContext2D,
+  template: VideoTemplate,
+  outroElapsed: number,
+  canvasW: number,
+  canvasH: number,
+): void {
+  const progress  = Math.min(1, outroElapsed / OUTRO_MS);
+  const centerX   = canvasW / 2;
+  const centerY   = canvasH * 0.40;
+
+  // Darkening overlay
+  ctx.fillStyle = `rgba(0,0,0,${0.35 * progress})`;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // Radiating gold spikes
+  ctx.save();
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 + outroElapsed * 0.0025;
+    const len   = 220 * progress;
+    ctx.globalAlpha   = 0.10 * progress;
+    ctx.strokeStyle   = '#FFD700';
+    ctx.lineWidth     = 10;
+    ctx.lineCap       = 'round';
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(centerX + Math.cos(angle) * len, centerY + Math.sin(angle) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Trophy emoji (animate scale-in)
+  const trophyScale = 0.2 + progress * 0.8;
+  ctx.save();
+  ctx.translate(centerX, centerY - 25);
+  ctx.scale(trophyScale, trophyScale);
+  ctx.globalAlpha = progress;
+  ctx.font        = '88px sans-serif';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏆', 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // "챌린지 완료!" with golden glow
+  const textScale = 0.4 + progress * 0.6;
+  ctx.save();
+  ctx.translate(centerX, centerY + 70);
+  ctx.scale(textScale, textScale);
+  ctx.globalAlpha    = progress;
+  ctx.font           = 'bold 52px sans-serif';
+  ctx.fillStyle      = '#FFD700';
+  ctx.textAlign      = 'center';
+  ctx.textBaseline   = 'middle';
+  ctx.shadowColor    = template.accentColor;
+  ctx.shadowBlur     = 20;
+  ctx.strokeStyle    = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth      = 4;
+  ctx.strokeText('챌린지 완료!', 0, 0);
+  ctx.fillText('챌린지 완료!', 0, 0);
+  ctx.shadowBlur     = 0;
+  ctx.globalAlpha    = 1;
+  ctx.restore();
+
+  // Orbiting star emojis
+  const numStars = 6;
+  for (let i = 0; i < numStars; i++) {
+    const angle  = (i / numStars) * Math.PI * 2 + outroElapsed * 0.005;
+    const orbitR = 130 * Math.min(1, progress * 2);
+    const sx     = centerX + Math.cos(angle) * orbitR;
+    const sy     = centerY + Math.sin(angle) * orbitR;
+    ctx.save();
+    ctx.globalAlpha    = Math.min(1, progress * 2);
+    ctx.font           = '26px sans-serif';
+    ctx.textAlign      = 'center';
+    ctx.textBaseline   = 'middle';
+    ctx.fillText('⭐', sx, sy);
+    ctx.globalAlpha    = 1;
+    ctx.restore();
+  }
+
+  // Hashtags fade-in (second half of outro)
+  if (progress > 0.45) {
+    const hashAlpha = (progress - 0.45) / 0.55;
+    const top5      = template.hashtags.slice(0, 5).map(h => '#' + h).join('  ');
+    ctx.save();
+    ctx.globalAlpha    = hashAlpha;
+    ctx.font           = '18px sans-serif';
+    ctx.fillStyle      = '#fff';
+    ctx.textAlign      = 'center';
+    ctx.textBaseline   = 'top';
+    ctx.shadowColor    = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur     = 4;
+    ctx.fillText(top5, canvasW / 2, canvasH * 0.63);
+    ctx.shadowBlur     = 0;
+
+    // Pulsing CTA
+    const pulse = 0.85 + 0.15 * Math.sin(outroElapsed * 0.007);
+    ctx.globalAlpha    = hashAlpha * pulse;
+    ctx.font           = 'bold 22px sans-serif';
+    ctx.fillStyle      = '#FFD700';
+    ctx.fillText('❤️  좋아요 & 공유하기!', canvasW / 2, canvasH * 0.71);
+    ctx.globalAlpha    = 1;
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Zone drawing helpers
 // ---------------------------------------------------------------------------
 
@@ -1020,6 +1235,8 @@ export async function composeVideo(
     let lastFrameTime = 0;
     const chunks: Blob[] = [];
     let finished = false;
+    let videoStarted = false;
+    let videoStopped = false;
 
     function cleanup() {
       clearTimeout(timeoutId);
@@ -1042,20 +1259,28 @@ export async function composeVideo(
       }
       lastFrameTime = now;
 
-      // Progress reporting
+      // Phase boundaries
+      const mainStart = INTRO_MS;
+      const mainEnd   = duration - OUTRO_MS;
+
+      // Progress reporting with phase labels
+      const phaseLabel =
+        elapsed < mainStart ? '🎬 인트로 애니메이션...' :
+        elapsed >= mainEnd  ? '🎉 아웃트로 애니메이션...' :
+        '🎥 영상 합성 중...';
       onProgress({
-        phase: '렌더링 중...',
+        phase:   phaseLabel,
         percent: Math.min(99, Math.round((elapsed / duration) * 100)),
       });
 
-      // --- 1. Background gradient ---
+      // --- 1. Background gradient (all phases) ---
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
       bgGrad.addColorStop(0, template.gradientColors[0]);
       bgGrad.addColorStop(1, template.gradientColors[1]);
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // --- 2. Scene-specific background ---
+      // --- 2. Scene-specific background (all phases) ---
       switch (template.bgStyle) {
         case 'vlog':
           drawVlogScene(ctx, W, H, elapsed, template.accentColor);
@@ -1074,75 +1299,97 @@ export async function composeVideo(
           break;
       }
 
-      // --- 3. Top zone ---
+      // --- 3. Top zone (all phases) ---
       if (template.topZone) {
         drawTopZone(ctx, template.topZone, W);
       }
 
-      // --- 4. User video in clipArea ---
-      const ca = template.clipArea;
-      const cx = ca.xPct * W;
-      const cy = ca.yPct * H;
-      const cw = ca.wPct * W;
-      const ch = ca.hPct * H;
+      // ── Phase split ──────────────────────────────────────────────────────────
 
-      // Glow effect behind video
-      if (ca.glowColor) {
+      if (elapsed < mainStart) {
+        // ═══ PHASE 0: INTRO ═══════════════════════════════════════════════════
+        drawIntroFrame(ctx, template, elapsed, W, H);
+
+      } else if (elapsed >= mainEnd) {
+        // ═══ PHASE 2: OUTRO ═══════════════════════════════════════════════════
+        const outroElapsed = elapsed - mainEnd;
+        drawOutroFrame(ctx, template, outroElapsed, W, H);
+
+      } else {
+        // ═══ PHASE 1: MAIN (user clip) ════════════════════════════════════════
+
+        // --- 4. User video in clipArea ---
+        const ca = template.clipArea;
+        const cx = ca.xPct * W;
+        const cy = ca.yPct * H;
+        const cw = ca.wPct * W;
+        const ch = ca.hPct * H;
+
+        // Glow effect behind video
+        if (ca.glowColor) {
+          ctx.save();
+          ctx.shadowColor = ca.glowColor;
+          ctx.shadowBlur  = 20;
+          rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
+          ctx.fillStyle   = ca.glowColor;
+          ctx.fill();
+          ctx.shadowBlur  = 0;
+          ctx.restore();
+        }
+
+        // Clip and draw video frame
         ctx.save();
-        ctx.shadowColor = ca.glowColor;
-        ctx.shadowBlur = 20;
         rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-        ctx.fillStyle = ca.glowColor;
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.clip();
+        try {
+          ctx.drawImage(video, cx, cy, cw, ch);
+        } catch (_) {
+          ctx.fillStyle = 'rgba(0,0,0,0.4)';
+          ctx.fillRect(cx, cy, cw, ch);
+        }
         ctx.restore();
+
+        // Border
+        if (ca.borderColor && ca.borderWidth) {
+          ctx.save();
+          rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
+          ctx.strokeStyle = ca.borderColor;
+          ctx.lineWidth   = ca.borderWidth;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // --- 5. Bottom zone ---
+        if (template.bottomZone) {
+          drawBottomZone(ctx, template.bottomZone, W, H, elapsed, template.id);
+        }
+
+        // --- 6. Text overlays ---
+        for (const overlay of template.text_overlays) {
+          drawTextOverlay(ctx, overlay, W, H, elapsed);
+        }
+
+        // --- 7. Mascot ---
+        if (template.mascotEmoji) {
+          const mascotX = cx + cw - 30;
+          const mascotY = cy - 30;
+          drawMascot(ctx, template.mascotEmoji, mascotX, mascotY, 36, elapsed);
+        }
       }
 
-      // Clip and draw video
-      ctx.save();
-      rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-      ctx.clip();
-      try {
-        ctx.drawImage(video, cx, cy, cw, ch);
-      } catch (_) {
-        // Video frame not ready; draw placeholder
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.fillRect(cx, cy, cw, ch);
-      }
-      ctx.restore();
-
-      // Border
-      if (ca.borderColor && ca.borderWidth) {
-        ctx.save();
-        rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-        ctx.strokeStyle = ca.borderColor;
-        ctx.lineWidth = ca.borderWidth;
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // --- 5. Bottom zone ---
-      if (template.bottomZone) {
-        drawBottomZone(ctx, template.bottomZone, W, H, elapsed, template.id);
-      }
-
-      // --- 6. Text overlays ---
-      for (const overlay of template.text_overlays) {
-        drawTextOverlay(ctx, overlay, W, H, elapsed);
-      }
-
-      // --- 7. Mascot ---
-      if (template.mascotEmoji) {
-        const mascotX = cx + cw - 30;
-        const mascotY = cy - 30;
-        drawMascot(ctx, template.mascotEmoji, mascotX, mascotY, 36, elapsed);
-      }
-
-      // --- 8. Vignette ---
+      // ── Shared: vignette + progress bar (always) ─────────────────────────────
       drawVignette(ctx, W, H);
-
-      // --- 9. Progress bar ---
       drawProgressBar(ctx, W, H, elapsed, duration, template.accentColor);
+
+      // ── Video playback control ──────────────────────────────────────────────
+      if (elapsed >= mainStart && !videoStarted) {
+        videoStarted = true;
+        video.play().catch((e) => console.warn('[Compositor] video.play failed:', e));
+      }
+      if (elapsed >= mainEnd && !videoStopped) {
+        videoStopped = true;
+        video.pause();
+      }
 
       rafId = requestAnimationFrame(renderFrame);
     }
@@ -1201,15 +1448,10 @@ export async function composeVideo(
         mediaRecorder.start(100); // collect every 100ms
         onProgress({ phase: '녹화 시작', percent: 10 });
 
-        // Start render loop
+        // Start render loop (video.play() triggered inside renderFrame at INTRO_MS)
         startTime = performance.now();
         lastFrameTime = startTime;
         rafId = requestAnimationFrame(renderFrame);
-
-        // Play user video
-        video.play().catch((err) => {
-          console.warn('Video play failed:', err);
-        });
       } catch (err) {
         cleanup();
         reject(err);

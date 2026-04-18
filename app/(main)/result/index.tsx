@@ -97,11 +97,12 @@ async function doShare(
   return 'none';
 }
 
-function doDownload(uri: string, name: string): void {
+function doDownload(uri: string, name: string, mimeType?: string): void {
   if (typeof window === 'undefined' || !uri) return;
+  const ext = mimeType?.includes('mp4') ? 'mp4' : 'webm';
   const a = document.createElement('a');
   a.href = uri;
-  a.download = `${name}_챌린지.webm`;
+  a.download = `${name}_챌린지.${ext}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -364,10 +365,13 @@ export default function ResultScreen() {
         duration_ms: slot.end_ms - slot.start_ms,
       }));
       const resultBlob = await composeVideo(videoTemplate, clips, p => setProgress(p));
+      const composedUrl = URL.createObjectURL(resultBlob);
       setComposedBlob(resultBlob);
-      setComposedUri(URL.createObjectURL(resultBlob));
+      setComposedUri(composedUrl);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 2500);
+      // Auto-download the finished video
+      doDownload(composedUrl, activeTemplate?.name ?? '챌린지', resultBlob.type);
     } catch (e) {
       setComposeError(e instanceof Error ? e.message : '합성 실패');
     } finally {
@@ -632,7 +636,7 @@ export default function ResultScreen() {
                 <View style={st.actionRow}>
                   <TouchableOpacity
                     style={st.downloadBtn}
-                    onPress={() => doDownload(composedUri, activeTemplate?.name ?? 'challenge')}
+                    onPress={() => doDownload(composedUri, activeTemplate?.name ?? 'challenge', composedBlob?.type)}
                   >
                     <Text style={st.downloadText}>⬇ 다운로드</Text>
                   </TouchableOpacity>

@@ -598,6 +598,450 @@ export const MOCK_TEMPLATES: Template[] = [
       },
     ],
   },
+
+  // ─── 11. 스쿼트 챌린지 (fitness-squat) ───────────────────────────────────
+  {
+    id: 'fitness-squat-001',
+    name: '💪 스쿼트 10회 챌린지',
+    genre: 'fitness',
+    theme_id: 'motivation',
+    camera_mode: 'normal',
+    difficulty: 2,
+    duration_sec: 30,
+    bpm: 100,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '💪',
+    scene: '카메라 앞에서 스쿼트 10회를 완성하세요! 무릎을 구부려 엉덩이를 낮춰요.',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #f093fb 0%, #f5a623 100%)',
+      frameColor: '#f5a623',
+    },
+    sns_template: {
+      hashtags: ['스쿼트챌린지', '홈트', '다이어트', '운동', 'squat'],
+      caption_template: '스쿼트 10회 완료! 💪 {template_name} {score}점 달성! #스쿼트챌린지 #홈트',
+      video_frame_css: 'border: 3px solid #f5a623; border-radius: 12px;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 3000,  text: '🦶 발을 어깨 너비로 벌리세요!',        style: 'bold' },
+      { start_ms: 3000,  end_ms: 10000, text: '⬇️ 1~3번 스쿼트! 천천히 내려가요',     style: 'highlight' },
+      { start_ms: 10000, end_ms: 18000, text: '💪 4~7번! 무릎이 발끝을 넘지 않게!',   style: 'bold' },
+      { start_ms: 18000, end_ms: 25000, text: '🔥 8~10번! 마지막 힘내요!',            style: 'highlight' },
+      { start_ms: 25000, end_ms: 30000, text: '🏆 완료! 승리 포즈!',                  style: 'bold' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 3000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '준비 자세! 발을 어깨 너비로 벌리세요 🦶', anim_type: 'pulse',
+      },
+      {
+        seq: 2, start_ms: 3000, end_ms: 10000,
+        type: 'timing',
+        threshold: 0.65, guide_text: '1~3번 스쿼트! 천천히 내려가요 ⬇️', anim_type: 'bounce',
+      },
+      {
+        seq: 3, start_ms: 10000, end_ms: 18000,
+        type: 'timing',
+        threshold: 0.7, guide_text: '4~7번 스쿼트! 무릎이 발끝을 넘지 않게! 💪', anim_type: 'bounce',
+      },
+      {
+        seq: 4, start_ms: 18000, end_ms: 25000,
+        type: 'timing',
+        threshold: 0.75, guide_text: '8~10번! 마지막 힘내요! 🔥', anim_type: 'shake',
+      },
+      {
+        seq: 5, start_ms: 25000, end_ms: 30000,
+        type: 'expression',
+        threshold: 0.6, guide_text: '완료! 승리 포즈! 🏆', guide_emoji: '🏆', anim_type: 'float',
+      },
+    ],
+  },
+
+  // ─── 12. 플랭크 챌린지 (fitness-plank) ───────────────────────────────────
+  {
+    id: 'fitness-plank-001',
+    name: '🔥 플랭크 30초 챌린지',
+    genre: 'fitness',
+    theme_id: 'motivation',
+    camera_mode: 'normal',
+    difficulty: 2,
+    duration_sec: 40,
+    bpm: 90,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🔥',
+    scene: '플랭크 자세로 코어 근육을 강화하세요! 스마트폰 앞에서 도전!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)',
+      frameColor: '#ff4b2b',
+    },
+    sns_template: {
+      hashtags: ['플랭크챌린지', '코어운동', '홈트', '30초플랭크', 'plank'],
+      caption_template: '플랭크 30초 성공! 🔥 {template_name} {score}점! 코어 완성! #플랭크챌린지 #홈트',
+      video_frame_css: 'border: 3px solid #ff4b2b; border-radius: 12px;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 5000,  text: '🙌 팔 뻗기 준비 자세!',        style: 'bold' },
+      { start_ms: 5000,  end_ms: 20000, text: '💪 플랭크 15초! 버텨요! 코어 긴장!', style: 'highlight' },
+      { start_ms: 20000, end_ms: 35000, text: '🔥 아직 15초 더! 포기하지 마세요!', style: 'bold' },
+      { start_ms: 35000, end_ms: 40000, text: '🎉 30초 완료! 최고야!',          style: 'highlight' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 5000,
+        type: 'gesture', gesture_id: 'arms_spread', gesture_emoji: '🙌',
+        threshold: 0.6, guide_text: '팔 뻗기 준비 자세!', anim_type: 'bounce',
+      },
+      {
+        seq: 2, start_ms: 5000, end_ms: 20000,
+        type: 'timing',
+        threshold: 0.7, guide_text: '플랭크 15초! 버텨요! 💪 코어 긴장!', anim_type: 'pulse',
+      },
+      {
+        seq: 3, start_ms: 20000, end_ms: 35000,
+        type: 'timing',
+        threshold: 0.75, guide_text: '아직 15초 더! 포기하지 마세요! 🔥', anim_type: 'shake',
+      },
+      {
+        seq: 4, start_ms: 35000, end_ms: 40000,
+        type: 'expression',
+        threshold: 0.6, guide_text: '🎉 30초 완료! 최고야!', guide_emoji: '🎉', anim_type: 'float',
+      },
+    ],
+  },
+
+  // ─── 13. K-POP 댄스 챌린지 (dance-kpop) ─────────────────────────────────
+  {
+    id: 'dance-kpop-001',
+    name: '💃 K-POP 댄스 챌린지',
+    genre: 'kpop',
+    theme_id: 'kpop',
+    camera_mode: 'selfie',
+    difficulty: 3,
+    duration_sec: 30,
+    bpm: 128,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '💃',
+    scene: 'K-POP 리듬에 맞춰 댄스 챌린지! 개성있는 움직임을 보여주세요!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'pattern',
+      css: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
+      overlayTop: '💃 K-POP DANCE CHALLENGE',
+      frameColor: '#e94560',
+    },
+    sns_template: {
+      hashtags: ['kpop댄스챌린지', 'kpopdance', '케이팝댄스', '댄스챌린지', 'kpop'],
+      caption_template: 'K-POP 댄스 챌린지 완료! 💃 {template_name} {score}점! 같이 춰요~ #kpop #댄스챌린지',
+      video_frame_css: 'border: 3px solid #e94560; border-radius: 12px; background: #0f0c29;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 5000,  text: '👋 리듬에 맞춰 손 흔들기!',      style: 'highlight' },
+      { start_ms: 5000,  end_ms: 12000, text: '🎵 온몸으로 리듬타기! 자유롭게!', style: 'bold' },
+      { start_ms: 12000, end_ms: 18000, text: '🙌 팔 벌려 에너지 업!',           style: 'highlight' },
+      { start_ms: 18000, end_ms: 25000, text: '🌟 최고 하이라이트! 최선을 다해요!', style: 'bold' },
+      { start_ms: 25000, end_ms: 30000, text: '👍 마무리 포즈!',                 style: 'highlight' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 5000,
+        type: 'gesture', gesture_id: 'wave', gesture_emoji: '👋',
+        threshold: 0.6, guide_text: '리듬에 맞춰 손 흔들기!', guide_emoji: '👋', anim_type: 'float',
+      },
+      {
+        seq: 2, start_ms: 5000, end_ms: 12000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '온몸으로 리듬타기! 🎵 자유롭게!', anim_type: 'bounce',
+      },
+      {
+        seq: 3, start_ms: 12000, end_ms: 18000,
+        type: 'gesture', gesture_id: 'arms_spread', gesture_emoji: '🙌',
+        threshold: 0.65, guide_text: '팔 벌려 에너지 업!', guide_emoji: '🙌', anim_type: 'spin',
+      },
+      {
+        seq: 4, start_ms: 18000, end_ms: 25000,
+        type: 'timing',
+        threshold: 0.65, guide_text: '최고 하이라이트! 최선을 다해요! 🌟', anim_type: 'shake',
+      },
+      {
+        seq: 5, start_ms: 25000, end_ms: 30000,
+        type: 'gesture', gesture_id: 'thumbs_up', gesture_emoji: '👍',
+        threshold: 0.6, guide_text: '마무리 포즈!', guide_emoji: '👍', anim_type: 'bounce',
+      },
+    ],
+  },
+
+  // ─── 14. 자세 교정 챌린지 (posture-correct) ──────────────────────────────
+  {
+    id: 'posture-correct-001',
+    name: '🧘 바른 자세 챌린지',
+    genre: 'fitness',
+    theme_id: 'motivation',
+    camera_mode: 'normal',
+    difficulty: 1,
+    duration_sec: 20,
+    bpm: 70,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🧘',
+    scene: '앉아서 또는 서서 올바른 자세를 30초 유지하세요! 척추 건강을 지켜요!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)',
+      frameColor: '#43cea2',
+    },
+    sns_template: {
+      hashtags: ['바른자세챌린지', '자세교정', '척추건강', '홈트', 'posture'],
+      caption_template: '바른 자세 챌린지 성공! 🧘 {template_name} {score}점! 척추 건강 지켜요~ #바른자세 #자세교정',
+      video_frame_css: 'border: 3px solid #43cea2; border-radius: 12px;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 5000,  text: '💆 등을 쭉 펴고 앉아요! 어깨를 펴세요',       style: 'bold' },
+      { start_ms: 5000,  end_ms: 12000, text: '👀 턱을 당기고 고개를 바로! 눈높이 맞춰요',   style: 'highlight' },
+      { start_ms: 12000, end_ms: 20000, text: '🌟 이 자세 유지! 코어 긴장! 완벽한 자세예요', style: 'bold' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 5000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '등을 쭉 펴고 앉아요! 어깨를 펴세요 💆', anim_type: 'pulse',
+      },
+      {
+        seq: 2, start_ms: 5000, end_ms: 12000,
+        type: 'timing',
+        threshold: 0.65, guide_text: '턱을 당기고 고개를 바로! 모니터와 눈높이 맞춰요 👀', anim_type: 'pulse',
+      },
+      {
+        seq: 3, start_ms: 12000, end_ms: 20000,
+        type: 'timing',
+        threshold: 0.7, guide_text: '이 자세 유지! 코어 긴장! 완벽한 자세예요 🌟', anim_type: 'float',
+      },
+    ],
+  },
+
+  // ─── 15. 영어 발음 챌린지 (english-speak) ────────────────────────────────
+  {
+    id: 'english-speak-001',
+    name: '🌍 영어 발음 마스터',
+    genre: 'english',
+    theme_id: 'english',
+    camera_mode: 'selfie',
+    difficulty: 2,
+    duration_sec: 25,
+    bpm: 90,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🎓',
+    scene: '영어 문장을 크게 따라 읽어봐요! 발음 연습 챌린지!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)',
+      overlayTop: '🎓 English Pronunciation Master',
+      frameColor: '#2193b0',
+    },
+    sns_template: {
+      hashtags: ['영어발음챌린지', '영어공부', '발음연습', 'englishpronunciation', '영어마스터'],
+      caption_template: '영어 발음 마스터 도전! 🌍 {template_name} {score}점! 나도 영어 잘해! #영어발음챌린지',
+      video_frame_css: 'border: 3px solid #2193b0; border-radius: 12px;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 8000,  text: 'Hello! My name is Challenge Master!', style: 'highlight' },
+      { start_ms: 8000,  end_ms: 17000, text: 'I love learning English every day!',  style: 'highlight' },
+      { start_ms: 17000, end_ms: 25000, text: 'Challenge accepted and completed!',   style: 'bold' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 8000,
+        type: 'voice_read',
+        read_text: 'Hello! My name is Challenge Master!',
+        read_lang: 'en',
+        threshold: 0.6, guide_text: 'Hello! My name is Challenge Master!', guide_emoji: '🗣️', anim_type: 'pulse',
+      },
+      {
+        seq: 2, start_ms: 8000, end_ms: 17000,
+        type: 'voice_read',
+        read_text: 'I love learning English every day!',
+        read_lang: 'en',
+        threshold: 0.6, guide_text: 'I love learning English every day!', guide_emoji: '📚', anim_type: 'pulse',
+      },
+      {
+        seq: 3, start_ms: 17000, end_ms: 25000,
+        type: 'voice_read',
+        read_text: 'Challenge accepted and completed!',
+        read_lang: 'en',
+        threshold: 0.65, guide_text: 'Challenge accepted and completed!', guide_emoji: '🏆', anim_type: 'bounce',
+      },
+    ],
+  },
+
+  // ─── 16. 명상 챌린지 (meditation) ────────────────────────────────────────
+  {
+    id: 'meditation-001',
+    name: '🧘 명상 챌린지',
+    genre: 'fitness',
+    theme_id: 'motivation',
+    camera_mode: 'selfie',
+    difficulty: 1,
+    duration_sec: 30,
+    bpm: 60,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🌸',
+    scene: '눈을 감고 깊게 호흡해요. 마음을 고요히 하는 30초 챌린지!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+      frameColor: '#a18cd1',
+    },
+    sns_template: {
+      hashtags: ['명상챌린지', '마음챙김', '호흡명상', 'meditation', '힐링'],
+      caption_template: '명상 챌린지 완료! 🌸 {template_name} {score}점! 마음이 편안해졌어요 #명상챌린지 #힐링',
+      video_frame_css: 'border: 3px solid #a18cd1; border-radius: 16px;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 10000, text: '🌬️ 눈 감고 깊게 숨 들이쉬기... 4초',   style: 'bold' },
+      { start_ms: 10000, end_ms: 20000, text: '😌 7초 참기... 차분하게 유지',           style: 'normal' },
+      { start_ms: 20000, end_ms: 30000, text: '✨ 8초 내쉬기... 평온한 마음으로 완료!', style: 'highlight' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 10000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '눈 감고 깊게 숨 들이쉬기 🌬️ 4초 들이쉬고', anim_type: 'float',
+      },
+      {
+        seq: 2, start_ms: 10000, end_ms: 20000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '7초 참기... 차분하게 유지 😌', anim_type: 'float',
+      },
+      {
+        seq: 3, start_ms: 20000, end_ms: 30000,
+        type: 'expression',
+        threshold: 0.6, guide_text: '8초 내쉬기 & 평온한 표정 유지 ✨', guide_emoji: '✨', anim_type: 'pulse',
+      },
+    ],
+  },
+
+  // ─── 17. 팔굽혀펴기 챌린지 (fitness-pushup) ──────────────────────────────
+  {
+    id: 'fitness-pushup-001',
+    name: '💪 팔굽혀펴기 챌린지',
+    genre: 'fitness',
+    theme_id: 'motivation',
+    camera_mode: 'normal',
+    difficulty: 3,
+    duration_sec: 35,
+    bpm: 95,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🦾',
+    scene: '스마트폰 앞에서 팔굽혀펴기 10회! 상체 근력을 키워요!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #1c1c1c 0%, #3a3a3a 50%, #1a1a2e 100%)',
+      overlayTop: '🦾 PUSH-UP CHALLENGE',
+      frameColor: '#e94560',
+    },
+    sns_template: {
+      hashtags: ['팔굽혀펴기챌린지', '푸시업', '상체운동', '홈트', 'pushup'],
+      caption_template: '팔굽혀펴기 10회 완료! 💪 {template_name} {score}점! 상체 완성! #팔굽혀펴기 #홈트',
+      video_frame_css: 'border: 3px solid #e94560; border-radius: 12px; background: #1c1c1c;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 5000,  text: '🙌 준비 자세! 팔은 어깨 너비로',          style: 'bold' },
+      { start_ms: 5000,  end_ms: 15000, text: '💪 1~4번! 가슴이 바닥에 닿을 듯이!',     style: 'highlight' },
+      { start_ms: 15000, end_ms: 25000, text: '🔥 5~8번! 포기하지 마세요!',              style: 'bold' },
+      { start_ms: 25000, end_ms: 35000, text: '💥 9~10번! 마지막 힘내요!',              style: 'highlight' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 5000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '준비 자세! 팔은 어깨 너비로 🙌', anim_type: 'pulse',
+      },
+      {
+        seq: 2, start_ms: 5000, end_ms: 15000,
+        type: 'timing',
+        threshold: 0.7, guide_text: '1~4번! 가슴이 바닥에 닿을 듯이! 💪', anim_type: 'bounce',
+      },
+      {
+        seq: 3, start_ms: 15000, end_ms: 25000,
+        type: 'timing',
+        threshold: 0.72, guide_text: '5~8번! 포기하지 마세요! 🔥', anim_type: 'shake',
+      },
+      {
+        seq: 4, start_ms: 25000, end_ms: 35000,
+        type: 'timing',
+        threshold: 0.75, guide_text: '9~10번! 마지막 힘내요! 💥', anim_type: 'shake',
+      },
+    ],
+  },
+
+  // ─── 18. 힙합 댄스 챌린지 (dance-hiphop) ────────────────────────────────
+  {
+    id: 'dance-hiphop-001',
+    name: '🎵 힙합 댄스 챌린지',
+    genre: 'hiphop',
+    theme_id: 'kpop',
+    camera_mode: 'selfie',
+    difficulty: 2,
+    duration_sec: 25,
+    bpm: 95,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🎤',
+    scene: '힙합 비트에 맞춰 자유롭게 춤춰요! 나만의 스타일을 보여주세요!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'pattern',
+      css: 'linear-gradient(135deg, #0f0c29 0%, #1a1a2e 50%, #24243e 100%)',
+      overlayTop: '🎤 HIPHOP DANCE CHALLENGE',
+      frameColor: '#f7b731',
+    },
+    sns_template: {
+      hashtags: ['힙합댄스챌린지', '힙합', '댄스챌린지', 'hiphop', 'freestyle'],
+      caption_template: '힙합 댄스 챌린지 완료! 🎵 {template_name} {score}점! 내 스타일 봐봐~ #힙합 #댄스챌린지',
+      video_frame_css: 'border: 3px solid #f7b731; border-radius: 12px; background: #0f0c29;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,     end_ms: 6000,  text: '👍 엄지척으로 입장!',          style: 'bold' },
+      { start_ms: 6000,  end_ms: 14000, text: '🎵 비트에 맞춰 자유롭게! 헤드바운싱!', style: 'highlight' },
+      { start_ms: 14000, end_ms: 20000, text: '🤜 팔 교차 동작!',             style: 'bold' },
+      { start_ms: 20000, end_ms: 25000, text: '😎 마무리 쿨 포즈!',           style: 'highlight' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 6000,
+        type: 'gesture', gesture_id: 'thumbs_up', gesture_emoji: '👍',
+        threshold: 0.6, guide_text: '엄지척으로 입장!', guide_emoji: '👍', anim_type: 'bounce',
+      },
+      {
+        seq: 2, start_ms: 6000, end_ms: 14000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '비트에 맞춰 자유롭게! 헤드바운싱! 🎵', anim_type: 'bounce',
+      },
+      {
+        seq: 3, start_ms: 14000, end_ms: 20000,
+        type: 'gesture', gesture_id: 'arms_cross', gesture_emoji: '🤜',
+        threshold: 0.65, guide_text: '팔 교차 동작!', guide_emoji: '🤜', anim_type: 'spin',
+      },
+      {
+        seq: 4, start_ms: 20000, end_ms: 25000,
+        type: 'expression',
+        threshold: 0.6, guide_text: '마무리 쿨 포즈! 😎', guide_emoji: '😎', anim_type: 'float',
+      },
+    ],
+  },
 ];
 
 export const MOCK_USER_ID = 'mock-user-0001';

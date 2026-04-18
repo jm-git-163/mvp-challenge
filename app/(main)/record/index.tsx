@@ -229,10 +229,24 @@ function MissionCard({
           : mission.guide_text ?? ''}
       </Text>
 
-      {/* Voice transcript */}
-      {mission.type === 'voice_read' && voiceTranscript !== '' && (
-        <View style={mc.voiceBox}>
-          <Text style={mc.voiceText}>💬 "{voiceTranscript}"</Text>
+      {/* Voice transcript — always shown during voice mission, even if empty */}
+      {mission.type === 'voice_read' && (
+        <View style={[mc.voiceBox, voiceTranscript ? mc.voiceBoxActive : mc.voiceBoxEmpty]}>
+          <Text style={mc.voiceLabel}>🎤 내가 말한 것:</Text>
+          <Text style={mc.voiceText}>
+            {voiceTranscript !== '' ? `"${voiceTranscript}"` : '마이크에 대고 말해주세요...'}
+          </Text>
+          {mission.read_text && voiceTranscript !== '' && (
+            <View style={mc.voiceScoreBar}>
+              <Text style={mc.voiceScoreLabel}>정확도</Text>
+              <View style={mc.voiceScoreBg}>
+                <View style={[mc.voiceScoreFill, {
+                  width: `${Math.min(100, Math.max(10, (voiceTranscript.length / Math.max(1, mission.read_text.length)) * 100))}%` as any,
+                  backgroundColor: voiceTranscript.length >= mission.read_text.length * 0.7 ? '#22c55e' : '#f59e0b',
+                }]} />
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -299,12 +313,19 @@ const mc = StyleSheet.create({
     textShadow: '0 2px 8px rgba(0,0,0,0.5)',
   },
   voiceBox: {
-    backgroundColor: 'rgba(253,230,138,0.15)',
-    borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: 'rgba(253,230,138,0.3)',
-    width: '100%', alignItems: 'center',
+    backgroundColor: 'rgba(253,230,138,0.12)',
+    borderRadius: 14, padding: 14,
+    borderWidth: 1.5, borderColor: 'rgba(253,230,138,0.4)',
+    width: '100%', alignItems: 'center', gap: 6,
   },
-  voiceText: { color: '#fde68a', fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  voiceBoxActive: { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.5)' },
+  voiceBoxEmpty:  { backgroundColor: 'rgba(100,116,139,0.15)', borderColor: 'rgba(100,116,139,0.3)' },
+  voiceLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
+  voiceText: { color: '#fde68a', fontSize: 17, fontWeight: '700', textAlign: 'center', lineHeight: 24 },
+  voiceScoreBar: { width: '100%', gap: 4 },
+  voiceScoreLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '600' },
+  voiceScoreBg: { width: '100%', height: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' },
+  voiceScoreFill: { height: '100%', borderRadius: 3 },
   progBg: {
     width: '100%', height: 6,
     backgroundColor: 'rgba(255,255,255,0.12)',
@@ -328,7 +349,7 @@ export default function RecordScreen() {
 
   const { isReady, landmarks } = usePoseDetection();
   const { judge, voiceTranscript, resetVoice } = useJudgement();
-  const { state, countdown, elapsed, videoUri, start, stop } = useRecording();
+  const { state, countdown, elapsed, videoUri, start, stop, reset: resetRecording } = useRecording();
 
   // Judgement state
   const [currentScore,   setCurrentScore]   = useState(0);
@@ -357,7 +378,10 @@ export default function RecordScreen() {
   const maxW = Math.min(width - 32, 500);
 
   // ── Mount cleanup — fixes challenge reset bug ──────────────────────────────
+  // CRITICAL: Expo Router may cache the screen. If state='done' from previous
+  // challenge, start() silently returns. Reset everything on every mount.
   useEffect(() => {
+    resetRecording();   // ← resets state to 'idle', elapsed to 0
     resetVoice();
     comboRef.current = 0;
     setCombo(0);
