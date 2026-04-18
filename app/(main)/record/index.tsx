@@ -7,6 +7,7 @@
  *   - 캐릭터 이모지 반응 애니메이션
  *   - 퍼펙트 시 파티클 효과
  *   - 모바일/노트북 반응형
+ *   - Mount cleanup useEffect — fixes challenge reset bug
  */
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
@@ -90,6 +91,21 @@ export default function RecordScreen() {
   const comboRef          = useRef(0);
   const burstTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMissionSeqRef = useRef<number | null>(null);
+
+  // Clean state on every mount — fixes challenge reset bug
+  useEffect(() => {
+    resetVoice();
+    comboRef.current = 0;
+    setCombo(0);
+    prevMissionSeqRef.current = null;
+    prevTagRef.current = 'fail';
+    setCharState('idle');
+    setCurrentScore(0);
+    setCurrentTag('fail');
+    setCurrentMission(null);
+    setParticles([]);
+    setBurstVisible(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
   useEffect(() => () => { resetVoice(); }, [resetVoice]);

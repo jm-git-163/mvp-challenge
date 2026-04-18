@@ -69,7 +69,7 @@ const MISSION_TYPE_STYLES: Record<MissionType, { bg: string; text: string; label
 export default function HomeScreen() {
   const router = useRouter();
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
-  const startSession = useSessionStore((s) => s.startSession);
+  const { startSession, reset } = useSessionStore(s => ({ startSession: s.startSession, reset: s.reset }));
 
   const { templates, loading, error, refetch } = useTemplates(
     selectedGenre !== 'all' ? { genre: selectedGenre as Template['genre'] } : undefined,
@@ -77,10 +77,11 @@ export default function HomeScreen() {
 
   const handleSelect = useCallback(
     (t: Template) => {
-      startSession(t);
+      reset();          // clear any previous session
+      startSession(t);  // set new template
       router.push('/(main)/record');
     },
-    [startSession, router],
+    [reset, startSession, router],
   );
 
   const { width } = Dimensions.get('window');
