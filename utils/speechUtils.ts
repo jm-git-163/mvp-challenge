@@ -1,36 +1,69 @@
 /**
  * speechUtils.ts — Web Speech API 음성 인식 + 텍스트 유사도 평가
- * Chrome/Safari 지원. 미지원 브라우저는 자동 pass.
+ *
+ * 핵심 수정:
+ *  - continuous = true → 미션 시간 동안 계속 듣기
+ *  - interimResults = true → 실시간 중간 결과 즉시 표시
+ *  - 마이크 권한: RecordingCamera.web의 getUserMedia 스트림 공유로 재요청 방지
+ *  - 누적 transcript: 중간 결과를 계속 누적해서 표시
  */
 
 export type SpeechState = 'idle' | 'listening' | 'processing' | 'done' | 'unsupported';
 
 export interface SpeechResult {
   transcript: string;
-  score: number;       // 0~1
+  score:      number;       // 0~1
   matchedWords: number;
-  totalWords: number;
+  totalWords:   number;
 }
 
-// ── 텍스트 유사도 (단어 기반 Jaccard) ──
-export function textSimilarity(a: string, b: string): number {
+// ── 텍스트 유사도 (단어 기반 Jaccard + 부분 매칭) ──────────────────────────────
+export function textSimilarity(target: string, spoken: string): number {
   const normalize = (s: string): string[] =>
-    s.toLowerCase().replace(/[^가-힣a-z0-9\s]/g, '').trim().split(/\s+/).filter(Boolean);
-  const wordsA = normalize(a);
-  const wordsB = normalize(b);
+    s.toLowerCase()
+      .replace(/[^가-힣a-z0-9\s]/g, '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+  const wordsA = normalize(target);
+  const wordsB = normalize(spoken);
   if (wordsA.length === 0) return 1;
+  if (wordsB.length === 0) return 0;
+
   let matched = 0;
   for (const w of wordsA) {
     if (wordsB.some((wb) => wb.includes(w) || w.includes(wb))) matched++;
   }
-  return matched / wordsA.length;
+  // Bonus for length coverage
+  const lenRatio = Math.min(1, spoken.length / Math.max(1, target.length));
+  return Math.min(1, (matched / wordsA.length) * 0.7 + lenRatio * 0.3);
 }
 
-// ── SpeechRecognition 래퍼 ──
+// ── 전역 권한 pre-request ─────────────────────────────────────────────────────
+// 카메라 스트림 허용 후 SpeechRecognition이 다시 마이크 팝업을 띄우는 것을 방지하기 위해
+// 처음 한 번만 getUserMedia({ audio: true })를 호출해 권한을 캐시합니다.
+let _micGranted = false;
+export async function prewarmMic(): Promise<void> {
+  if (_micGranted || typeof window === 'undefined') return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // 바로 정지 - 권한만 얻으면 됨
+    stream.getTracks().forEach(t => t.stop());
+    _micGranted = true;
+  } catch {
+    // 거부되도 무시 (SpeechRecognition도 같이 실패하게 됨)
+  }
+}
+
+// ── SpeechRecognition 래퍼 ────────────────────────────────────────────────────
 export class SpeechRecognizer {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private rec: any = null;
   private supported = false;
+  private _listening = false;
+  private _finalText  = '';
+  private _stopTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -38,51 +71,95 @@ export class SpeechRecognizer {
       const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRec) {
         this.rec = new SpeechRec();
-        this.rec.continuous = false;
-        this.rec.interimResults = true;
+        this.rec.continuous     = true;   // ← 핵심: 계속 듣기
+        this.rec.interimResults = true;   // ← 핵심: 중간 결과 즉시 표시
+        this.rec.maxAlternatives = 1;
         this.supported = true;
       }
     }
   }
 
-  isSupported(): boolean {
-    return this.supported;
-  }
+  isSupported(): boolean { return this.supported; }
+  isListening(): boolean { return this._listening; }
 
   listen(
     lang: 'ko' | 'en',
     onInterim: (text: string) => void,
-    onFinal: (result: string) => void,
-    timeoutMs = 5000,
+    onFinal:   (result: string) => void,
+    timeoutMs  = 7000,
   ): () => void {
-    if (!this.supported) {
-      setTimeout(() => onFinal(''), 500);
+    if (!this.supported || this._listening) {
+      if (!this.supported) setTimeout(() => onFinal(''), 200);
       return () => {};
     }
-    this.rec.lang = lang === 'ko' ? 'ko-KR' : 'en-US';
+
+    this._listening  = true;
+    this._finalText  = '';
+    this.rec.lang    = lang === 'ko' ? 'ko-KR' : 'en-US';
+
+    // 누적 transcript
+    let accumulated = '';
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onresult = (e: any) => {
-      const t: string = Array.from(e.results as ArrayLike<SpeechRecognitionResult>)
-        .map((r: SpeechRecognitionResult) => r[0].transcript)
-        .join('');
-      if (e.results[e.results.length - 1].isFinal) {
-        onFinal(t);
-      } else {
-        onInterim(t);
+      let interim = '';
+      let newFinal = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          newFinal += t + ' ';
+        } else {
+          interim += t;
+        }
+      }
+      if (newFinal) {
+        accumulated += newFinal;
+        this._finalText = accumulated.trim();
+      }
+      // 항상 실시간 표시 (누적 + 현재 interim)
+      onInterim((accumulated + interim).trim());
+    };
+
+    this.rec.onerror = (e: any) => {
+      // 'no-speech'는 그냥 무시, 계속 듣기
+      if (e.error === 'no-speech') return;
+      this._listening = false;
+      onFinal(this._finalText || '');
+    };
+
+    this.rec.onend = () => {
+      // continuous=true임에도 자동 종료될 경우 재시작 (브라우저 이슈)
+      if (this._listening) {
+        try { this.rec.start(); } catch { /* ignore */ }
       }
     };
-    this.rec.onerror = () => onFinal('');
-    this.rec.start();
-    const timer = setTimeout(() => {
+
+    try {
+      this.rec.start();
+    } catch (err) {
+      this._listening = false;
+      onFinal('');
+      return () => {};
+    }
+
+    // 미션 시간이 끝나면 최종 결과 확정
+    this._stopTimer = setTimeout(() => {
+      this._listening = false;
       try { this.rec.stop(); } catch { /* ignore */ }
+      onFinal(this._finalText || accumulated.trim());
     }, timeoutMs);
+
     return () => {
-      clearTimeout(timer);
+      this._listening = false;
+      if (this._stopTimer) clearTimeout(this._stopTimer);
       try { this.rec.stop(); } catch { /* ignore */ }
+      onFinal(this._finalText || accumulated.trim());
     };
   }
 
   stop(): void {
+    this._listening = false;
+    if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
     try { this.rec?.stop(); } catch { /* ignore */ }
   }
 }

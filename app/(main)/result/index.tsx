@@ -51,18 +51,25 @@ const TAG_LABELS: Record<JudgementTag, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function openPlatformShare(platform: string, text: string): void {
+function openPlatformShare(platform: string, text: string, videoUri: string | null): void {
+  if (typeof window === 'undefined') return;
   const enc = encodeURIComponent(text);
-  const href = typeof window !== 'undefined' ? window.location.href : '';
-  const urls: Record<string, string> = {
-    twitter:   `https://twitter.com/intent/tweet?text=${enc}`,
-    facebook:  `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(href)}&quote=${enc}`,
-    instagram: 'https://www.instagram.com/',
-    youtube:   'https://studio.youtube.com/',
+
+  // For platforms that support URL sharing, include text
+  const shareMap: Record<string, string> = {
+    twitter:  `https://twitter.com/intent/tweet?text=${enc}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?quote=${enc}`,
+    threads:  `https://www.threads.net/intent/post?text=${enc}`,
+    instagram: 'https://www.instagram.com/create/story',
     tiktok:    'https://www.tiktok.com/upload',
+    youtube:   'https://studio.youtube.com/channel/UC/videos/upload',
   };
-  if (typeof window !== 'undefined' && urls[platform]) {
-    window.open(urls[platform], '_blank');
+
+  const url = shareMap[platform];
+  if (url) {
+    // Try window.open; if blocked, fallback to location.href
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) window.location.href = url;
   }
 }
 
@@ -660,30 +667,78 @@ export default function ResultScreen() {
             {/* Platform share buttons */}
             {composedUri && (
               <View style={st.platformBlock}>
-                <Text style={st.platformTitle}>📤 직접 업로드하기</Text>
-                <Text style={st.platformSub}>다운로드 후 각 플랫폼에 업로드하세요</Text>
-                <View style={st.platformGrid}>
-                  {PLATFORMS.map(p => (
-                    <TouchableOpacity
-                      key={p.key}
-                      style={[st.platformBtn, { backgroundColor: p.color }]}
-                      onPress={() => {
-                        const caption = activeTemplate?.sns_template.caption_template
-                          ?.replace('{template_name}', activeTemplate.name)
-                          ?.replace('{score}', String(scoreNum)) ?? '';
-                        const ht = (activeTemplate?.sns_template.hashtags ?? [])
-                          .map(h => '#' + h).join(' ');
-                        openPlatformShare(p.key, caption + ' ' + ht);
-                      }}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={st.platformBtnText}>{p.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <Text style={st.platformTitle}>📤 SNS 업로드 가이드</Text>
+
+                {/* Step 1: Download */}
+                <View style={st.stepBox}>
+                  <View style={[st.stepNum, { backgroundColor: accentColor }]}>
+                    <Text style={st.stepNumText}>1</Text>
+                  </View>
+                  <View style={st.stepContent}>
+                    <Text style={st.stepTitle}>영상 다운로드</Text>
+                    <Text style={st.stepDesc}>위 ⬇ 다운로드 버튼으로 영상을 저장하세요</Text>
+                  </View>
                 </View>
-                <Text style={st.platformNote}>
-                  💡 영상을 다운로드한 후 Instagram 릴스, TikTok, YouTube 쇼츠에 직접 업로드할 수 있습니다
-                </Text>
+
+                {/* Step 2: Copy caption */}
+                <TouchableOpacity
+                  style={st.stepBox}
+                  onPress={() => {
+                    const caption = activeTemplate?.sns_template.caption_template
+                      ?.replace('{template_name}', activeTemplate.name)
+                      ?.replace('{score}', String(scoreNum)) ?? '';
+                    const ht = (activeTemplate?.sns_template.hashtags ?? [])
+                      .map(h => '#' + h).join(' ');
+                    navigator?.clipboard?.writeText(caption + '\n' + ht).then(() => {
+                      setShareResult('copied');
+                    });
+                  }}
+                >
+                  <View style={[st.stepNum, { backgroundColor: '#06b6d4' }]}>
+                    <Text style={st.stepNumText}>2</Text>
+                  </View>
+                  <View style={st.stepContent}>
+                    <Text style={st.stepTitle}>캡션 복사 (탭하세요)</Text>
+                    <Text style={st.stepDesc} numberOfLines={2}>
+                      {activeTemplate?.sns_template.caption_template
+                        .replace('{template_name}', activeTemplate?.name ?? '')
+                        .replace('{score}', String(scoreNum))}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Step 3: Platform buttons */}
+                <View style={st.stepBox}>
+                  <View style={[st.stepNum, { backgroundColor: '#8b5cf6' }]}>
+                    <Text style={st.stepNumText}>3</Text>
+                  </View>
+                  <View style={st.stepContent}>
+                    <Text style={st.stepTitle}>업로드 페이지 열기</Text>
+                    <View style={st.platformGrid}>
+                      {PLATFORMS.map(p => (
+                        <TouchableOpacity
+                          key={p.key}
+                          style={[st.platformBtn, { backgroundColor: p.color }]}
+                          onPress={() => {
+                            const caption = activeTemplate?.sns_template.caption_template
+                              ?.replace('{template_name}', activeTemplate.name)
+                              ?.replace('{score}', String(scoreNum)) ?? '';
+                            const ht = (activeTemplate?.sns_template.hashtags ?? [])
+                              .map(h => '#' + h).join(' ');
+                            openPlatformShare(p.key, caption + ' ' + ht, composedUri);
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={st.platformBtnText}>{p.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                {shareResult === 'copied' && (
+                  <Text style={st.platformNote}>✅ 캡션이 클립보드에 복사되었습니다!</Text>
+                )}
               </View>
             )}
           </View>
@@ -913,16 +968,31 @@ const st = StyleSheet.create({
   shareResult: { color: '#059669', fontSize: 13, textAlign: 'center', fontWeight: '600' },
 
   // Platform share
-  platformBlock: { gap: 10 },
+  platformBlock: { gap: 14 },
   platformTitle: { fontSize: 15, fontWeight: '800', color: '#1a1a2e' },
   platformSub: { fontSize: 12, color: '#6b7280' },
-  platformGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  platformGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   platformBtn: {
     paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10,
     minHeight: 40, justifyContent: 'center',
   },
   platformBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  platformNote: { color: '#9ca3af', fontSize: 11, lineHeight: 16 },
+  platformNote: { color: '#059669', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+
+  // SNS step guide
+  stepBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  stepNum: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  stepNumText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  stepContent: { flex: 1, gap: 4 },
+  stepTitle: { fontSize: 14, fontWeight: '800', color: '#1e293b' },
+  stepDesc: { fontSize: 12, color: '#64748b', lineHeight: 18 },
 
   // Caption
   captionBox: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12 },

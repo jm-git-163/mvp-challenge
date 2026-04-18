@@ -1,10 +1,14 @@
 /**
- * useJudgement.ts — 미션 판정 훅 (수정됨)
- * judge(landmarks, elapsedMs) 시그니처로 변경 — timing drift 완전 해결
+ * useJudgement.ts — 미션 판정 훅
+ *
+ * 핵심 수정:
+ *  - voiceScore/voiceTranscript를 ref로 관리해서 useCallback 의존성 사이클 제거
+ *  - SpeechRecognizer continuous mode 활용 (speechUtils.ts 업데이트 반영)
+ *  - 미션 전환 시 깔끔한 인식 재시작
  */
 import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
-import { detectGesture } from '../utils/poseUtils';
+import { detectGesture }   from '../utils/poseUtils';
 import { SpeechRecognizer, textSimilarity } from '../utils/speechUtils';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
@@ -23,109 +27,116 @@ function getCurrentMission(missions: Mission[], elapsedMs: number): Mission | nu
   return missions.find((m) => elapsedMs >= m.start_ms && elapsedMs < m.end_ms) ?? null;
 }
 
-interface JudgementResult {
-  score: number;
-  tag: JudgementTag;
-  currentMission: Mission | null;
-  voiceTranscript: string;
-}
-
 export function useJudgement(): {
-  judge: (landmarks: NormalizedLandmark[], elapsedMs: number) => JudgementResult;
+  judge: (landmarks: NormalizedLandmark[], elapsedMs: number) => {
+    score: number;
+    tag: JudgementTag;
+    currentMission: Mission | null;
+    voiceTranscript: string;
+  };
   voiceTranscript: string;
   resetVoice: () => void;
 } {
   const { activeTemplate, appendFrameTag } = useSessionStore();
-  const lastAppendRef     = useRef(0);
-  const speechRef         = useRef(new SpeechRecognizer());
-  const voiceActiveRef    = useRef(false);
-  const lastMissionSeqRef = useRef<number | null>(null);
 
+  // Use refs for values that change inside callbacks to avoid dep-cycle
+  const lastAppendRef      = useRef(0);
+  const speechRef          = useRef(new SpeechRecognizer());
+  const voiceActiveRef     = useRef(false);
+  const lastMissionSeqRef  = useRef<number | null>(null);
+  const voiceScoreRef      = useRef(0.62);
+  const voiceTranscriptRef = useRef('');
+  const stopVoiceRef       = useRef<(() => void) | null>(null);
+
+  // State for UI updates
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceScore,      setVoiceScore]      = useState(0.62);
 
   const judge = useCallback(
-    (landmarks: NormalizedLandmark[], elapsedMs: number): JudgementResult => {
-      const now = Date.now();
-
-      const mission = activeTemplate
-        ? getCurrentMission(activeTemplate.missions, elapsedMs)
+    (landmarks: NormalizedLandmark[], elapsedMs: number) => {
+      const now      = Date.now();
+      const template = useSessionStore.getState().activeTemplate;
+      const mission  = template
+        ? getCurrentMission(template.missions, elapsedMs)
         : null;
 
-      // Mission changed — reset voice state
+      // ── Mission changed: restart voice recognition ──────────────────────────
       if (mission?.seq !== lastMissionSeqRef.current) {
         lastMissionSeqRef.current = mission?.seq ?? null;
-        if (voiceActiveRef.current) {
-          speechRef.current.stop();
-          voiceActiveRef.current = false;
-        }
-        setVoiceScore(0.62);
+
+        // Stop previous recognition session
+        if (stopVoiceRef.current) { stopVoiceRef.current(); stopVoiceRef.current = null; }
+        if (voiceActiveRef.current) { speechRef.current.stop(); voiceActiveRef.current = false; }
+
+        // Reset voice score for new mission
+        voiceScoreRef.current      = 0.62;
+        voiceTranscriptRef.current = '';
         setVoiceTranscript('');
       }
 
       let score = 0;
 
       if (mission) {
-        // Progress 0→1 within this mission's time window
         const missionDur  = Math.max(1, mission.end_ms - mission.start_ms);
         const missionProg = Math.min(1, Math.max(0, (elapsedMs - mission.start_ms) / missionDur));
 
         switch (mission.type) {
           case 'gesture': {
-            // On web (mock landmarks), use progressive time-based confidence
-            // Real detection would use detectGesture when real landmarks are available
-            const hasRealLandmarks = landmarks.length > 0 && landmarks.some(l => l.score > 0.5 && l.score < 0.99);
+            const hasRealLandmarks = landmarks.length > 0 &&
+              landmarks.some(l => l.score !== undefined && l.score > 0.5 && l.score < 0.99);
             if (hasRealLandmarks && mission.gesture_id) {
               score = detectGesture(landmarks, mission.gesture_id);
             } else {
-              // Progressive: starts at GOOD (0.6), reaches PERFECT (0.88) at 60% through mission
+              // Smooth progressive: 0.58 → 0.88 over mission duration
               score = Math.min(0.88, 0.58 + missionProg * 0.5);
             }
             break;
           }
 
           case 'voice_read': {
-            score = voiceScore;
+            score = voiceScoreRef.current;
 
+            // Start recognition if not already active
             if (!voiceActiveRef.current && speechRef.current.isSupported()) {
-              const remainingMs = mission.end_ms - elapsedMs - 500;
-              if (remainingMs > 800) {
+              const remainingMs = mission.end_ms - elapsedMs - 300;
+              if (remainingMs > 500) {
                 voiceActiveRef.current = true;
-                speechRef.current.listen(
-                  mission.read_lang ?? 'ko',
-                  (interim) => setVoiceTranscript(interim),
+                const stopFn = speechRef.current.listen(
+                  (mission.read_lang ?? 'ko') as 'ko' | 'en',
+                  (interim) => {
+                    voiceTranscriptRef.current = interim;
+                    setVoiceTranscript(interim);
+                  },
                   (final) => {
+                    voiceActiveRef.current = false;
                     const s = mission.read_text
                       ? Math.max(0.62, textSimilarity(mission.read_text, final))
                       : 0.72;
-                    setVoiceScore(s);
+                    voiceScoreRef.current      = s;
+                    voiceTranscriptRef.current = final;
                     setVoiceTranscript(final);
-                    voiceActiveRef.current = false;
                   },
-                  remainingMs,
+                  Math.min(remainingMs, 15000), // cap at 15 seconds
                 );
+                stopVoiceRef.current = stopFn;
               }
             } else if (!speechRef.current.isSupported()) {
-              // Auto-pass on unsupported browsers with progressive score
               score = Math.min(0.85, 0.62 + missionProg * 0.35);
             }
             break;
           }
 
           case 'timing':
-          case 'expression': {
-            // Smooth progressive score: GOOD → PERFECT over mission duration
+          case 'expression':
+          default: {
             score = Math.min(0.88, 0.62 + missionProg * 0.36);
             break;
           }
-
-          default:
-            score = Math.min(0.75, 0.55 + missionProg * 0.3);
         }
       }
 
       const tag = scoreToTag(score);
 
+      // Throttle appendFrameTag to every 120ms
       if (now - lastAppendRef.current >= 120) {
         appendFrameTag({
           timestamp_ms: elapsedMs,
@@ -136,17 +147,21 @@ export function useJudgement(): {
         lastAppendRef.current = now;
       }
 
-      return { score, tag, currentMission: mission, voiceTranscript };
+      return { score, tag, currentMission: mission, voiceTranscript: voiceTranscriptRef.current };
     },
-    [activeTemplate, appendFrameTag, voiceScore, voiceTranscript],
+    // Intentionally minimal deps — values read via refs inside callback
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appendFrameTag],
   );
 
   const resetVoice = useCallback(() => {
-    voiceActiveRef.current = false;
-    lastMissionSeqRef.current = null;
-    setVoiceTranscript('');
-    setVoiceScore(0.62);
+    if (stopVoiceRef.current) { stopVoiceRef.current(); stopVoiceRef.current = null; }
     speechRef.current.stop();
+    voiceActiveRef.current      = false;
+    lastMissionSeqRef.current   = null;
+    voiceScoreRef.current       = 0.62;
+    voiceTranscriptRef.current  = '';
+    setVoiceTranscript('');
   }, []);
 
   return { judge, voiceTranscript, resetVoice };

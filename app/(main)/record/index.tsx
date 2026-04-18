@@ -19,7 +19,7 @@ import {
   useWindowDimensions, Alert, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 import RecordingCamera, { type RecordingCameraHandle } from '../../../components/camera/RecordingCamera';
 import TimingBar              from '../../../components/ui/TimingBar';
@@ -31,6 +31,7 @@ import { useJudgement }              from '../../../hooks/useJudgement';
 import { useRecording }              from '../../../hooks/useRecording';
 import { useSessionStore }           from '../../../store/sessionStore';
 import { playSound, initAudio, speakJudgement } from '../../../utils/soundUtils';
+import { prewarmMic } from '../../../utils/speechUtils';
 import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
 import type { JudgementTag }         from '../../../types/session';
 
@@ -336,6 +337,139 @@ const mc = StyleSheet.create({
   statusText: { color: '#fff', fontSize: 15, fontWeight: '900' },
 });
 
+// ─── Template Overlay (붕어빵 껍질 — 녹화 중 화면 위 레이어) ─────────────────────
+
+interface SubtitleEntry {
+  start_ms: number; end_ms: number; text: string; style?: string;
+}
+
+function TemplateOverlay({
+  template, elapsed, isRecording,
+}: {
+  template: any; elapsed: number; isRecording: boolean;
+}) {
+  if (!isRecording) return null;
+
+  // Current subtitle from template's subtitle_timeline
+  const subtitles: SubtitleEntry[] = template.subtitle_timeline ?? [];
+  const currentSub = subtitles.find(
+    s => elapsed >= s.start_ms && elapsed < s.end_ms,
+  );
+
+  const isHighlight = currentSub?.style === 'highlight' || currentSub?.style === 'bold';
+  const bg = template.virtual_bg;
+  const overlayTop: string | undefined = bg?.overlayTop;
+  const overlayBottom: string | undefined = bg?.overlayBottom;
+  const frameColor: string = bg?.frameColor ?? '#7c3aed';
+
+  // Progress bar (elapsed / template.duration_sec * 1000)
+  const totalMs  = (template.duration_sec ?? 30) * 1000;
+  const progress = Math.min(1, elapsed / totalMs);
+
+  return (
+    <>
+      {/* ── Top brand bar ────────────────────────────────────────── */}
+      {overlayTop ? (
+        <View style={[tov.topBar, { backgroundColor: frameColor + 'dd' }]}>
+          <Text style={tov.topText} numberOfLines={1}>{overlayTop}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Center subtitle ──────────────────────────────────────── */}
+      {currentSub ? (
+        <View
+          style={[
+            tov.subtitleWrap,
+            isHighlight
+              ? { backgroundColor: frameColor + 'cc', borderColor: '#fff4', borderWidth: 1.5 }
+              : { backgroundColor: 'rgba(0,0,0,0.72)' },
+          ]}
+        >
+          <Text style={tov.subtitleText} numberOfLines={3}>
+            {currentSub.text}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* ── Bottom hashtag / info bar ─────────────────────────────── */}
+      {overlayBottom ? (
+        <View style={[tov.bottomBar, { backgroundColor: frameColor + 'cc' }]}>
+          <Text style={tov.bottomText} numberOfLines={1}>{overlayBottom}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Timeline progress bar ────────────────────────────────── */}
+      <View style={tov.progressTrack}>
+        <View style={[tov.progressFill, { width: `${progress * 100}%` as any, backgroundColor: frameColor }]} />
+      </View>
+
+      {/* ── Elapsed timer ────────────────────────────────────────── */}
+      <View style={tov.timerChip}>
+        <Text style={tov.timerText}>
+          {Math.floor(elapsed / 1000)}s / {template.duration_sec ?? 30}s
+        </Text>
+      </View>
+    </>
+  );
+}
+
+const tov = StyleSheet.create({
+  topBar: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    paddingVertical: 10, paddingHorizontal: 16,
+    alignItems: 'center', zIndex: 15,
+  },
+  topText: {
+    color: '#fff', fontSize: 14, fontWeight: '800',
+    letterSpacing: 1, textAlign: 'center',
+    // @ts-ignore web
+    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+  },
+  subtitleWrap: {
+    position: 'absolute',
+    bottom: 160,
+    left: 16,
+    right: 16,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    zIndex: 25,
+    // @ts-ignore web
+    backdropFilter: 'blur(12px)',
+  },
+  subtitleText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    lineHeight: 28,
+    // @ts-ignore web
+    textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+  },
+  bottomBar: {
+    position: 'absolute', bottom: 44, left: 0, right: 0,
+    paddingVertical: 8, paddingHorizontal: 12,
+    alignItems: 'center', zIndex: 15,
+    overflow: 'hidden',
+  },
+  bottomText: {
+    color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '700',
+    letterSpacing: 0.5, textAlign: 'center',
+  },
+  progressTrack: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    height: 4, backgroundColor: 'rgba(255,255,255,0.15)', zIndex: 40,
+  },
+  progressFill: { height: '100%', borderRadius: 2 },
+  timerChip: {
+    position: 'absolute', bottom: 8, right: 12, zIndex: 40,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  timerText: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '700' },
+});
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RecordScreen() {
@@ -377,24 +511,28 @@ export default function RecordScreen() {
 
   const maxW = Math.min(width - 32, 500);
 
-  // ── Mount cleanup — fixes challenge reset bug ──────────────────────────────
-  // CRITICAL: Expo Router may cache the screen. If state='done' from previous
-  // challenge, start() silently returns. Reset everything on every mount.
-  useEffect(() => {
-    resetRecording();   // ← resets state to 'idle', elapsed to 0
-    resetVoice();
-    comboRef.current = 0;
-    setCombo(0);
-    prevMissionSeqRef.current = null;
-    prevTagRef.current = 'fail';
-    setCharState('idle');
-    setCurrentScore(0);
-    setCurrentTag('fail');
-    setCurrentMission(null);
-    setParticles([]);
-    setBurstVisible(false);
-    hudOpacity.setValue(0);
-  }, []); // eslint-disable-line
+  // ── Focus cleanup — fires every time screen gains focus (Expo Router 캐시 대응) ──
+  // useEffect([], []) 는 캐시된 화면에서 재실행 안됨 → useFocusEffect 필수
+  useFocusEffect(
+    useCallback(() => {
+      // 마이크 권한 한 번에 미리 확보 (SpeechRecognition 별도 팝업 방지)
+      prewarmMic();
+
+      resetRecording();          // state='idle', elapsed=0, videoUri=null
+      resetVoice();
+      comboRef.current = 0;
+      setCombo(0);
+      prevMissionSeqRef.current = null;
+      prevTagRef.current        = 'fail';
+      setCharState('idle');
+      setCurrentScore(0);
+      setCurrentTag('fail');
+      setCurrentMission(null);
+      setParticles([]);
+      setBurstVisible(false);
+      hudOpacity.setValue(0);
+    }, []), // eslint-disable-line
+  );
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
   useEffect(() => () => { resetVoice(); }, [resetVoice]);
@@ -658,6 +796,13 @@ export default function RecordScreen() {
                   emoji={activeTemplate.theme_emoji}
                 />
               )}
+
+              {/* ── TEMPLATE OVERLAY (붕어빵 껍질) ─────────── */}
+              <TemplateOverlay
+                template={activeTemplate}
+                elapsed={elapsed}
+                isRecording={isRecording}
+              />
 
               {/* ── TIMING BAR ────────────────────── */}
               {isRecording && (

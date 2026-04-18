@@ -31,7 +31,24 @@
       "Bash(npx serve:*)",
       "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\app\")",
       "mcp__Claude_Preview__preview_start",
-      "Bash(node -e \"const e = require\\('./node_modules/expo/package.json'\\); console.log\\(JSON.stringify\\(e.peerDependencies || e.dependencies || {}, null, 2\\)\\)\")"
+      "Bash(node -e \"const e = require\\('./node_modules/expo/package.json'\\); console.log\\(JSON.stringify\\(e.peerDependencies || e.dependencies || {}, null, 2\\)\\)\")",
+      "Bash(gh pr create --base main --head feature/v2-complete-overhaul --title 'feat: V2 완전 개편 — 제스처/음성인식/가상배경/SNS공유/10종 템플릿' --body ':*)",
+      "Bash(gh pr:*)",
+      "Bash(git commit -m ' *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 -c ' *)",
+      "Bash(vercel --prod)",
+      "Bash(vercel ls *)",
+      "Bash(vercel inspect *)",
+      "Bash(curl -s \"https://react.dev/errors/185\")",
+      "Bash(python3 /tmp/write_camera.py)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"require\\('fs'\\).writeFileSync\\('/tmp/write_files.js', 'placeholder'\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); fs.writeFileSync\\('/tmp/gen.js','// placeholder'\\); console.log\\('ok'\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); fs.writeFileSync\\('/tmp/gen.js', Buffer.from\\('const fs=require\\(\\\\\"fs\\\\\"\\);const c=[];const a=s=>c.push\\(s\\);', 'utf8'\\)\\); console.log\\('ok'\\)\")",
+      "Bash(node /tmp/write_camera.js)",
+      "Bash(node /c/tmp/write_camera.js)",
+      "Bash(node /c/tmp/write_sound.js)"
     ]
   }
 }
