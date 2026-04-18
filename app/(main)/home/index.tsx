@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
-import { VIDEO_TEMPLATES } from '../../../utils/videoTemplates';
+import { VIDEO_TEMPLATES, getTemplateByMissionId } from '../../../utils/videoTemplates';
 import type { Template } from '../../../types/template';
 
 const GENRES = [
@@ -37,8 +37,8 @@ const GENRE_COLORS: Record<string, [string, string]> = {
   news:      ['#1565c0', '#0d47a1'],
   kpop:      ['#e94560', '#c2185b'],
   travel:    ['#00acc1', '#0097a7'],
-  english:   ['#43a047', '#2e7d32'],
-  kids:      ['#ff9800', '#f57c00'],
+  english:   ['#2563eb', '#1e3a8a'],
+  kids:      ['#7c3aed', '#db2777'],
   challenge: ['#f44336', '#c62828'],
   promotion: ['#9c27b0', '#6a1b9a'],
   fitness:   ['#00bcd4', '#0097a7'],
@@ -49,14 +49,6 @@ const GENRE_EMOJIS: Record<string, string> = {
   daily: '📱', news: '📺', kpop: '🎤', travel: '✈️',
   english: '🌍', kids: '📖', challenge: '🔥', promotion: '🛒',
   fitness: '💪', hiphop: '🎵',
-};
-
-const GENRE_TO_VT: Record<string, string> = {
-  daily: 'vt-vlog',
-  news: 'vt-news',
-  kpop: 'vt-kpop',
-  english: 'vt-english',
-  kids: 'vt-fairy',
 };
 
 export default function HomeScreen() {
@@ -76,18 +68,16 @@ export default function HomeScreen() {
     [startSession, router],
   );
 
-  const windowWidth = Dimensions.get('window').width;
-  const numColumns = windowWidth >= 700 ? 2 : 1;
-  const cardWidth = numColumns === 2
-    ? (windowWidth - 16 * 3) / 2
-    : windowWidth - 16 * 2;
+  const { width } = Dimensions.get('window');
+  const numCols = width >= 680 ? 2 : 1;
+  const cardWidth = width >= 680 ? (width - 48) / 2 : width - 32;
 
   const renderCard = useCallback(
     ({ item: t }: { item: Template }) => {
       const colors = GENRE_COLORS[t.genre] ?? ['#667eea', '#764ba2'];
       const emoji = (t as any).theme_emoji ?? GENRE_EMOJIS[t.genre] ?? '🎬';
-      const vtId = GENRE_TO_VT[t.genre];
-      const hasVideoTemplate = !!vtId && VIDEO_TEMPLATES.some((v) => v.id === vtId);
+      const vt = getTemplateByMissionId(t.genre);
+      const hasVideoTemplate = !!vt && VIDEO_TEMPLATES.some((v) => v.id === vt.id);
 
       const difficultyStars =
         '★'.repeat(t.difficulty) + '☆'.repeat(Math.max(0, 3 - t.difficulty));
@@ -132,9 +122,18 @@ export default function HomeScreen() {
                 <Text style={styles.metaTagText}>{difficultyStars}</Text>
               </View>
             </View>
+
+            {/* Video template badge */}
+            {hasVideoTemplate && vt && (
+              <View style={styles.vtBadgeRow}>
+                <View style={styles.vtBadge}>
+                  <Text style={styles.vtBadgeText}>🎬 완성영상 포함</Text>
+                </View>
+              </View>
+            )}
           </View>
 
-          {/* Full-width start button flush to bottom */}
+          {/* Full-width start button */}
           <TouchableOpacity
             style={[
               styles.startBtn,
@@ -205,7 +204,7 @@ export default function HomeScreen() {
         <View style={styles.center}>
           <View style={styles.skeletonCard} />
           <View style={[styles.skeletonCard, { opacity: 0.6 }]} />
-          <ActivityIndicator size="large" color="#6C63FF" style={{ marginTop: 16 }} />
+          <ActivityIndicator size="large" color="#7C3AED" style={{ marginTop: 16 }} />
           <Text style={styles.loadingText}>템플릿 불러오는 중...</Text>
         </View>
       )}
@@ -225,10 +224,10 @@ export default function HomeScreen() {
           data={templates}
           keyExtractor={keyExtractor}
           renderItem={renderCard}
-          key={numColumns}
-          numColumns={numColumns}
+          key={`list-${numCols}`}
+          numColumns={numCols}
           contentContainerStyle={styles.listContent}
-          columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
+          columnWrapperStyle={numCols > 1 ? styles.columnWrapper : undefined}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.center}>
@@ -300,11 +299,11 @@ const styles = StyleSheet.create({
   },
   filterChipActive: {
     backgroundColor: '#EDE9FF',
-    borderColor: '#6C63FF',
+    borderColor: '#7C3AED',
   },
   filterEmoji: { fontSize: 13 },
   filterLabel: { color: '#555', fontSize: 13, fontWeight: '600' },
-  filterLabelActive: { color: '#6C63FF', fontWeight: '700' },
+  filterLabelActive: { color: '#7C3AED', fontWeight: '700' },
 
   listContent: {
     padding: 16,
@@ -320,12 +319,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 3,
-    marginBottom: 0,
   },
 
   cardBand: {
@@ -384,9 +382,26 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: '600',
   },
+  vtBadgeRow: {
+    flexDirection: 'row',
+    marginTop: 2,
+  },
+  vtBadge: {
+    backgroundColor: '#EDE9FF',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#C4B5FD',
+  },
+  vtBadgeText: {
+    color: '#7C3AED',
+    fontSize: 11,
+    fontWeight: '700',
+  },
 
   startBtn: {
-    height: 48,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 0,
@@ -416,7 +431,7 @@ const styles = StyleSheet.create({
   errorEmoji: { fontSize: 40 },
   errorText: { color: '#ef4444', fontSize: 14, textAlign: 'center' },
   retryBtn: {
-    backgroundColor: '#6C63FF',
+    backgroundColor: '#7C3AED',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,

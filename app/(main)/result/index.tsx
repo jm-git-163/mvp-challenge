@@ -234,7 +234,7 @@ export default function ResultScreen() {
     stats.avgScore >= 0.4 ? '⭐ 노력해봐요!' : null;
 
   const scoreAccentColor =
-    stats.avgScore >= 0.8 ? '#6C63FF' :
+    stats.avgScore >= 0.8 ? '#7C3AED' :
     stats.avgScore >= 0.6 ? '#ff9800' : '#e94560';
 
   return (
@@ -287,7 +287,7 @@ export default function ResultScreen() {
           ))}
         </View>
 
-        {/* VIDEO TEMPLATE / COMPOSE SECTION */}
+        {/* VIDEO COMPOSE SECTION */}
         {videoTemplate && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🎬 CapCut 스타일 완성 영상</Text>
@@ -306,19 +306,38 @@ export default function ResultScreen() {
             </View>
 
             {!composedUri && !composing && (
-              <TouchableOpacity
-                style={styles.composeBtn}
-                onPress={handleCompose}
-                activeOpacity={0.85}
-                disabled={!rawVideoUri}
-              >
-                <Text style={styles.composeBtnText}>✨ 완성 영상 만들기</Text>
-              </TouchableOpacity>
+              <View style={styles.composeSection}>
+                <Text style={styles.composeSectionTitle}>🎬 CapCut 스타일 완성 영상 만들기</Text>
+                <Text style={styles.composeDesc}>
+                  촬영한 영상 + 사전 제작 템플릿을 합성하여{'\n'}
+                  고퀄리티 SNS 영상을 완성합니다
+                </Text>
+                <View style={styles.templateInfoCard}>
+                  <Text style={styles.templateInfoTitle}>📋 {videoTemplate.name}</Text>
+                  <Text style={styles.templateInfoDesc}>{videoTemplate.description}</Text>
+                  <Text style={styles.templateInfoTime}>
+                    ⏱ 합성 소요 시간: 약 {Math.round(videoTemplate.duration_ms / 1000)}초
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.composeBtn, !rawVideoUri && styles.composeBtnDisabled]}
+                  onPress={handleCompose}
+                  disabled={!rawVideoUri}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.composeBtnText}>✨ 완성 영상 만들기</Text>
+                </TouchableOpacity>
+                {!rawVideoUri && (
+                  <Text style={styles.noVideoHint}>먼저 챌린지를 녹화해주세요</Text>
+                )}
+              </View>
             )}
 
             {composing && (
-              <View style={styles.progressBox}>
-                <Text style={styles.progressPhase}>{progress?.phase ?? '처리 중...'}</Text>
+              <View style={styles.composingSection}>
+                <ActivityIndicator size="large" color="#7C3AED" />
+                <Text style={styles.composingTitle}>🎬 영상 합성 중...</Text>
+                <Text style={styles.composingDesc}>{progress?.phase ?? '준비 중...'}</Text>
                 <View style={styles.progressBarBg}>
                   <View
                     style={[
@@ -327,10 +346,10 @@ export default function ResultScreen() {
                     ]}
                   />
                 </View>
-                <Text style={styles.progressPct}>
-                  {Math.round(progress?.percent ?? 0)}%
+                <Text style={styles.composingPct}>{Math.round(progress?.percent ?? 0)}% 완료</Text>
+                <Text style={styles.composingNote}>
+                  📌 실시간 처리 방식입니다 — 영상 길이만큼 소요됩니다
                 </Text>
-                <ActivityIndicator size="small" color="#6C63FF" />
               </View>
             )}
 
@@ -344,31 +363,28 @@ export default function ResultScreen() {
             )}
 
             {composedUri && (
-              <View style={styles.videoPreviewBox}>
-                {typeof document !== 'undefined' && (
-                  <video
-                    src={composedUri}
-                    controls
-                    playsInline
-                    style={{
-                      width: '100%',
-                      maxHeight: 420,
-                      borderRadius: 12,
-                      background: '#000',
-                      display: 'block',
-                    }}
-                  />
-                )}
-                <Text style={styles.videoPreviewLabel}>완성 영상 미리보기</Text>
-
-                <View style={styles.videoActions}>
+              <View style={styles.videoPreviewSection}>
+                <Text style={styles.videoPreviewTitle}>🎉 완성 영상</Text>
+                {/* @ts-ignore */}
+                <video
+                  src={composedUri}
+                  controls
+                  playsInline
+                  style={{
+                    width: '100%',
+                    maxHeight: 400,
+                    borderRadius: 16,
+                    display: 'block',
+                    background: '#000',
+                  }}
+                />
+                <View style={styles.videoActionRow}>
                   <TouchableOpacity
                     style={styles.downloadBtn}
                     onPress={() => doDownload(composedUri, activeTemplate?.name ?? 'challenge')}
                   >
                     <Text style={styles.downloadBtnText}>⬇ 다운로드</Text>
                   </TouchableOpacity>
-
                   {activeTemplate && (
                     <TouchableOpacity
                       style={styles.shareBtn}
@@ -382,10 +398,7 @@ export default function ResultScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-
-                {shared && (
-                  <Text style={styles.sharedHint}>공유 또는 클립보드 복사 완료!</Text>
-                )}
+                {shared && <Text style={styles.sharedText}>✅ 공유 또는 복사 완료!</Text>}
               </View>
             )}
           </View>
@@ -409,7 +422,7 @@ export default function ResultScreen() {
                   .replace('{score}', String(Math.round(stats.avgScore * 100)))}
               </Text>
             </View>
-            <View style={styles.videoActions}>
+            <View style={styles.videoActionRow}>
               <TouchableOpacity
                 style={styles.shareBtn}
                 onPress={() =>
@@ -430,7 +443,7 @@ export default function ResultScreen() {
               )}
             </View>
             {shared && (
-              <Text style={styles.sharedHint}>클립보드에 복사되었습니다!</Text>
+              <Text style={styles.sharedText}>클립보드에 복사되었습니다!</Text>
             )}
           </View>
         )}
@@ -518,9 +531,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 3,
     flexDirection: 'row',
@@ -554,9 +567,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     paddingVertical: 16,
-    shadowColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
   },
@@ -569,9 +582,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 18,
     gap: 12,
-    shadowColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -587,38 +600,115 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  hashChipText: { color: '#6C63FF', fontSize: 12, fontWeight: '600' },
+  hashChipText: { color: '#7C3AED', fontSize: 12, fontWeight: '600' },
 
-  // Compose
+  // Compose section (pre-compose)
+  composeSection: {
+    gap: 12,
+  },
+  composeSectionTitle: {
+    color: '#1a1a2e',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  composeDesc: {
+    color: '#666',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  templateInfoCard: {
+    backgroundColor: '#F7F4FF',
+    borderRadius: 12,
+    padding: 14,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  templateInfoTitle: {
+    color: '#5B21B6',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  templateInfoDesc: {
+    color: '#7C3AED',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  templateInfoTime: {
+    color: '#6D28D9',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
   composeBtn: {
     // @ts-ignore web gradient
-    background: 'linear-gradient(135deg, #6C63FF, #9b59b6)',
-    backgroundColor: '#6C63FF',
+    background: 'linear-gradient(135deg, #7C3AED, #9b59b6)',
+    backgroundColor: '#7C3AED',
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
     minHeight: 58,
     justifyContent: 'center',
-    shadowColor: '#6C63FF',
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
+  composeBtnDisabled: {
+    backgroundColor: '#ccc',
+    shadowOpacity: 0,
+  },
   composeBtnText: { color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
+  noVideoHint: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
 
-  // Progress
-  progressBox: { alignItems: 'center', gap: 10, padding: 8 },
-  progressPhase: { color: '#333', fontSize: 14, fontWeight: '600' },
+  // Composing section (in-progress)
+  composingSection: {
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+  },
+  composingTitle: {
+    color: '#1a1a2e',
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  composingDesc: {
+    color: '#555',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   progressBarBg: {
     width: '100%',
-    height: 8,
+    height: 10,
     backgroundColor: '#F0EFFF',
-    borderRadius: 4,
+    borderRadius: 5,
     overflow: 'hidden',
   },
-  progressBarFill: { height: '100%', backgroundColor: '#6C63FF', borderRadius: 4 },
-  progressPct: { color: '#999', fontSize: 13 },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#7C3AED',
+    borderRadius: 5,
+  },
+  composingPct: {
+    color: '#7C3AED',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  composingNote: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 2,
+  },
 
   // Error
   errorBox: {
@@ -632,17 +722,29 @@ const styles = StyleSheet.create({
   },
   errorBoxText: { color: '#dc2626', fontSize: 13, textAlign: 'center' },
   retrySmallBtn: {
-    backgroundColor: '#6C63FF',
+    backgroundColor: '#7C3AED',
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 10,
   },
   retrySmallText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Video preview
-  videoPreviewBox: { gap: 10 },
-  videoPreviewLabel: { color: '#999', fontSize: 12, textAlign: 'center' },
-  videoActions: { flexDirection: 'row', gap: 10 },
+  // Video preview section (post-compose)
+  videoPreviewSection: {
+    gap: 12,
+  },
+  videoPreviewTitle: {
+    color: '#1a1a2e',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  videoActionRow: { flexDirection: 'row', gap: 10 },
+  sharedText: {
+    color: '#2e7d32',
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
 
   // SNS / raw share
   hashtagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -652,15 +754,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  hashtagText: { color: '#6C63FF', fontSize: 12, fontWeight: '600' },
+  hashtagText: { color: '#7C3AED', fontSize: 12, fontWeight: '600' },
   captionBox: { backgroundColor: '#F7F8FC', borderRadius: 10, padding: 12 },
   captionText: { color: '#666', fontSize: 13, lineHeight: 20 },
-  sharedHint: { color: '#2e7d32', fontSize: 12, textAlign: 'center', fontWeight: '600' },
 
   // Share / download
   shareBtn: {
     flex: 1,
-    backgroundColor: '#1877f2',
+    backgroundColor: '#7C3AED',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -713,9 +814,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 56,
     justifyContent: 'center',
-    shadowColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -723,14 +824,14 @@ const styles = StyleSheet.create({
   homeBtn: {
     flex: 1,
     // @ts-ignore web gradient
-    background: 'linear-gradient(135deg, #6C63FF, #9b59b6)',
-    backgroundColor: '#6C63FF',
+    background: 'linear-gradient(135deg, #7C3AED, #9b59b6)',
+    backgroundColor: '#7C3AED',
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
     minHeight: 56,
     justifyContent: 'center',
-    shadowColor: '#6C63FF',
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,

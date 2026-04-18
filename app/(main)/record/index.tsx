@@ -1,7 +1,7 @@
 /**
  * record/index.tsx
  *
- * 촬영 메인 화면 — 풀스크린 카메라 + 미션 카드 오버레이 + 가상 배경
+ * 촬영 메인 화면 — 풀스크린 카메라 + 미션 오버레이 (중앙, 크게) + 가상 배경
  *
  * 레이아웃:
  *   root (flex:1, dark bg)
@@ -11,8 +11,8 @@
  *                       └── RecordingCamera (flex:1)
  *                             ├── TOP HUD overlay (absolute top:12)
  *                             ├── info overlay (absolute center) — pre-recording
- *                             ├── voice subtitle (absolute ~52%)
- *                             ├── mission card (absolute bottom:100)
+ *                             ├── mission overlay (absolute 28% — LARGE, centered)
+ *                             ├── voice subtitle (absolute ~62%)
  *                             ├── TimingBar (absolute bottom:80)
  *                             ├── JudgementBurst (absolute fill)
  *                             ├── countdown overlay (absolute fill)
@@ -316,10 +316,42 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {/* Voice subtitle box */}
+              {/* MISSION OVERLAY — LARGE, CENTERED (replaces old small bottom card) */}
+              {isRecording && currentMission && (
+                <View style={styles.missionOverlay}>
+                  <View style={styles.missionBox}>
+                    <Text style={styles.missionTypeTag}>
+                      {currentMission.type === 'voice_read' ? '🎤 따라 읽기' :
+                       currentMission.type === 'gesture' ? '🤲 제스처 미션' :
+                       currentMission.type === 'timing' ? '⏱ 유지하기' : '😊 표정 미션'}
+                    </Text>
+                    <Text style={styles.missionEmoji}>
+                      {currentMission.gesture_emoji ?? (currentMission as any).guide_emoji ?? '🎯'}
+                    </Text>
+                    <Text style={styles.missionText}>
+                      {currentMission.type === 'voice_read' && currentMission.read_text
+                        ? currentMission.read_text
+                        : currentMission.guide_text ?? ''}
+                    </Text>
+                    {/* Score indicator */}
+                    <View style={[styles.missionScoreBar, {
+                      backgroundColor:
+                        currentTag === 'perfect' ? '#22c55e' :
+                        currentTag === 'good' ? '#f59e0b' : 'rgba(255,255,255,0.2)',
+                    }]}>
+                      <Text style={styles.missionScoreText}>
+                        {currentTag === 'perfect' ? '🌟 PERFECT!' :
+                         currentTag === 'good' ? '👍 GOOD!' : '⏳ 도전 중...'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Voice subtitle box — BELOW the mission box */}
               {isRecording && currentMission?.type === 'voice_read' && voiceTranscript !== '' && (
                 <View style={styles.voiceSubBox}>
-                  <Text style={styles.voiceSubText}>💬 {voiceTranscript}</Text>
+                  <Text style={styles.voiceSubText}>💬 "{voiceTranscript}"</Text>
                 </View>
               )}
 
@@ -332,36 +364,6 @@ export default function RecordScreen() {
                   <Text style={styles.countdownSub}>
                     {activeTemplate.theme_emoji} {activeTemplate.name}
                   </Text>
-                </View>
-              )}
-
-              {/* Mission card (bottom overlay) */}
-              {isRecording && currentMission && (
-                <View style={styles.missionCard}>
-                  <Text style={styles.missionEmoji}>
-                    {currentMission.gesture_emoji ?? (currentMission as any).guide_emoji ?? '🎯'}
-                  </Text>
-                  <View style={styles.missionTextBox}>
-                    <Text style={styles.missionLabel}>
-                      {currentMission.type === 'voice_read' ? '🎤 따라 읽기' :
-                       currentMission.type === 'gesture' ? '🤲 제스처' :
-                       currentMission.type === 'timing' ? '⏱ 유지하기' : '😊 표정'}
-                    </Text>
-                    <Text style={styles.missionText}>
-                      {currentMission.type === 'voice_read' && currentMission.read_text
-                        ? currentMission.read_text
-                        : currentMission.guide_text ?? ''}
-                    </Text>
-                  </View>
-                  <View style={[styles.missionScorePill, {
-                    backgroundColor:
-                      currentTag === 'perfect' ? '#4caf50' :
-                      currentTag === 'good' ? '#ff9800' : '#555',
-                  }]}>
-                    <Text style={styles.missionScoreText}>
-                      {currentTag === 'perfect' ? '👌' : currentTag === 'good' ? '👍' : '...'}
-                    </Text>
-                  </View>
                 </View>
               )}
 
@@ -512,10 +514,60 @@ const styles = StyleSheet.create({
   },
   flipBtnIdleText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
-  // VOICE SUBTITLE
+  // MISSION OVERLAY — LARGE & CENTERED
+  missionOverlay: {
+    position: 'absolute',
+    top: '28%',
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    alignItems: 'center',
+  },
+  missionBox: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+  },
+  missionTypeTag: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '600',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  missionEmoji: { fontSize: 64 },
+  missionText: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    lineHeight: 34,
+  },
+  missionScoreBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 4,
+  },
+  missionScoreText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  // VOICE SUBTITLE — below mission box
   voiceSubBox: {
     position: 'absolute',
-    top: '52%',
+    top: '62%',
     left: 12,
     right: 12,
     backgroundColor: 'rgba(0,0,0,0.72)',
@@ -550,39 +602,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 24,
   },
   countdownSub: { color: '#ddd', fontSize: 16, fontWeight: '700', letterSpacing: 1 },
-
-  // MISSION CARD (bottom overlay pill)
-  missionCard: {
-    position: 'absolute',
-    bottom: 100,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    zIndex: 22,
-  },
-  missionEmoji: { fontSize: 28 },
-  missionTextBox: { flex: 1, gap: 2 },
-  missionLabel: { color: '#aaa', fontSize: 11, fontWeight: '700' },
-  missionText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 18,
-  },
-  missionScorePill: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  missionScoreText: { fontSize: 16 },
 
   // TIMING BAR
   timingBarWrapper: {
