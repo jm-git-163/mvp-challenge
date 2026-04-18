@@ -1,6 +1,7 @@
 /**
  * home/index.tsx — Canva-quality 홈 화면
  * 밝은 배경 · 흰색 카드 · 보라색 액센트 · 반응형 2열 그리드
+ * 미션 타입 배지 · 완성영상 템플릿 표시
  */
 import React, { useState, useCallback } from 'react';
 import {
@@ -19,17 +20,23 @@ import { useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import { VIDEO_TEMPLATES, getTemplateByMissionId } from '../../../utils/videoTemplates';
-import type { Template } from '../../../types/template';
+import type { Template, MissionType } from '../../../types/template';
+
+// Genre → video template mapping
+const GENRE_TO_VT: Record<string, string> = {
+  daily: 'vt-vlog', news: 'vt-news', kpop: 'vt-kpop',
+  english: 'vt-english', kids: 'vt-fairy',
+};
 
 const GENRES = [
-  { label: '전체', value: 'all', emoji: '✨' },
-  { label: '일상', value: 'daily', emoji: '📱' },
-  { label: '뉴스', value: 'news', emoji: '📺' },
-  { label: 'K-POP', value: 'kpop', emoji: '🎤' },
-  { label: '여행', value: 'travel', emoji: '✈️' },
-  { label: '영어', value: 'english', emoji: '🌍' },
-  { label: '동화', value: 'kids', emoji: '📖' },
-  { label: '챌린지', value: 'challenge', emoji: '🔥' },
+  { label: '전체',     value: 'all',       emoji: '✨' },
+  { label: '일상',     value: 'daily',     emoji: '📱' },
+  { label: '뉴스',     value: 'news',      emoji: '📺' },
+  { label: 'K-POP',   value: 'kpop',      emoji: '🎤' },
+  { label: '여행',     value: 'travel',    emoji: '✈️' },
+  { label: '영어',     value: 'english',   emoji: '🌍' },
+  { label: '동화',     value: 'kids',      emoji: '📖' },
+  { label: '챌린지',  value: 'challenge',  emoji: '🔥' },
 ];
 
 const GENRE_COLORS: Record<string, [string, string]> = {
@@ -51,6 +58,14 @@ const GENRE_EMOJIS: Record<string, string> = {
   fitness: '💪', hiphop: '🎵',
 };
 
+// Mission type colors and labels
+const MISSION_TYPE_STYLES: Record<MissionType, { bg: string; text: string; label: string }> = {
+  gesture:    { bg: '#ede9fe', text: '#7c3aed', label: '🤲 제스처' },
+  voice_read: { bg: '#fce7f3', text: '#db2777', label: '🎤 따라읽기' },
+  timing:     { bg: '#e0f2fe', text: '#0891b2', label: '⏱ 유지' },
+  expression: { bg: '#fef3c7', text: '#d97706', label: '😊 표정' },
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
@@ -69,22 +84,28 @@ export default function HomeScreen() {
   );
 
   const { width } = Dimensions.get('window');
-  const numCols = width >= 680 ? 2 : 1;
+  const numCols  = width >= 680 ? 2 : 1;
   const cardWidth = width >= 680 ? (width - 48) / 2 : width - 32;
 
   const renderCard = useCallback(
     ({ item: t }: { item: Template }) => {
       const colors = GENRE_COLORS[t.genre] ?? ['#667eea', '#764ba2'];
-      const emoji = (t as any).theme_emoji ?? GENRE_EMOJIS[t.genre] ?? '🎬';
-      const vt = getTemplateByMissionId(t.genre);
+      const emoji  = t.theme_emoji ?? GENRE_EMOJIS[t.genre] ?? '🎬';
+      const vt     = getTemplateByMissionId(t.genre);
       const hasVideoTemplate = !!vt && VIDEO_TEMPLATES.some((v) => v.id === vt.id);
 
       const difficultyStars =
         '★'.repeat(t.difficulty) + '☆'.repeat(Math.max(0, 3 - t.difficulty));
 
+      // Collect unique mission types
+      const missionTypes: MissionType[] = [];
+      for (const m of t.missions) {
+        if (!missionTypes.includes(m.type)) missionTypes.push(m.type);
+      }
+
       return (
         <View style={[styles.card, { width: cardWidth }]}>
-          {/* Top colored band */}
+          {/* Colored gradient top band */}
           <View
             style={[
               styles.cardBand,
@@ -98,7 +119,7 @@ export default function HomeScreen() {
             <Text style={styles.cardBandEmoji}>{emoji}</Text>
             {hasVideoTemplate && (
               <View style={styles.videoBadge}>
-                <Text style={styles.videoBadgeText}>🎬 완성영상 포함</Text>
+                <Text style={styles.videoBadgeText}>🎬 영상 템플릿 포함</Text>
               </View>
             )}
           </View>
@@ -106,8 +127,8 @@ export default function HomeScreen() {
           {/* Card body */}
           <View style={styles.cardBody}>
             <Text style={styles.cardTitle} numberOfLines={1}>{t.name}</Text>
-            {(t as any).scene ? (
-              <Text style={styles.cardDesc} numberOfLines={2}>{(t as any).scene}</Text>
+            {t.scene ? (
+              <Text style={styles.cardDesc} numberOfLines={2}>{t.scene}</Text>
             ) : null}
 
             {/* Metadata row */}
@@ -123,12 +144,17 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Video template badge */}
-            {hasVideoTemplate && vt && (
-              <View style={styles.vtBadgeRow}>
-                <View style={styles.vtBadge}>
-                  <Text style={styles.vtBadgeText}>🎬 완성영상 포함</Text>
-                </View>
+            {/* Mission type badges */}
+            {missionTypes.length > 0 && (
+              <View style={styles.missionTypesRow}>
+                {missionTypes.map((type) => {
+                  const s = MISSION_TYPE_STYLES[type];
+                  return (
+                    <View key={type} style={[styles.missionTypePill, { backgroundColor: s.bg }]}>
+                      <Text style={[styles.missionTypePillText, { color: s.text }]}>{s.label}</Text>
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>
@@ -160,7 +186,7 @@ export default function HomeScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Header */}
+      {/* Sticky header */}
       <SafeAreaView edges={['top']} style={styles.safeTop}>
         <View style={styles.header}>
           <Text style={styles.headerLogo}>🎬 챌린지 스튜디오</Text>
@@ -189,17 +215,14 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.filterEmoji}>{g.emoji}</Text>
-            <Text style={[
-              styles.filterLabel,
-              selectedGenre === g.value && styles.filterLabelActive,
-            ]}>
+            <Text style={[styles.filterLabel, selectedGenre === g.value && styles.filterLabelActive]}>
               {g.label}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Content */}
+      {/* Loading state */}
       {loading && (
         <View style={styles.center}>
           <View style={styles.skeletonCard} />
@@ -209,6 +232,7 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* Error state */}
       {error && (
         <View style={styles.center}>
           <Text style={styles.errorEmoji}>⚠️</Text>
@@ -219,6 +243,7 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* Template list */}
       {!loading && !error && (
         <FlatList
           data={templates}
@@ -243,9 +268,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F8FC' },
+  root: { flex: 1, backgroundColor: '#F4F5F9' },
   safeTop: { backgroundColor: '#fff' },
 
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,6 +281,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#EBEBEB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerLogo: {
     fontSize: 20,
@@ -272,6 +303,7 @@ const styles = StyleSheet.create({
   },
   profileBtnText: { fontSize: 20 },
 
+  // Filter chips
   filterScroll: {
     maxHeight: 60,
     backgroundColor: '#fff',
@@ -305,6 +337,7 @@ const styles = StyleSheet.create({
   filterLabel: { color: '#555', fontSize: 13, fontWeight: '600' },
   filterLabelActive: { color: '#7C3AED', fontWeight: '700' },
 
+  // List
   listContent: {
     padding: 16,
     paddingBottom: 80,
@@ -315,6 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
 
+  // Card
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -326,22 +360,21 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
+  // Card top band
   cardBand: {
     height: 80,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
-  cardBandEmoji: {
-    fontSize: 40,
-  },
+  cardBandEmoji: { fontSize: 40 },
   videoBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.38)',
     borderRadius: 10,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
   },
   videoBadgeText: {
@@ -350,21 +383,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  // Card body
   cardBody: {
     padding: 14,
     gap: 8,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: '#1a1a2e',
     lineHeight: 22,
   },
   cardDesc: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666',
-    lineHeight: 18,
+    lineHeight: 17,
   },
+
+  // Meta row
   metaRow: {
     flexDirection: 'row',
     gap: 6,
@@ -382,24 +418,25 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: '600',
   },
-  vtBadgeRow: {
+
+  // Mission type badges
+  missionTypesRow: {
     flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
     marginTop: 2,
   },
-  vtBadge: {
-    backgroundColor: '#EDE9FF',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#C4B5FD',
+  missionTypePill: {
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
   },
-  vtBadgeText: {
-    color: '#7C3AED',
+  missionTypePillText: {
     fontSize: 11,
     fontWeight: '700',
   },
 
+  // Start button (full-width, 52px)
   startBtn: {
     height: 52,
     alignItems: 'center',
@@ -413,6 +450,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
+  // States
   center: {
     flex: 1,
     alignItems: 'center',

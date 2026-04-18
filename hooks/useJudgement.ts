@@ -1,5 +1,6 @@
 /**
- * useJudgement.ts — 제스처 + 음성 통합 판정
+ * useJudgement.ts — 미션 판정 훅 (수정됨)
+ * judge(landmarks, elapsedMs) 시그니처로 변경 — timing drift 완전 해결
  */
 import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
@@ -30,23 +31,23 @@ interface JudgementResult {
 }
 
 export function useJudgement(): {
-  judge: (landmarks: NormalizedLandmark[]) => JudgementResult;
+  judge: (landmarks: NormalizedLandmark[], elapsedMs: number) => JudgementResult;
   voiceTranscript: string;
   resetVoice: () => void;
 } {
-  const { activeTemplate, recordingStartedAt, appendFrameTag } = useSessionStore();
-  const lastAppendRef   = useRef(0);
-  const speechRef       = useRef(new SpeechRecognizer());
-  const voiceActiveRef  = useRef(false);
+  const { activeTemplate, appendFrameTag } = useSessionStore();
+  const lastAppendRef     = useRef(0);
+  const speechRef         = useRef(new SpeechRecognizer());
+  const voiceActiveRef    = useRef(false);
   const lastMissionSeqRef = useRef<number | null>(null);
 
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceScore,      setVoiceScore]      = useState(0.6);
+  const [voiceScore,      setVoiceScore]      = useState(0.62);
 
   const judge = useCallback(
-    (landmarks: NormalizedLandmark[]): JudgementResult => {
+    (landmarks: NormalizedLandmark[], elapsedMs: number): JudgementResult => {
       const now = Date.now();
-      const elapsedMs = recordingStartedAt ? now - recordingStartedAt : 0;
+
       const mission = activeTemplate
         ? getCurrentMission(activeTemplate.missions, elapsedMs)
         : null;
@@ -58,25 +59,34 @@ export function useJudgement(): {
           speechRef.current.stop();
           voiceActiveRef.current = false;
         }
-        setVoiceScore(0.6);
+        setVoiceScore(0.62);
         setVoiceTranscript('');
       }
 
       let score = 0;
 
       if (mission) {
+        // Progress 0→1 within this mission's time window
+        const missionDur  = Math.max(1, mission.end_ms - mission.start_ms);
+        const missionProg = Math.min(1, Math.max(0, (elapsedMs - mission.start_ms) / missionDur));
+
         switch (mission.type) {
-          case 'gesture':
-            if (mission.gesture_id && landmarks.length > 0) {
+          case 'gesture': {
+            // On web (mock landmarks), use progressive time-based confidence
+            // Real detection would use detectGesture when real landmarks are available
+            const hasRealLandmarks = landmarks.length > 0 && landmarks.some(l => l.score > 0.5 && l.score < 0.99);
+            if (hasRealLandmarks && mission.gesture_id) {
               score = detectGesture(landmarks, mission.gesture_id);
             } else {
-              score = 0.6;
+              // Progressive: starts at GOOD (0.6), reaches PERFECT (0.88) at 60% through mission
+              score = Math.min(0.88, 0.58 + missionProg * 0.5);
             }
             break;
+          }
 
-          case 'voice_read':
-            // Use accumulated voice score; start recognition if not active
+          case 'voice_read': {
             score = voiceScore;
+
             if (!voiceActiveRef.current && speechRef.current.isSupported()) {
               const remainingMs = mission.end_ms - elapsedMs - 500;
               if (remainingMs > 800) {
@@ -86,9 +96,9 @@ export function useJudgement(): {
                   (interim) => setVoiceTranscript(interim),
                   (final) => {
                     const s = mission.read_text
-                      ? textSimilarity(mission.read_text, final)
-                      : 0.7;
-                    setVoiceScore(Math.max(0.6, s));
+                      ? Math.max(0.62, textSimilarity(mission.read_text, final))
+                      : 0.72;
+                    setVoiceScore(s);
                     setVoiceTranscript(final);
                     voiceActiveRef.current = false;
                   },
@@ -96,37 +106,21 @@ export function useJudgement(): {
                 );
               }
             } else if (!speechRef.current.isSupported()) {
-              // Auto-pass on unsupported browsers
-              score = 0.7;
+              // Auto-pass on unsupported browsers with progressive score
+              score = Math.min(0.85, 0.62 + missionProg * 0.35);
             }
             break;
+          }
 
           case 'timing':
-            // Score increases over time within the mission
-            score =
-              0.65 +
-              Math.min(
-                0.25,
-                ((elapsedMs - mission.start_ms) /
-                  (mission.end_ms - mission.start_ms)) *
-                  0.25,
-              );
+          case 'expression': {
+            // Smooth progressive score: GOOD → PERFECT over mission duration
+            score = Math.min(0.88, 0.62 + missionProg * 0.36);
             break;
-
-          case 'expression':
-            // Gradually increases; peaks at end of mission
-            score =
-              0.65 +
-              Math.min(
-                0.25,
-                ((elapsedMs - mission.start_ms) /
-                  (mission.end_ms - mission.start_ms)) *
-                  0.25,
-              );
-            break;
+          }
 
           default:
-            score = 0.6;
+            score = Math.min(0.75, 0.55 + missionProg * 0.3);
         }
       }
 
@@ -144,14 +138,14 @@ export function useJudgement(): {
 
       return { score, tag, currentMission: mission, voiceTranscript };
     },
-    [activeTemplate, recordingStartedAt, appendFrameTag, voiceScore, voiceTranscript],
+    [activeTemplate, appendFrameTag, voiceScore, voiceTranscript],
   );
 
   const resetVoice = useCallback(() => {
     voiceActiveRef.current = false;
     lastMissionSeqRef.current = null;
     setVoiceTranscript('');
-    setVoiceScore(0.6);
+    setVoiceScore(0.62);
     speechRef.current.stop();
   }, []);
 
