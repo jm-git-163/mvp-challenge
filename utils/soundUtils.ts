@@ -142,3 +142,25 @@ export function speakJudgement(type: keyof typeof JUDGEMENT_PHRASES): void {
 export function initAudio(): void {
   ctx();
 }
+
+/**
+ * speakMission — 미션 시작 시 안내 멘트 (SpeechSynthesis)
+ * 판정 멘트와 달리 쿨다운 없음 (미션 전환마다 한 번씩 읽어줌)
+ */
+export function speakMission(text: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang   = 'ko-KR';
+    u.rate   = 1.05;
+    u.pitch  = 1.1;
+    u.volume = 0.85;
+    const voices  = window.speechSynthesis.getVoices();
+    const koVoice = voices.find((v) => v.lang.startsWith('ko'));
+    if (koVoice) u.voice = koVoice;
+    window.speechSynthesis.speak(u);
+  } catch {
+    // ignore — SpeechSynthesis not available
+  }
+}
