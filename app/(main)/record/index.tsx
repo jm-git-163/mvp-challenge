@@ -3,20 +3,20 @@
  *
  * 촬영 메인 화면 — 풀스크린 카메라 + 미션 카드 오버레이 + 가상 배경
  *
- * 레이아웃 (flex 기반, 고정 높이 없음):
- *   root (flex: 1, dark bg)
- *     └── SafeAreaView (flex: 1)
- *           └── cameraContainer (flex: 1)
- *                 └── VirtualBackgroundFrame
- *                       └── RecordingCamera
- *                             ├── TOP HUD overlay (absolute, top: 0)
- *                             ├── info overlay (absolute, center) — pre-recording
- *                             ├── voice subtitle (absolute, ~52%)
- *                             ├── AnimatedMissionCard (absolute, bottom: 80)
- *                             ├── TimingBar (absolute, bottom: 80)
+ * 레이아웃:
+ *   root (flex:1, dark bg)
+ *     └── SafeAreaView (flex:1)
+ *           └── cameraContainer (flex:1)
+ *                 └── VirtualBackgroundFrame (flex:1 — no width/height props)
+ *                       └── RecordingCamera (flex:1)
+ *                             ├── TOP HUD overlay (absolute top:12)
+ *                             ├── info overlay (absolute center) — pre-recording
+ *                             ├── voice subtitle (absolute ~52%)
+ *                             ├── mission card (absolute bottom:100)
+ *                             ├── TimingBar (absolute bottom:80)
  *                             ├── JudgementBurst (absolute fill)
  *                             ├── countdown overlay (absolute fill)
- *                             └── start/stop controls (absolute, bottom: 0)
+ *                             └── start/stop controls (absolute bottom)
  */
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
@@ -33,19 +33,18 @@ import { useRouter } from 'expo-router';
 import RecordingCamera, {
   type RecordingCameraHandle,
 } from '../../../components/camera/RecordingCamera';
-import TimingBar              from '../../../components/ui/TimingBar';
+import TimingBar from '../../../components/ui/TimingBar';
 import VirtualBackgroundFrame from '../../../components/ui/VirtualBackgroundFrame';
-import AnimatedMissionCard    from '../../../components/mission/AnimatedMissionCard';
-import JudgementBurst         from '../../../components/mission/JudgementBurst';
+import JudgementBurst from '../../../components/mission/JudgementBurst';
 
-import { usePoseDetection }          from '../../../hooks/usePoseDetection';
-import { useJudgement }              from '../../../hooks/useJudgement';
-import { useRecording }              from '../../../hooks/useRecording';
-import { useSessionStore }           from '../../../store/sessionStore';
+import { usePoseDetection } from '../../../hooks/usePoseDetection';
+import { useJudgement } from '../../../hooks/useJudgement';
+import { useRecording } from '../../../hooks/useRecording';
+import { useSessionStore } from '../../../store/sessionStore';
 import { playSound, initAudio, speakJudgement } from '../../../utils/soundUtils';
-import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
-import type { JudgementTag }         from '../../../types/session';
-import type { RecordedClip }         from '../../../utils/videoCompositor';
+import { getTemplateByMissionId } from '../../../utils/videoTemplates';
+import type { JudgementTag } from '../../../types/session';
+import type { RecordedClip } from '../../../utils/videoCompositor';
 
 /** Announce a mission text via SpeechSynthesis */
 function speakMission(text: string): void {
@@ -67,7 +66,7 @@ function speakMission(text: string): void {
 }
 
 export default function RecordScreen() {
-  const router    = useRouter();
+  const router = useRouter();
   const cameraRef = useRef<RecordingCameraHandle>(null);
 
   const { activeTemplate } = useSessionStore();
@@ -79,20 +78,20 @@ export default function RecordScreen() {
   const { state, countdown, elapsed, videoUri, start, stop } = useRecording();
 
   // Judgement state
-  const [currentScore,   setCurrentScore]   = useState(0);
-  const [currentTag,     setCurrentTag]     = useState<JudgementTag>('fail');
+  const [currentScore, setCurrentScore] = useState(0);
+  const [currentTag, setCurrentTag] = useState<JudgementTag>('fail');
   const [currentMission, setCurrentMission] = useState<ReturnType<typeof judge>['currentMission']>(null);
 
   // Burst effect
   const [burstVisible, setBurstVisible] = useState(false);
-  const [burstTag,     setBurstTag]     = useState<JudgementTag | null>(null);
-  const [combo,        setCombo]        = useState(0);
+  const [burstTag, setBurstTag] = useState<JudgementTag | null>(null);
+  const [combo, setCombo] = useState(0);
 
-  const prevTagRef          = useRef<JudgementTag>('fail');
-  const prevCountdownRef    = useRef<number>(3);
-  const comboRef            = useRef(0);
-  const burstTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevMissionSeqRef   = useRef<number | null>(null);
+  const prevTagRef = useRef<JudgementTag>('fail');
+  const prevCountdownRef = useRef<number>(3);
+  const comboRef = useRef(0);
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevMissionSeqRef = useRef<number | null>(null);
 
   // Redirect if no template
   useEffect(() => {
@@ -101,7 +100,7 @@ export default function RecordScreen() {
 
   useEffect(() => { return () => { resetVoice(); }; }, [resetVoice]);
 
-  // Pose judgement loop (runs every render when landmarks change or elapsed ticks)
+  // Pose judgement loop
   useEffect(() => {
     if (state !== 'recording') return;
 
@@ -198,10 +197,9 @@ export default function RecordScreen() {
       return;
     }
 
-    // Fetch the recorded blob and map it across all clip slots
     fetch(videoUri)
       .then((r) => r.blob())
-      .then((blob) => {
+      .then(() => {
         const clipsJson = JSON.stringify(
           vt.clip_slots.map((slot) => ({
             slot_id: slot.id,
@@ -231,15 +229,15 @@ export default function RecordScreen() {
 
   const isCountdown = state === 'countdown';
   const isRecording = state === 'recording';
-  const isIdle      = state === 'idle';
-  const virtualBg   = activeTemplate.virtual_bg;
+  const isIdle = state === 'idle';
+  const virtualBg = activeTemplate.virtual_bg;
 
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.cameraContainer}>
-          <VirtualBackgroundFrame bg={virtualBg} width={0} height={0}>
-
+          {/* VirtualBackgroundFrame — no width/height props; uses flex:1 */}
+          <VirtualBackgroundFrame bg={virtualBg}>
             <RecordingCamera
               ref={cameraRef}
               facing={facing}
@@ -250,7 +248,6 @@ export default function RecordScreen() {
                 router.back();
               }}
             >
-
               {/* TOP HUD — visible during recording */}
               {isRecording && (
                 <View style={styles.topHud}>
@@ -262,12 +259,12 @@ export default function RecordScreen() {
                   <View style={[styles.scoreBadge, {
                     borderColor:
                       currentTag === 'perfect' ? '#4caf50' :
-                      currentTag === 'good'    ? '#ffc107' : '#ff6b6b',
+                      currentTag === 'good' ? '#ffc107' : '#ff6b6b',
                   }]}>
                     <Text style={[styles.scoreText, {
                       color:
                         currentTag === 'perfect' ? '#4caf50' :
-                        currentTag === 'good'    ? '#ffc107' : '#ff6b6b',
+                        currentTag === 'good' ? '#ffc107' : '#ff6b6b',
                     }]}>
                       {Math.round(currentScore * 100)}
                     </Text>
@@ -319,10 +316,10 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {/* Voice subtitle */}
+              {/* Voice subtitle box */}
               {isRecording && currentMission?.type === 'voice_read' && voiceTranscript !== '' && (
-                <View style={styles.voiceSubtitleBox}>
-                  <Text style={styles.voiceSubtitleText}>{voiceTranscript}</Text>
+                <View style={styles.voiceSubBox}>
+                  <Text style={styles.voiceSubText}>💬 {voiceTranscript}</Text>
                 </View>
               )}
 
@@ -338,14 +335,34 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {/* Mission card */}
-              {isRecording && (
-                <AnimatedMissionCard
-                  mission={currentMission}
-                  elapsedMs={elapsed}
-                  score={currentScore}
-                  tag={currentTag}
-                />
+              {/* Mission card (bottom overlay) */}
+              {isRecording && currentMission && (
+                <View style={styles.missionCard}>
+                  <Text style={styles.missionEmoji}>
+                    {currentMission.gesture_emoji ?? (currentMission as any).guide_emoji ?? '🎯'}
+                  </Text>
+                  <View style={styles.missionTextBox}>
+                    <Text style={styles.missionLabel}>
+                      {currentMission.type === 'voice_read' ? '🎤 따라 읽기' :
+                       currentMission.type === 'gesture' ? '🤲 제스처' :
+                       currentMission.type === 'timing' ? '⏱ 유지하기' : '😊 표정'}
+                    </Text>
+                    <Text style={styles.missionText}>
+                      {currentMission.type === 'voice_read' && currentMission.read_text
+                        ? currentMission.read_text
+                        : currentMission.guide_text ?? ''}
+                    </Text>
+                  </View>
+                  <View style={[styles.missionScorePill, {
+                    backgroundColor:
+                      currentTag === 'perfect' ? '#4caf50' :
+                      currentTag === 'good' ? '#ff9800' : '#555',
+                  }]}>
+                    <Text style={styles.missionScoreText}>
+                      {currentTag === 'perfect' ? '👌' : currentTag === 'good' ? '👍' : '...'}
+                    </Text>
+                  </View>
+                </View>
               )}
 
               {/* Timing bar */}
@@ -378,7 +395,12 @@ export default function RecordScreen() {
               {isIdle && (
                 <View style={styles.startArea}>
                   <TouchableOpacity
-                    style={[styles.startBtn, !isReady && styles.startBtnDisabled]}
+                    style={[
+                      styles.startBtn,
+                      // @ts-ignore web gradient
+                      { background: 'linear-gradient(135deg, #6C63FF, #9b59b6)' },
+                      !isReady && styles.startBtnDisabled,
+                    ]}
                     onPress={() => {
                       initAudio();
                       if (cameraRef.current) start(cameraRef.current);
@@ -397,7 +419,6 @@ export default function RecordScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-
             </RecordingCamera>
           </VirtualBackgroundFrame>
         </View>
@@ -407,16 +428,16 @@ export default function RecordScreen() {
 }
 
 const styles = StyleSheet.create({
-  root:            { flex: 1, backgroundColor: '#0f0e17' },
-  safeArea:        { flex: 1 },
+  root: { flex: 1, backgroundColor: '#0d0d0d' },
+  safeArea: { flex: 1 },
   cameraContainer: { flex: 1 },
 
   // TOP HUD
   topHud: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
+    top: 12,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -472,12 +493,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
   },
-  templateEmoji:  { fontSize: 52 },
-  templateName:   { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
-  templateMeta:   { color: '#ccc', fontSize: 13 },
-  sceneText:      { color: '#aaa', fontSize: 12, fontStyle: 'italic', textAlign: 'center', lineHeight: 18 },
-  modeHint:       { color: '#7eb3ff', fontSize: 12, fontWeight: '600' },
-  loadingText:    { color: '#e94560', fontSize: 12, marginTop: 4 },
+  templateEmoji: { fontSize: 52 },
+  templateName: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  templateMeta: { color: '#ccc', fontSize: 13 },
+  sceneText: { color: '#aaa', fontSize: 12, fontStyle: 'italic', textAlign: 'center', lineHeight: 18 },
+  modeHint: { color: '#7eb3ff', fontSize: 12, fontWeight: '600' },
+  loadingText: { color: '#e94560', fontSize: 12, marginTop: 4 },
   flipBtnIdle: {
     marginTop: 6,
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -492,7 +513,7 @@ const styles = StyleSheet.create({
   flipBtnIdleText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   // VOICE SUBTITLE
-  voiceSubtitleBox: {
+  voiceSubBox: {
     position: 'absolute',
     top: '52%',
     left: 12,
@@ -503,7 +524,7 @@ const styles = StyleSheet.create({
     zIndex: 18,
     alignItems: 'center',
   },
-  voiceSubtitleText: {
+  voiceSubText: {
     color: '#ffe082',
     fontSize: 15,
     fontWeight: '600',
@@ -530,6 +551,39 @@ const styles = StyleSheet.create({
   },
   countdownSub: { color: '#ddd', fontSize: 16, fontWeight: '700', letterSpacing: 1 },
 
+  // MISSION CARD (bottom overlay pill)
+  missionCard: {
+    position: 'absolute',
+    bottom: 100,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 22,
+  },
+  missionEmoji: { fontSize: 28 },
+  missionTextBox: { flex: 1, gap: 2 },
+  missionLabel: { color: '#aaa', fontSize: 11, fontWeight: '700' },
+  missionText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  missionScorePill: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  missionScoreText: { fontSize: 16 },
+
   // TIMING BAR
   timingBarWrapper: {
     position: 'absolute',
@@ -542,16 +596,16 @@ const styles = StyleSheet.create({
   // STOP BUTTON
   stopBtnWrapper: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 20,
     alignSelf: 'center',
     alignItems: 'center',
     gap: 6,
     zIndex: 25,
   },
   stopBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderWidth: 3,
     borderColor: '#fff',
@@ -572,21 +626,21 @@ const styles = StyleSheet.create({
     zIndex: 25,
   },
   startBtn: {
-    backgroundColor: '#e94560',
+    backgroundColor: '#6C63FF',
     paddingVertical: 18,
     paddingHorizontal: 40,
     borderRadius: 32,
     width: '100%',
     alignItems: 'center',
-    minHeight: 60,
-    shadowColor: '#e94560',
+    minHeight: 56,
+    shadowColor: '#6C63FF',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 8,
   },
   startBtnDisabled: { backgroundColor: '#555', shadowOpacity: 0 },
-  startBtnText:     { color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: 1 },
-  backBtn:          { paddingVertical: 10, paddingHorizontal: 24 },
-  backText:         { color: '#aaa', fontSize: 14 },
+  startBtnText: { color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  backBtn: { paddingVertical: 10, paddingHorizontal: 24 },
+  backText: { color: '#aaa', fontSize: 14 },
 });

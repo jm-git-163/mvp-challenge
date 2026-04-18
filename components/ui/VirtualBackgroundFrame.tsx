@@ -1,18 +1,15 @@
 /**
  * VirtualBackgroundFrame.tsx
  * 카메라 뒤/주변에 가상 배경 프레임을 렌더링 (실제 크로마키 아님)
- * type='frame': 카메라를 프레임 안에 넣음
- * type='overlay': 반투명 오버레이
+ * wrapper uses flex:1 — no width/height props needed
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { VirtualBackground } from '../../types/template';
 
 interface Props {
-  bg: VirtualBackground;
+  bg?: VirtualBackground | null;
   children: React.ReactNode;
-  width: number;
-  height: number;
 }
 
 // 테마별 배경 스타일
@@ -78,11 +75,16 @@ export const VIRTUAL_BG_PRESETS: Record<string, VirtualBackground> = {
   },
 };
 
-export default function VirtualBackgroundFrame({ bg, children, width, height }: Props) {
+export default function VirtualBackgroundFrame({ bg, children }: Props) {
+  if (!bg) {
+    // No background — just render children in a flex:1 container
+    return <View style={styles.wrapper}>{children}</View>;
+  }
+
   const frameColor = bg.frameColor ?? '#333';
 
   return (
-    <View style={[styles.wrapper, { width, height }]}>
+    <View style={styles.wrapper}>
       {/* 배경 레이어 (CSS gradient — web only) */}
       <View
         style={[
@@ -102,8 +104,8 @@ export default function VirtualBackgroundFrame({ bg, children, width, height }: 
         </View>
       ) : null}
 
-      {/* 카메라 콘텐츠 */}
-      <View style={[styles.cameraContent, { borderColor: frameColor }]}>
+      {/* 카메라 콘텐츠 — flex:1, no margin/border that shrinks it */}
+      <View style={styles.cameraContent}>
         {children}
       </View>
 
@@ -121,6 +123,7 @@ export default function VirtualBackgroundFrame({ bg, children, width, height }: 
 
 const styles = StyleSheet.create({
   wrapper: {
+    flex: 1,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -142,11 +145,6 @@ const styles = StyleSheet.create({
   },
   cameraContent: {
     flex: 1,
-    margin: 2,
-    borderWidth: 2,
-    borderColor: '#333',
-    borderRadius: 4,
-    overflow: 'hidden',
   },
   bottomTicker: {
     position: 'absolute',
