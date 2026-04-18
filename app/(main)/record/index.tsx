@@ -1,18 +1,22 @@
 /**
  * record/index.tsx — 챌린지 촬영 화면
  *
- * 핵심 수정:
- *   - judge(landmarks, elapsed) — elapsed를 직접 전달 (timing drift 해결)
- *   - 미션 중앙 크게 표시 (64px 이모지, 26px 텍스트)
- *   - 캐릭터 이모지 반응 애니메이션
- *   - 퍼펙트 시 파티클 효과
- *   - 모바일/노트북 반응형
- *   - Mount cleanup useEffect — fixes challenge reset bug
+ * 🎮 최신 게임 수준 UI:
+ *   - 네온 글로우 HUD
+ *   - 게임식 미션 팝업 (glassmorphism)
+ *   - 파티클 / 콤보 폭발 효과
+ *   - 카운트다운 3D 애니메이션
+ *   - 스코어 숫자 점프 애니메이션
+ *
+ * ✅ Bug fixes:
+ *   - judge(landmarks, elapsed) — timing drift 해결
+ *   - Mount cleanup useEffect — challenge reset bug 해결
  */
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Alert,
+  View, Text, TouchableOpacity, StyleSheet, Animated,
+  useWindowDimensions, Alert, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -29,40 +33,296 @@ import { useSessionStore }           from '../../../store/sessionStore';
 import { playSound, initAudio, speakJudgement } from '../../../utils/soundUtils';
 import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
 import type { JudgementTag }         from '../../../types/session';
-import type { RecordedClip }         from '../../../utils/videoCompositor';
 
-// Speak mission text via TTS
+// ─── TTS ─────────────────────────────────────────────────────────────────────
+
 function speakMission(text: string): void {
   if (typeof window === 'undefined') return;
   try {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ko-KR'; u.rate = 1.05; u.pitch = 1.1; u.volume = 0.9;
-    const koVoice = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith('ko'));
-    if (koVoice) u.voice = koVoice;
+    const v = window.speechSynthesis.getVoices().find(v => v.lang.startsWith('ko'));
+    if (v) u.voice = v;
     window.speechSynthesis.speak(u);
   } catch { /* ignore */ }
 }
 
-// Animated character states
-const CHAR = {
-  idle:    { emoji: '🎬', color: '#7c3aed' },
-  perfect: { emoji: '🌟', color: '#f59e0b' },
-  good:    { emoji: '😄', color: '#22c55e' },
-  fail:    { emoji: '💪', color: '#94a3b8' },
+// ─── Character config ─────────────────────────────────────────────────────────
+
+const CHAR: Record<string, { emoji: string; color: string; glow: string }> = {
+  idle:    { emoji: '🎬', color: '#7c3aed', glow: 'rgba(124,58,237,0.5)' },
+  perfect: { emoji: '🌟', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)' },
+  good:    { emoji: '😄', color: '#22c55e', glow: 'rgba(34,197,94,0.5)' },
+  fail:    { emoji: '💪', color: '#64748b', glow: 'rgba(100,116,139,0.3)' },
 };
 
-// Particle emojis for PERFECT
-const PARTICLE_EMOJIS = ['⭐', '✨', '🎉', '💫', '🌟', '🎊', '🔥', '💥'];
+const PARTICLES = ['⭐', '✨', '🎉', '💫', '🌟', '🎊', '🔥', '💥', '⚡', '🌈'];
+interface Particle { id: number; emoji: string; left: string; speed: number; }
 
-interface Particle { id: number; emoji: string; left: string; }
+// ─── Neon glow score display ──────────────────────────────────────────────────
+
+function NeonScore({ score, tag }: { score: number; tag: JudgementTag }) {
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
+  const color =
+    tag === 'perfect' ? '#22c55e' :
+    tag === 'good'    ? '#f59e0b' : 'rgba(255,255,255,0.35)';
+
+  useEffect(() => {
+    if (tag === 'perfect') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+          Animated.timing(glowAnim, { toValue: 0.5, duration: 400, useNativeDriver: false }),
+        ])
+      ).start();
+    } else {
+      Animated.timing(glowAnim, { toValue: 0.5, duration: 300, useNativeDriver: false }).start();
+    }
+  }, [tag]);
+
+  return (
+    <View style={[ns.wrap, { borderColor: color }]}>
+      <Text style={[ns.num, { color }]}>{Math.round(score * 100)}</Text>
+    </View>
+  );
+}
+
+const ns = StyleSheet.create({
+  wrap: {
+    borderWidth: 2, borderRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    minWidth: 52, alignItems: 'center',
+  },
+  num: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
+});
+
+// ─── Countdown overlay ────────────────────────────────────────────────────────
+
+function CountdownOverlay({ count, templateName, emoji }: { count: number; templateName: string; emoji: string }) {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    scaleAnim.setValue(2);
+    opacAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 6, useNativeDriver: true }),
+      Animated.timing(opacAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [count]);
+
+  const numColor =
+    count === 3 ? '#ef4444' :
+    count === 2 ? '#f59e0b' :
+    count === 1 ? '#22c55e' : '#fff';
+
+  return (
+    <View style={cd.overlay}>
+      {/* Blurred backdrop */}
+      <View style={[StyleSheet.absoluteFill, cd.backdrop]} />
+      {/* Center content */}
+      <View style={cd.center}>
+        <Text style={cd.label}>{emoji} {templateName}</Text>
+        {count > 0 ? (
+          <Animated.Text
+            style={[
+              cd.num,
+              { color: numColor, opacity: opacAnim, transform: [{ scale: scaleAnim }] },
+            ]}
+          >
+            {count}
+          </Animated.Text>
+        ) : (
+          <Animated.View style={[cd.goWrap, { opacity: opacAnim, transform: [{ scale: scaleAnim }] }]}>
+            <Text style={cd.go}>GO!</Text>
+          </Animated.View>
+        )}
+        <Text style={cd.ready}>{count > 0 ? '준비하세요...' : '챌린지 시작! 🎬'}</Text>
+      </View>
+    </View>
+  );
+}
+
+const cd = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 40,
+  },
+  backdrop: {
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    // @ts-ignore web only
+    backdropFilter: 'blur(8px)',
+  },
+  center: { alignItems: 'center', gap: 12, zIndex: 1 },
+  label: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 18, fontWeight: '700',
+    letterSpacing: 1,
+  },
+  num: {
+    fontSize: 120,
+    fontWeight: '900',
+    lineHeight: 130,
+    // @ts-ignore web
+    textShadow: '0 0 40px currentColor, 0 0 80px currentColor',
+  },
+  goWrap: {
+    // @ts-ignore web
+    background: 'linear-gradient(135deg, #7c3aed, #ec4899)',
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    borderRadius: 24,
+  },
+  go: { fontSize: 72, fontWeight: '900', color: '#fff' },
+  ready: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' },
+});
+
+// ─── Mission Card ─────────────────────────────────────────────────────────────
+
+function MissionCard({
+  mission, progress, tag, voiceTranscript, anim, maxW,
+}: {
+  mission: any; progress: number; tag: JudgementTag;
+  voiceTranscript: string; anim: Animated.Value; maxW: number;
+}) {
+  const tagColor =
+    tag === 'perfect' ? '#22c55e' :
+    tag === 'good'    ? '#f59e0b' : '#7c3aed';
+
+  const missionType =
+    mission.type === 'voice_read' ? '🎤 따라 읽기' :
+    mission.type === 'gesture'    ? '🤲 제스처 챌린지' :
+    mission.type === 'timing'     ? '⏱ 유지 챌린지' : '😊 표정 챌린지';
+
+  return (
+    <Animated.View
+      style={[
+        mc.wrap,
+        { maxWidth: maxW, opacity: anim, transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] },
+      ]}
+    >
+      {/* Glass background */}
+      <View style={[StyleSheet.absoluteFill, mc.glass]} />
+
+      {/* Glow border */}
+      <View style={[mc.glowBorder, { borderColor: tagColor + '66' }]} />
+
+      {/* Type chip */}
+      <View style={[mc.typeChip, { backgroundColor: tagColor + '22', borderColor: tagColor + '55' }]}>
+        <Text style={[mc.typeText, { color: tagColor }]}>{missionType}</Text>
+      </View>
+
+      {/* Main emoji */}
+      <Text style={mc.bigEmoji}>
+        {mission.gesture_emoji ?? mission.guide_emoji ?? '🎯'}
+      </Text>
+
+      {/* Mission text */}
+      <Text style={mc.mainText}>
+        {mission.type === 'voice_read' && mission.read_text
+          ? mission.read_text
+          : mission.guide_text ?? ''}
+      </Text>
+
+      {/* Voice transcript */}
+      {mission.type === 'voice_read' && voiceTranscript !== '' && (
+        <View style={mc.voiceBox}>
+          <Text style={mc.voiceText}>💬 "{voiceTranscript}"</Text>
+        </View>
+      )}
+
+      {/* Progress bar */}
+      <View style={mc.progBg}>
+        <Animated.View
+          style={[
+            mc.progFill,
+            {
+              width: `${progress * 100}%` as any,
+              backgroundColor: tagColor,
+              // @ts-ignore web
+              boxShadow: `0 0 6px ${tagColor}`,
+            },
+          ]}
+        />
+      </View>
+
+      {/* Status pill */}
+      <View style={[mc.statusPill, { backgroundColor: tagColor }]}>
+        <Text style={mc.statusText}>
+          {tag === 'perfect' ? '🌟 PERFECT!' : tag === 'good' ? '👍 GOOD!' : '⏳ 도전 중...'}
+        </Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+const mc = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    top: '18%',
+    alignSelf: 'center',
+    width: '90%',
+    zIndex: 22,
+    borderRadius: 28,
+    padding: 22,
+    alignItems: 'center',
+    gap: 12,
+    overflow: 'hidden',
+  },
+  glass: {
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    // @ts-ignore web
+    backdropFilter: 'blur(20px)',
+    borderRadius: 28,
+  },
+  glowBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 28,
+    borderWidth: 1.5,
+  },
+  typeChip: {
+    borderRadius: 20, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 6,
+  },
+  typeText: { fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  bigEmoji: { fontSize: 80, lineHeight: 90 },
+  mainText: {
+    color: '#fff', fontSize: 24, fontWeight: '900',
+    textAlign: 'center', lineHeight: 32,
+    paddingHorizontal: 8,
+    // @ts-ignore web
+    textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+  },
+  voiceBox: {
+    backgroundColor: 'rgba(253,230,138,0.15)',
+    borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(253,230,138,0.3)',
+    width: '100%', alignItems: 'center',
+  },
+  voiceText: { color: '#fde68a', fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  progBg: {
+    width: '100%', height: 6,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 3, overflow: 'hidden',
+  },
+  progFill: { height: '100%', borderRadius: 3 },
+  statusPill: { paddingHorizontal: 22, paddingVertical: 8, borderRadius: 20 },
+  statusText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RecordScreen() {
   const router    = useRouter();
   const cameraRef = useRef<RecordingCameraHandle>(null);
-  const { width: W } = Dimensions.get('window');
+  const { width } = useWindowDimensions();
 
-  const { activeTemplate } = useSessionStore();
+  const activeTemplate = useSessionStore(s => s.activeTemplate);
   const defaultFacing = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
   const [facing, setFacing] = useState<'front' | 'back'>(defaultFacing);
 
@@ -85,14 +345,18 @@ export default function RecordScreen() {
   // Animated values
   const charScale   = useRef(new Animated.Value(1)).current;
   const missionAnim = useRef(new Animated.Value(0)).current;
+  const hudOpacity  = useRef(new Animated.Value(0)).current;
 
+  // Refs
   const prevTagRef        = useRef<JudgementTag>('fail');
   const prevCountdownRef  = useRef<number>(3);
   const comboRef          = useRef(0);
   const burstTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMissionSeqRef = useRef<number | null>(null);
 
-  // Clean state on every mount — fixes challenge reset bug
+  const maxW = Math.min(width - 32, 500);
+
+  // ── Mount cleanup — fixes challenge reset bug ──────────────────────────────
   useEffect(() => {
     resetVoice();
     comboRef.current = 0;
@@ -105,47 +369,54 @@ export default function RecordScreen() {
     setCurrentMission(null);
     setParticles([]);
     setBurstVisible(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    hudOpacity.setValue(0);
+  }, []); // eslint-disable-line
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
   useEffect(() => () => { resetVoice(); }, [resetVoice]);
 
-  // Animate character bounce
+  // HUD fade in when recording starts
+  useEffect(() => {
+    if (state === 'recording') {
+      Animated.timing(hudOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    } else {
+      hudOpacity.setValue(0);
+    }
+  }, [state]);
+
   const bounceChar = useCallback(() => {
     Animated.sequence([
-      Animated.spring(charScale, { toValue: 1.4, useNativeDriver: true }),
-      Animated.spring(charScale, { toValue: 1.0, useNativeDriver: true }),
+      Animated.spring(charScale, { toValue: 1.5, tension: 120, friction: 5, useNativeDriver: true }),
+      Animated.spring(charScale, { toValue: 1.0, tension: 80,  friction: 6, useNativeDriver: true }),
     ]).start();
   }, [charScale]);
 
-  // Add particles for PERFECT
   const addParticles = useCallback(() => {
-    const pts: Particle[] = Array.from({ length: 10 }, (_, i) => ({
+    const pts: Particle[] = Array.from({ length: 12 }, (_, i) => ({
       id: Date.now() + i,
-      emoji: PARTICLE_EMOJIS[Math.floor(Math.random() * PARTICLE_EMOJIS.length)],
-      left: `${5 + Math.random() * 90}%`,
+      emoji: PARTICLES[Math.floor(Math.random() * PARTICLES.length)],
+      left: `${3 + Math.random() * 94}%`,
+      speed: 0.8 + Math.random() * 0.8,
     }));
     setParticles(pts);
-    setTimeout(() => setParticles([]), 1800);
+    setTimeout(() => setParticles([]), 1600);
   }, []);
 
-  // Mission changed animation
   const animateMissionIn = useCallback(() => {
     missionAnim.setValue(0);
-    Animated.spring(missionAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }).start();
+    Animated.spring(missionAnim, { toValue: 1, tension: 65, friction: 8, useNativeDriver: true }).start();
   }, [missionAnim]);
 
-  // ── Core judgement loop (runs when elapsed or landmarks change) ─────
+  // ── Core judgement loop ────────────────────────────────────────────────────
   useEffect(() => {
     if (state !== 'recording') return;
 
-    // KEY FIX: pass elapsed directly from useRecording
     const result = judge(landmarks, elapsed);
     setCurrentScore(result.score);
     setCurrentTag(result.tag);
     setCurrentMission(result.currentMission);
 
-    // Announce new missions
+    // New mission
     if (result.currentMission && result.currentMission.seq !== prevMissionSeqRef.current) {
       prevMissionSeqRef.current = result.currentMission.seq;
       animateMissionIn();
@@ -156,7 +427,7 @@ export default function RecordScreen() {
       if (text) speakMission(text);
     }
 
-    // Tag transition effects
+    // Tag transitions
     if (result.tag !== prevTagRef.current) {
       const prev = prevTagRef.current;
       prevTagRef.current = result.tag;
@@ -188,7 +459,7 @@ export default function RecordScreen() {
         if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
         setBurstTag(result.tag);
         setBurstVisible(true);
-        burstTimerRef.current = setTimeout(() => setBurstVisible(false), 950);
+        burstTimerRef.current = setTimeout(() => setBurstVisible(false), 900);
       }
     }
   }, [landmarks, state, elapsed]);
@@ -201,7 +472,7 @@ export default function RecordScreen() {
     }
   }, [state, countdown]);
 
-  // Recording start
+  // Recording start reset
   useEffect(() => {
     if (state === 'recording') {
       playSound('start');
@@ -216,20 +487,22 @@ export default function RecordScreen() {
   useEffect(() => {
     if (state !== 'done' || !videoUri) return;
     resetVoice();
-    if (!activeTemplate) { router.push({ pathname: '/(main)/result', params: { videoUri } }); return; }
-
+    if (!activeTemplate) {
+      router.push({ pathname: '/(main)/result', params: { videoUri } });
+      return;
+    }
     const vt = getTemplateByMissionId(activeTemplate.genre);
-    if (!vt) { router.push({ pathname: '/(main)/result', params: { videoUri } }); return; }
-
-    fetch(videoUri).then(r => r.blob()).then(() => {
-      const clipsJson = JSON.stringify(vt.clip_slots.map(s => ({ slot_id: s.id, duration_ms: s.end_ms - s.start_ms })));
-      router.push({ pathname: '/(main)/result', params: { videoUri, videoTemplateId: vt.id, clipsJson } });
-    }).catch(() => { router.push({ pathname: '/(main)/result', params: { videoUri } }); });
+    if (!vt) {
+      router.push({ pathname: '/(main)/result', params: { videoUri } });
+      return;
+    }
+    router.push({
+      pathname: '/(main)/result',
+      params: { videoUri, videoTemplateId: vt.id },
+    });
   }, [state, videoUri]);
 
-  const handleFrame = useCallback(async (_b64: string, _w: number, _h: number) => {
-    // frame detection handled by usePoseDetection hook itself
-  }, []);
+  const handleFrame = useCallback(async () => {}, []);
 
   if (!activeTemplate) return null;
 
@@ -238,149 +511,133 @@ export default function RecordScreen() {
   const isIdle      = state === 'idle';
   const virtualBg   = activeTemplate.virtual_bg;
 
-  // Mission progress (0→1 within mission window)
   const missionProg = currentMission
     ? Math.min(1, Math.max(0, (elapsed - currentMission.start_ms) / Math.max(1, currentMission.end_ms - currentMission.start_ms)))
     : 0;
 
-  const tagColor = currentTag === 'perfect' ? '#22c55e' : currentTag === 'good' ? '#f59e0b' : 'rgba(255,255,255,0.2)';
+  const tagColor =
+    currentTag === 'perfect' ? '#22c55e' :
+    currentTag === 'good'    ? '#f59e0b' : 'rgba(255,255,255,0.2)';
+
   const char = CHAR[charState];
-  const maxW = Math.min(W - 32, 520); // responsive max width
 
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.cameraContainer}>
+    <View style={r.root}>
+      <SafeAreaView style={r.safe} edges={['top', 'bottom']}>
+        <View style={r.camWrap}>
           <VirtualBackgroundFrame bg={virtualBg}>
             <RecordingCamera
               ref={cameraRef}
               facing={facing}
               onFrame={handleFrame}
               paused={isIdle || state === 'processing'}
-              onPermissionDenied={() => { Alert.alert('카메라 권한 필요', '브라우저에서 카메라를 허용해주세요.'); router.back(); }}
+              onPermissionDenied={() => {
+                Alert.alert('카메라 권한 필요', '브라우저에서 카메라를 허용해주세요.');
+                router.back();
+              }}
             >
-
-              {/* ── TOP HUD ─────────────────────────── */}
-              {isRecording && (
-                <View style={styles.topHud}>
-                  <View style={styles.recBadge}>
-                    <View style={styles.recDot} />
-                    <Text style={styles.recText}>REC</Text>
-                  </View>
-                  <View style={[styles.scorePill, { borderColor: tagColor }]}>
-                    <Text style={[styles.scoreText, { color: tagColor }]}>{Math.round(currentScore * 100)}</Text>
-                  </View>
-                  {combo >= 2 && (
-                    <View style={styles.comboPill}>
-                      <Text style={styles.comboText}>🔥 {combo}x COMBO</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={styles.flipBtn}
-                    onPress={() => setFacing(f => f === 'front' ? 'back' : 'front')}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  >
-                    <Text style={styles.flipText}>🔄</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
               {/* ── PARTICLES ─────────────────────── */}
               {particles.map(p => (
-                <Text key={p.id} style={[styles.particle, { left: p.left as any }]}>{p.emoji}</Text>
+                <Text key={p.id} style={[r.particle, { left: p.left as any }]}>{p.emoji}</Text>
               ))}
 
-              {/* ── CHARACTER ─────────────────────── */}
-              {isRecording && (
-                <View style={[styles.charArea, { maxWidth: maxW }]}>
-                  <Animated.View style={[styles.charBubble, { backgroundColor: char.color + '33', transform: [{ scale: charScale }] }]}>
-                    <Text style={styles.charEmoji}>{char.emoji}</Text>
-                  </Animated.View>
+              {/* ── HUD — top row ─────────────────── */}
+              <Animated.View style={[r.topHud, { opacity: hudOpacity }]}>
+                {/* REC badge */}
+                <View style={r.recBadge}>
+                  <View style={r.recDot} />
+                  <Text style={r.recText}>REC</Text>
                 </View>
-              )}
 
-              {/* ── MISSION CARD ──────────────────── */}
-              {isRecording && currentMission && (
-                <Animated.View
-                  style={[
-                    styles.missionOverlay,
-                    {
-                      maxWidth: maxW,
-                      opacity: missionAnim,
-                      transform: [{ scale: missionAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
-                    },
-                  ]}
+                {/* Score */}
+                <NeonScore score={currentScore} tag={currentTag} />
+
+                {/* Combo */}
+                {combo >= 2 && (
+                  <View style={[r.comboPill, combo >= 5 && r.comboPillHot]}>
+                    <Text style={r.comboText}>🔥 {combo}x</Text>
+                  </View>
+                )}
+
+                {/* Spacer + flip */}
+                <View style={{ flex: 1 }} />
+                <TouchableOpacity
+                  style={r.flipBtn}
+                  onPress={() => setFacing(f => f === 'front' ? 'back' : 'front')}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                  {/* Type tag */}
-                  <View style={styles.missionTypeTag}>
-                    <Text style={styles.missionTypeText}>
-                      {currentMission.type === 'voice_read' ? '🎤 따라 읽기' :
-                       currentMission.type === 'gesture'    ? '🤲 제스처' :
-                       currentMission.type === 'timing'     ? '⏱ 유지하기' : '😊 표정'}
-                    </Text>
-                  </View>
+                  <Text style={r.flipText}>🔄</Text>
+                </TouchableOpacity>
+              </Animated.View>
 
-                  {/* Big emoji */}
-                  <Text style={styles.missionBigEmoji}>
-                    {currentMission.gesture_emoji ?? currentMission.guide_emoji ?? '🎯'}
-                  </Text>
-
-                  {/* Mission text */}
-                  <Text style={styles.missionMainText}>
-                    {currentMission.type === 'voice_read' && currentMission.read_text
-                      ? currentMission.read_text
-                      : currentMission.guide_text ?? ''}
-                  </Text>
-
-                  {/* Progress bar */}
-                  <View style={styles.missionProgBg}>
-                    <View style={[styles.missionProgFill, { width: `${missionProg * 100}%` as any, backgroundColor: tagColor }]} />
-                  </View>
-
-                  {/* Score status */}
-                  <View style={[styles.missionStatusPill, { backgroundColor: tagColor }]}>
-                    <Text style={styles.missionStatusText}>
-                      {currentTag === 'perfect' ? '🌟 PERFECT!' : currentTag === 'good' ? '👍 GOOD!' : '⏳ 도전 중...'}
-                    </Text>
+              {/* ── CHARACTER (recording) ─────────── */}
+              {isRecording && (
+                <Animated.View style={[r.charArea, { transform: [{ scale: charScale }] }]}>
+                  <View
+                    style={[
+                      r.charBubble,
+                      {
+                        backgroundColor: char.color + '2a',
+                        // @ts-ignore web
+                        boxShadow: `0 0 20px ${char.glow}, 0 0 40px ${char.glow}`,
+                        borderColor: char.color + '55',
+                      },
+                    ]}
+                  >
+                    <Text style={r.charEmoji}>{char.emoji}</Text>
                   </View>
                 </Animated.View>
               )}
 
-              {/* ── VOICE SUBTITLE ────────────────── */}
-              {isRecording && currentMission?.type === 'voice_read' && voiceTranscript !== '' && (
-                <View style={[styles.voiceSubBox, { maxWidth: maxW }]}>
-                  <Text style={styles.voiceSubText}>💬 "{voiceTranscript}"</Text>
-                </View>
+              {/* ── MISSION CARD ──────────────────── */}
+              {isRecording && currentMission && (
+                <MissionCard
+                  mission={currentMission}
+                  progress={missionProg}
+                  tag={currentTag}
+                  voiceTranscript={voiceTranscript}
+                  anim={missionAnim}
+                  maxW={maxW}
+                />
               )}
 
               {/* ── PRE-RECORD INFO ───────────────── */}
               {isIdle && (
-                <View style={[styles.infoOverlay, { maxWidth: maxW }]}>
-                  <Text style={styles.infoEmoji}>{activeTemplate.theme_emoji}</Text>
-                  <Text style={styles.infoTitle}>{activeTemplate.name}</Text>
-                  <Text style={styles.infoMeta}>{activeTemplate.duration_sec}초 · {activeTemplate.missions.length}개 미션</Text>
-                  {activeTemplate.scene ? <Text style={styles.infoScene} numberOfLines={3}>{activeTemplate.scene}</Text> : null}
-                  {activeTemplate.camera_mode === 'selfie' && <Text style={styles.selfieHint}>📱 전면 카메라 모드</Text>}
+                <View style={[r.infoOverlay, { maxWidth: maxW }]}>
+                  <Text style={r.infoEmoji}>{activeTemplate.theme_emoji}</Text>
+                  <Text style={r.infoTitle}>{activeTemplate.name}</Text>
+                  <Text style={r.infoMeta}>{activeTemplate.duration_sec}초 · {activeTemplate.missions.length}개 미션</Text>
+                  {activeTemplate.scene ? (
+                    <Text style={r.infoScene} numberOfLines={3}>{activeTemplate.scene}</Text>
+                  ) : null}
+                  {activeTemplate.camera_mode === 'selfie' && (
+                    <View style={r.selfieChip}>
+                      <Text style={r.selfieText}>📱 전면 카메라 모드</Text>
+                    </View>
+                  )}
                   <TouchableOpacity
-                    style={styles.flipBtnIdle}
+                    style={r.flipBtnIdle}
                     onPress={() => setFacing(f => f === 'front' ? 'back' : 'front')}
                   >
-                    <Text style={styles.flipBtnIdleText}>🔄 {facing === 'front' ? '후면으로' : '전면으로'} 전환</Text>
+                    <Text style={r.flipBtnIdleText}>
+                      🔄 {facing === 'front' ? '후면으로' : '전면으로'} 전환
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* ── COUNTDOWN ─────────────────────── */}
               {isCountdown && (
-                <View style={styles.countdownOverlay}>
-                  <Text style={styles.countdownNumber}>{countdown > 0 ? countdown : 'GO!'}</Text>
-                  <Text style={styles.countdownSub}>{activeTemplate.theme_emoji} {activeTemplate.name}</Text>
-                </View>
+                <CountdownOverlay
+                  count={countdown}
+                  templateName={activeTemplate.name}
+                  emoji={activeTemplate.theme_emoji}
+                />
               )}
 
               {/* ── TIMING BAR ────────────────────── */}
               {isRecording && (
-                <View style={styles.timingBarWrap}>
+                <View style={r.timingBarWrap}>
                   <TimingBar template={activeTemplate} elapsedMs={elapsed} />
                 </View>
               )}
@@ -390,34 +647,35 @@ export default function RecordScreen() {
 
               {/* ── STOP BUTTON ───────────────────── */}
               {isRecording && (
-                <View style={styles.stopArea}>
+                <View style={r.stopArea}>
                   <TouchableOpacity
-                    style={styles.stopBtn}
+                    style={r.stopBtn}
                     onPress={() => cameraRef.current && stop(cameraRef.current)}
                     hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                   >
-                    <View style={styles.stopIcon} />
+                    <View style={r.stopIcon} />
                   </TouchableOpacity>
-                  <Text style={styles.stopHint}>탭하여 중지</Text>
+                  <Text style={r.stopHint}>탭하여 중지</Text>
                 </View>
               )}
 
-              {/* ── START / CANCEL ────────────────── */}
+              {/* ── START BUTTON ──────────────────── */}
               {isIdle && (
-                <View style={[styles.startArea, { maxWidth: maxW }]}>
-                  <TouchableOpacity
-                    style={styles.startBtn}
+                <View style={[r.startArea, { maxWidth: maxW }]}>
+                  <Pressable
+                    style={r.startBtn}
                     onPress={() => { initAudio(); if (cameraRef.current) start(cameraRef.current); }}
-                    activeOpacity={0.85}
                   >
-                    <Text style={styles.startBtnText}>▶ 챌린지 시작</Text>
-                  </TouchableOpacity>
+                    {/* Glow behind button */}
+                    <View style={r.startGlow} />
+                    <Text style={r.startBtnText}>▶  챌린지 시작</Text>
+                  </Pressable>
                   <TouchableOpacity
-                    style={styles.cancelBtn}
+                    style={r.cancelBtn}
                     onPress={() => router.back()}
                     hitSlop={{ top: 12, bottom: 12, left: 24, right: 24 }}
                   >
-                    <Text style={styles.cancelText}>← 취소</Text>
+                    <Text style={r.cancelText}>← 취소</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -430,139 +688,136 @@ export default function RecordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0a0a0f' },
-  safeArea: { flex: 1 },
-  cameraContainer: { flex: 1 },
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-  // TOP HUD
+const r = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#000' },
+  safe: { flex: 1 },
+  camWrap: { flex: 1 },
+
+  // Particles
+  particle: {
+    position: 'absolute', top: '10%',
+    fontSize: 30, zIndex: 50,
+    // @ts-ignore web
+    animation: 'float 1.6s ease-out forwards',
+  },
+
+  // HUD
   topHud: {
     position: 'absolute', top: 12, left: 12, right: 12,
     flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 30,
   },
   recBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
-  recText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  scorePill: {
-    backgroundColor: 'rgba(0,0,0,0.65)', borderWidth: 1.5,
+  recText: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+
+  comboPill: {
+    backgroundColor: 'rgba(239,68,68,0.85)',
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
   },
-  scoreText: { fontSize: 16, fontWeight: '900' },
-  comboPill: {
-    backgroundColor: 'rgba(239,68,68,0.85)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
-  },
+  comboPillHot: { backgroundColor: 'rgba(234,179,8,0.9)' },
   comboText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+
   flipBtn: {
-    marginLeft: 'auto', width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
   flipText: { fontSize: 18 },
 
-  // PARTICLES
-  particle: { position: 'absolute', top: '15%', fontSize: 28, zIndex: 50 },
-
-  // CHARACTER
+  // Character
   charArea: {
-    position: 'absolute', top: 56, alignSelf: 'center',
-    width: '100%', alignItems: 'center', zIndex: 20,
+    position: 'absolute', top: 60, alignSelf: 'center',
+    alignItems: 'center', zIndex: 20,
   },
   charBubble: {
-    width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center',
-  },
-  charEmoji: { fontSize: 40 },
-
-  // MISSION CARD
-  missionOverlay: {
-    position: 'absolute',
-    top: '20%',
-    alignSelf: 'center',
-    width: '92%',
-    zIndex: 22,
-    backgroundColor: 'rgba(0,0,0,0.82)',
-    borderRadius: 24,
-    padding: 20,
-    alignItems: 'center',
-    gap: 10,
+    width: 70, height: 70, borderRadius: 35,
+    alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
-  missionTypeTag: {
-    backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20,
-  },
-  missionTypeText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' },
-  missionBigEmoji: { fontSize: 72, lineHeight: 82 },
-  missionMainText: {
-    color: '#ffffff', fontSize: 24, fontWeight: '800', textAlign: 'center', lineHeight: 32, paddingHorizontal: 8,
-  },
-  missionProgBg: {
-    width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 3, overflow: 'hidden',
-  },
-  missionProgFill: { height: '100%', borderRadius: 3 },
-  missionStatusPill: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20 },
-  missionStatusText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  charEmoji: { fontSize: 42 },
 
-  // VOICE SUBTITLE
-  voiceSubBox: {
-    position: 'absolute', top: '65%', alignSelf: 'center', width: '88%',
-    backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 14, padding: 14, zIndex: 22, alignItems: 'center',
-  },
-  voiceSubText: { color: '#fde68a', fontSize: 16, fontWeight: '600', textAlign: 'center' },
-
-  // PRE-RECORD INFO
+  // Pre-record info
   infoOverlay: {
-    position: 'absolute', top: '20%', alignSelf: 'center', width: '88%',
-    backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 24, padding: 24, alignItems: 'center', gap: 10, zIndex: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    position: 'absolute', top: '18%', alignSelf: 'center', width: '90%',
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    // @ts-ignore web
+    backdropFilter: 'blur(20px)',
+    borderRadius: 28, padding: 28, alignItems: 'center', gap: 10, zIndex: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  infoEmoji: { fontSize: 56 },
-  infoTitle: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
-  infoMeta: { color: '#9ca3af', fontSize: 13 },
-  infoScene: { color: '#d1d5db', fontSize: 13, textAlign: 'center', lineHeight: 20, fontStyle: 'italic' },
-  selfieHint: { color: '#818cf8', fontSize: 12, fontWeight: '600' },
+  infoEmoji: { fontSize: 60 },
+  infoTitle: {
+    color: '#fff', fontSize: 24, fontWeight: '900', textAlign: 'center',
+    // @ts-ignore web
+    textShadow: '0 2px 12px rgba(124,58,237,0.6)',
+  },
+  infoMeta: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
+  infoScene: { color: '#cbd5e1', fontSize: 13, textAlign: 'center', lineHeight: 20, fontStyle: 'italic' },
+  selfieChip: {
+    backgroundColor: 'rgba(124,58,237,0.2)', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.4)',
+  },
+  selfieText: { color: '#a78bfa', fontSize: 12, fontWeight: '700' },
   flipBtnIdle: {
-    marginTop: 4, backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20, paddingVertical: 10,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', minHeight: 44, justifyContent: 'center',
+    marginTop: 4, backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 22, paddingVertical: 12, borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    minHeight: 46, justifyContent: 'center',
   },
-  flipBtnIdleText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  flipBtnIdleText: { color: '#e2e8f0', fontSize: 13, fontWeight: '700' },
 
-  // COUNTDOWN
-  countdownOverlay: {
-    ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 40, gap: 16,
-  },
-  countdownNumber: {
-    fontSize: 112, fontWeight: '900', color: '#fff',
-    textShadowColor: '#7c3aed', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 30,
-  },
-  countdownSub: { color: '#e2e8f0', fontSize: 18, fontWeight: '700', letterSpacing: 1 },
+  // Timing bar
+  timingBarWrap: { position: 'absolute', bottom: 100, left: 0, right: 0, zIndex: 10 },
 
-  // TIMING BAR
-  timingBarWrap: { position: 'absolute', bottom: 90, left: 0, right: 0, zIndex: 10 },
-
-  // STOP BUTTON
+  // Stop button
   stopArea: {
-    position: 'absolute', bottom: 20, alignSelf: 'center', alignItems: 'center', gap: 8, zIndex: 35,
+    position: 'absolute', bottom: 24, alignSelf: 'center',
+    alignItems: 'center', gap: 8, zIndex: 35,
   },
   stopBtn: {
-    width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 3, borderColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 3.5, borderColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
+    // @ts-ignore web
+    boxShadow: '0 0 20px rgba(255,255,255,0.3)',
   },
-  stopIcon: { width: 24, height: 24, backgroundColor: '#ef4444', borderRadius: 5 },
-  stopHint: { color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+  stopIcon: { width: 26, height: 26, backgroundColor: '#ef4444', borderRadius: 6 },
+  stopHint: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '500' },
 
-  // START / CANCEL
+  // Start button
   startArea: {
-    position: 'absolute', bottom: 28, alignSelf: 'center', width: '88%', alignItems: 'center', gap: 14, zIndex: 35,
+    position: 'absolute', bottom: 28, alignSelf: 'center',
+    width: '90%', alignItems: 'center', gap: 14, zIndex: 35,
   },
   startBtn: {
-    width: '100%', paddingVertical: 18, borderRadius: 28, alignItems: 'center', minHeight: 60,
+    width: '100%', paddingVertical: 20, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center', minHeight: 64,
+    // @ts-ignore web
+    background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
     backgroundColor: '#7c3aed',
-    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 10,
+    overflow: 'hidden', position: 'relative',
   },
-  startBtnText: { color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 1 },
+  startGlow: {
+    position: 'absolute', inset: 0 as any,
+    // @ts-ignore web
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+  },
+  startBtnText: {
+    color: '#fff', fontSize: 20, fontWeight: '900', letterSpacing: 1,
+    // @ts-ignore web
+    textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+    zIndex: 1,
+  },
   cancelBtn: { paddingVertical: 10 },
-  cancelText: { color: 'rgba(255,255,255,0.55)', fontSize: 14 },
+  cancelText: { color: 'rgba(255,255,255,0.45)', fontSize: 14, fontWeight: '500' },
 });

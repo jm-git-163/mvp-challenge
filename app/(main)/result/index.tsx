@@ -1,21 +1,15 @@
 /**
- * result/index.tsx
+ * result/index.tsx — 챌린지 완료 & CapCut 스타일 영상 합성 화면
  *
- * 촬영 완료 후 결과 화면 — CapCut 스타일 비디오 합성 + SNS 공유
- *
- * 기능:
- *  1. 세션 요약 (평균 점수, 성공률, Perfect/Good/Fail 분포)
- *  2. 템플릿 다이어그램 미리보기 (합성 전)
- *  3. "완성 영상 만들기" → composeVideo() → 합성 진행바 → 완성 영상 미리보기
- *  4. 합성 영상 다운로드 (webm)
- *  5. SNS 공유 (Web Share API with blob / 클립보드 폴백)
- *  6. 플랫폼별 직접 공유 버튼 (Twitter/Facebook/Instagram/YouTube)
- *  7. 해시태그 칩 + 캡션 미리보기
- *  8. Supabase 세션 저장
- *  9. "다시 촬영" 버튼
+ * 🎮 최신 게임/캡컷 수준 UI:
+ *   - 애니메이션 스코어 카운터 (숫자 올라가는 효과)
+ *   - 파티클 confetti 축하 효과
+ *   - 7레이어 템플릿 합성 (ClipArea 개념)
+ *   - Web Share API (파일 공유) + 플랫폼별 버튼
+ *   - Glassmorphism 카드 디자인
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,6 +18,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -38,72 +34,68 @@ import { requestAutoEdit } from '../../../services/api';
 import { composeVideo, type CompositorProgress } from '../../../utils/videoCompositor';
 import { getVideoTemplate, VIDEO_TEMPLATES } from '../../../utils/videoTemplates';
 import type { JudgementTag } from '../../../types/session';
-import type { RecordedClip } from '../../../utils/videoCompositor';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 const TAG_COLORS: Record<JudgementTag, string> = {
-  perfect: '#4caf50',
-  good: '#ffc107',
-  fail: '#ff6b6b',
+  perfect: '#22c55e',
+  good:    '#f59e0b',
+  fail:    '#ef4444',
 };
 
-// ─── Platform share helper ────────────────────────────────────────────────────
+const TAG_LABELS: Record<JudgementTag, string> = {
+  perfect: 'PERFECT',
+  good:    'GOOD',
+  fail:    'MISS',
+};
 
-function openPlatformShare(platform: string, text: string, videoUri?: string): void {
-  const encoded = encodeURIComponent(text);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function openPlatformShare(platform: string, text: string): void {
+  const enc = encodeURIComponent(text);
+  const href = typeof window !== 'undefined' ? window.location.href : '';
   const urls: Record<string, string> = {
-    twitter:   'https://twitter.com/intent/tweet?text=' + encoded,
-    facebook:  'https://www.facebook.com/sharer/sharer.php?u=' +
-                encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '') +
-                '&quote=' + encoded,
+    twitter:   `https://twitter.com/intent/tweet?text=${enc}`,
+    facebook:  `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(href)}&quote=${enc}`,
     instagram: 'https://www.instagram.com/',
     youtube:   'https://studio.youtube.com/',
+    tiktok:    'https://www.tiktok.com/upload',
   };
   if (typeof window !== 'undefined' && urls[platform]) {
     window.open(urls[platform], '_blank');
   }
 }
 
-// ─── Share function (Web Share API with blob + clipboard fallback) ────────────
-
 async function doShare(
   composedBlob: Blob | null,
   rawUri: string,
-  template: any,
-  avgScore: number,
-): Promise<string> {
-  const caption = template.sns_template?.caption_template
-    ? template.sns_template.caption_template
-        .replace('{template_name}', template.name)
-        .replace('{score}', String(Math.round(avgScore * 100)))
-    : `${template.name ?? ''} 챌린지 완성! 🎉 점수 ${Math.round(avgScore * 100)}점!`;
-  const ht = (template.sns_template?.hashtags ?? template.hashtags ?? []) as string[];
-  const fullText = caption + '\n' + ht.map((h: string) => '#' + h).join(' ');
+  templateName: string,
+  hashtags: string[],
+  caption: string,
+): Promise<'shared' | 'copied' | 'cancelled' | 'none'> {
+  const fullText = caption + '\n' + hashtags.map(h => '#' + h).join(' ');
 
-  // Mobile: try sharing the video file directly (works on iOS Safari, Android Chrome)
   if (composedBlob && navigator?.share) {
     try {
-      const file = new File([composedBlob], 'challenge.webm', {
-        type: composedBlob.type || 'video/webm',
-      });
+      const file = new File([composedBlob], 'challenge.webm', { type: composedBlob.type || 'video/webm' });
       if ((navigator as any).canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: template.name ?? '챌린지', text: fullText });
+        await navigator.share({ files: [file], title: templateName, text: fullText });
         return 'shared';
       }
+      // text-only share
+      await navigator.share({ title: templateName, text: fullText });
+      return 'shared';
     } catch (e: any) {
       if (e?.name === 'AbortError') return 'cancelled';
     }
   }
 
-  // Desktop / text-only fallback: clipboard
   try {
     await navigator.clipboard.writeText(fullText);
     return 'copied';
   } catch { /* ignore */ }
-
   return 'none';
 }
-
-// ─── Download helper ──────────────────────────────────────────────────────────
 
 function doDownload(uri: string, name: string): void {
   if (typeof window === 'undefined' || !uri) return;
@@ -115,44 +107,230 @@ function doDownload(uri: string, name: string): void {
   document.body.removeChild(a);
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Score Counter Animation ──────────────────────────────────────────────────
+
+function AnimatedScore({ targetScore, color }: { targetScore: number; color: string }) {
+  const [displayed, setDisplayed] = useState(0);
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const opacAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Count-up animation
+    let start = 0;
+    const step = Math.ceil(targetScore / 40);
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= targetScore) { setDisplayed(targetScore); clearInterval(timer); }
+      else setDisplayed(start);
+    }, 30);
+
+    // Scale in
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }),
+      Animated.timing(opacAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start();
+
+    return () => clearInterval(timer);
+  }, [targetScore]);
+
+  return (
+    <Animated.View style={{ opacity: opacAnim, transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
+      <Text style={[sc.scoreNum, { color }]}>{displayed}</Text>
+      <Text style={sc.scoreLabel}>점</Text>
+    </Animated.View>
+  );
+}
+
+const sc = StyleSheet.create({
+  scoreNum: { fontSize: 88, fontWeight: '900', lineHeight: 96, letterSpacing: -2 },
+  scoreLabel: { fontSize: 16, color: '#999', fontWeight: '600', marginTop: -4 },
+});
+
+// ─── Confetti Particle ────────────────────────────────────────────────────────
+
+function Confetti({ show }: { show: boolean }) {
+  const items = useMemo(() =>
+    ['🎉','🎊','⭐','✨','🌟','💫','🎈','🎁','🔥','💥'].map((e, i) => ({
+      emoji: e,
+      left: `${5 + i * 9}%`,
+      delay: i * 120,
+    })),
+  []);
+
+  if (!show) return null;
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {items.map((item, i) => (
+        <Text
+          key={i}
+          style={[
+            conf.item,
+            { left: item.left as any },
+            // @ts-ignore web
+            { animationDelay: `${item.delay}ms` },
+          ]}
+        >
+          {item.emoji}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+const conf = StyleSheet.create({
+  item: {
+    position: 'absolute',
+    top: -20,
+    fontSize: 28,
+    zIndex: 100,
+    // @ts-ignore web
+    animation: 'confettiFall 2s ease-in forwards',
+  },
+});
+
+// ─── Template Preview Card ────────────────────────────────────────────────────
+
+function TemplatePreview({ vtId, genre }: { vtId: string; genre: string }) {
+  const vt = getVideoTemplate(vtId);
+  if (!vt) return null;
+
+  const colors = vt.gradientColors;
+
+  return (
+    <View style={tp.wrap}>
+      <Text style={tp.label}>🎬 적용될 영상 템플릿</Text>
+      <View style={tp.card}>
+        {/* Top zone */}
+        <View style={[tp.topZone, { backgroundColor: colors[0] }]}>
+          <Text style={tp.topText}>{vt.topZone?.text ?? '상단 타이틀'}</Text>
+          {vt.topZone?.subtext && <Text style={tp.topSub}>{vt.topZone.subtext}</Text>}
+        </View>
+        {/* Clip area visualization */}
+        <View
+          style={[
+            tp.clipArea,
+            {
+              // @ts-ignore web
+              background: `linear-gradient(180deg, ${colors[0]}22, ${colors[1]}22)`,
+              backgroundColor: colors[0] + '22',
+              borderColor: colors[0] + '66',
+            },
+          ]}
+        >
+          <Text style={tp.clipIcon}>🎬</Text>
+          <Text style={tp.clipTitle}>내 챌린지 영상</Text>
+          <Text style={tp.clipSub}>촬영본이 이 위치에 삽입됩니다</Text>
+        </View>
+        {/* Bottom zone */}
+        <View style={[tp.bottomZone, { backgroundColor: colors[1] }]}>
+          <Text style={tp.bottomText} numberOfLines={1}>
+            {vt.bottomZone?.text ?? '해시태그 스크롤'}
+          </Text>
+        </View>
+      </View>
+      {/* Features */}
+      <View style={tp.feats}>
+        <View style={tp.featRow}>
+          <Text style={tp.feat}>🎨 {vt.name} 전용 디자인</Text>
+          <Text style={tp.feat}>🎵 {vt.bgm.genre} BGM 내장</Text>
+        </View>
+        <View style={tp.featRow}>
+          <Text style={tp.feat}>📝 자막 {vt.text_overlays.length}개 자동 삽입</Text>
+          <Text style={tp.feat}>📱 720×1280 (9:16 최적화)</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const tp = StyleSheet.create({
+  wrap: { gap: 12 },
+  label: { fontSize: 14, fontWeight: '800', color: '#374151' },
+  card: { borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb' },
+  topZone: { padding: 12, alignItems: 'center' },
+  topText: { color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  topSub:  { color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 2 },
+  clipArea: {
+    minHeight: 100, alignItems: 'center', justifyContent: 'center',
+    gap: 4, padding: 16, borderLeftWidth: 2, borderRightWidth: 2, borderColor: '#e5e7eb',
+  },
+  clipIcon: { fontSize: 32 },
+  clipTitle: { fontSize: 14, fontWeight: '700', color: '#374151' },
+  clipSub:   { fontSize: 11, color: '#9ca3af' },
+  bottomZone: { padding: 8, alignItems: 'center' },
+  bottomText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700' },
+  feats: { gap: 6 },
+  featRow: { flexDirection: 'row', gap: 10 },
+  feat: { flex: 1, fontSize: 12, color: '#6b7280', fontWeight: '500' },
+});
+
+// ─── Platform buttons ─────────────────────────────────────────────────────────
+
+const PLATFORMS = [
+  { key: 'instagram', label: '📸 Instagram', color: '#c13584' },
+  { key: 'tiktok',    label: '🎵 TikTok',    color: '#010101' },
+  { key: 'youtube',   label: '▶ YouTube',    color: '#ff0000' },
+  { key: 'twitter',   label: '𝕏 Twitter',   color: '#000000' },
+  { key: 'facebook',  label: 'f Facebook',   color: '#1877f2' },
+];
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ResultScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams<{
-    videoUri: string;
-    videoTemplateId?: string;
-    clipsJson?: string;
-  }>();
+  const router  = useRouter();
+  const { width } = useWindowDimensions();
+  const params  = useLocalSearchParams<{ videoUri: string; videoTemplateId?: string }>();
 
-  const rawVideoUri    = params.videoUri ?? '';
+  const rawVideoUri     = params.videoUri ?? '';
   const videoTemplateId = params.videoTemplateId ?? '';
 
-  const { frameTags, activeTemplate, setLastSession, reset } = useSessionStore();
-  const { userId } = useUserStore();
+  const frameTags      = useSessionStore(s => s.frameTags);
+  const activeTemplate = useSessionStore(s => s.activeTemplate);
+  const setLastSession = useSessionStore(s => s.setLastSession);
+  const reset          = useSessionStore(s => s.reset);
+  const { userId }     = useUserStore();
 
-  // Composed video state
+  // Composed video
   const [composedUri,  setComposedUri]  = useState<string | null>(null);
   const [composedBlob, setComposedBlob] = useState<Blob | null>(null);
   const [composing,    setComposing]    = useState(false);
   const [composeError, setComposeError] = useState<string | null>(null);
   const [progress,     setProgress]     = useState<CompositorProgress | null>(null);
 
-  // Saving / sharing state
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
-  const [shared, setShared] = useState(false);
+  // UX state
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
   const [shareResult, setShareResult] = useState<string>('');
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Animations
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const cardsAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.stagger(200, [
+      Animated.spring(headerAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
+      Animated.spring(cardsAnim,  { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
+    ]).start();
+
+    // Show confetti if good score
+    const avg = frameTags.length
+      ? frameTags.reduce((s, f) => s + f.score, 0) / frameTags.length
+      : 0;
+    if (avg >= 0.6) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2500);
+    }
+  }, []);
 
   // Stats
   const stats = useMemo(() => {
-    if (!frameTags.length) {
-      return { avgScore: 0, successRate: 0, counts: { perfect: 0, good: 0, fail: 0 } };
-    }
+    if (!frameTags.length) return { avgScore: 0, successRate: 0, counts: { perfect: 0, good: 0, fail: 0 } };
     const total = frameTags.length;
     const avgScore = frameTags.reduce((s, f) => s + f.score, 0) / total;
     const counts: Record<JudgementTag, number> = { perfect: 0, good: 0, fail: 0 };
-    frameTags.forEach((f) => { counts[f.tag]++; });
+    frameTags.forEach(f => counts[f.tag]++);
     const successRate = (counts.perfect + counts.good) / total;
     return { avgScore, successRate, counts };
   }, [frameTags]);
@@ -161,63 +339,49 @@ export default function ResultScreen() {
   const videoTemplate = useMemo(() => {
     if (videoTemplateId) return getVideoTemplate(videoTemplateId);
     if (activeTemplate) {
-      const genreMap: Record<string, string> = {
-        daily:   'vt-vlog',
-        news:    'vt-news',
-        kpop:    'vt-kpop',
-        english: 'vt-english',
-        kids:    'vt-fairy',
+      const map: Record<string, string> = {
+        daily: 'vt-vlog', news: 'vt-news', kpop: 'vt-kpop',
+        english: 'vt-english', kids: 'vt-fairy',
       };
-      const vtId = genreMap[activeTemplate.genre];
+      const vtId = map[activeTemplate.genre];
       if (vtId) return getVideoTemplate(vtId);
     }
     return VIDEO_TEMPLATES[0];
   }, [videoTemplateId, activeTemplate]);
 
-  // Build RecordedClip[] — all slots share the same raw recording blob
-  const buildClips = useCallback(async (): Promise<RecordedClip[]> => {
-    if (!rawVideoUri || !videoTemplate) return [];
-    const resp = await fetch(rawVideoUri);
-    const blob = await resp.blob();
-    return videoTemplate.clip_slots.map((slot) => ({
-      slot_id: slot.id,
-      blob,
-      duration_ms: slot.end_ms - slot.start_ms,
-    }));
-  }, [rawVideoUri, videoTemplate]);
-
-  // Compose video handler
+  // Compose handler
   const handleCompose = useCallback(async () => {
     if (!videoTemplate || !rawVideoUri) return;
     setComposing(true);
     setComposeError(null);
     setProgress({ phase: '준비 중...', percent: 0 });
     try {
-      const clips = await buildClips();
-      if (!clips.length) throw new Error('클립을 불러올 수 없습니다');
-      const blob = await composeVideo(videoTemplate, clips, (p) => setProgress(p));
-      setComposedBlob(blob);
-      const url = URL.createObjectURL(blob);
-      setComposedUri(url);
+      const resp = await fetch(rawVideoUri);
+      const blob = await resp.blob();
+      const clips = videoTemplate.clip_slots.map(slot => ({
+        slot_id: slot.id,
+        blob,
+        duration_ms: slot.end_ms - slot.start_ms,
+      }));
+      const resultBlob = await composeVideo(videoTemplate, clips, p => setProgress(p));
+      setComposedBlob(resultBlob);
+      setComposedUri(URL.createObjectURL(resultBlob));
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2500);
     } catch (e) {
       setComposeError(e instanceof Error ? e.message : '합성 실패');
     } finally {
       setComposing(false);
     }
-  }, [videoTemplate, rawVideoUri, buildClips]);
+  }, [videoTemplate, rawVideoUri]);
 
-  // Save session handler
+  // Save handler
   const handleSave = useCallback(async () => {
-    if (!userId || !activeTemplate) {
-      Alert.alert('오류', '로그인이 필요합니다.');
-      return;
-    }
+    if (!userId || !activeTemplate) { Alert.alert('오류', '로그인이 필요합니다.'); return; }
     setSaving(true);
     try {
       let editedUri: string | null = null;
-      if (frameTags.length > 0) {
-        try { editedUri = await requestAutoEdit(rawVideoUri, frameTags); } catch { /* ignore */ }
-      }
+      try { editedUri = await requestAutoEdit(rawVideoUri, frameTags); } catch { /* ignore */ }
       const session = await createSession({
         user_id: userId,
         template_id: activeTemplate.id,
@@ -228,20 +392,14 @@ export default function ResultScreen() {
         edited_video_url: composedUri || editedUri,
       });
       setLastSession(session);
-
-      const currentProfile = await fetchUserProfile(userId);
+      const prof = await fetchUserProfile(userId);
       await upsertUserProfile({
         user_id: userId,
-        preferred_genres: [
-          ...(currentProfile?.preferred_genres ?? []),
-          activeTemplate.genre,
-        ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
-        success_rates: {
-          ...(currentProfile?.success_rates ?? {}),
-          [activeTemplate.id]: stats.successRate,
-        },
-        total_sessions: (currentProfile?.total_sessions ?? 0) + 1,
-        weak_joints: currentProfile?.weak_joints ?? [],
+        preferred_genres: [...(prof?.preferred_genres ?? []), activeTemplate.genre]
+          .filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
+        success_rates: { ...(prof?.success_rates ?? {}), [activeTemplate.id]: stats.successRate },
+        total_sessions: (prof?.total_sessions ?? 0) + 1,
+        weak_joints: prof?.weak_joints ?? [],
       });
       setSaved(true);
     } catch (e) {
@@ -250,6 +408,19 @@ export default function ResultScreen() {
       setSaving(false);
     }
   }, [userId, activeTemplate, frameTags, rawVideoUri, composedUri, stats]);
+
+  const handleShare = useCallback(async (blob: Blob | null) => {
+    if (!activeTemplate) return;
+    const caption = activeTemplate.sns_template.caption_template
+      .replace('{template_name}', activeTemplate.name)
+      .replace('{score}', String(Math.round(stats.avgScore * 100)));
+    const result = await doShare(
+      blob, rawVideoUri, activeTemplate.name,
+      activeTemplate.sns_template.hashtags, caption,
+    );
+    setShareResult(result);
+    if (result === 'copied') Alert.alert('📋 복사 완료!', '캡션이 클립보드에 복사되었습니다.');
+  }, [activeTemplate, rawVideoUri, stats.avgScore]);
 
   const goHome = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
@@ -263,171 +434,185 @@ export default function ResultScreen() {
     router.replace('/(main)/record');
   }, [reset, composedUri]);
 
-  const scoreNum = Math.round(stats.avgScore * 100);
-  const scoreGrade =
-    stats.avgScore >= 0.8 ? '🌟🌟🌟 완벽해요!' :
-    stats.avgScore >= 0.6 ? '⭐⭐ 잘했어요!' :
-    stats.avgScore >= 0.4 ? '⭐ 노력해봐요!' : null;
+  const scoreNum   = Math.round(stats.avgScore * 100);
+  const isHighScore = stats.avgScore >= 0.8;
+  const accentColor =
+    stats.avgScore >= 0.8 ? '#7c3aed' :
+    stats.avgScore >= 0.6 ? '#f59e0b' : '#ef4444';
 
-  const scoreAccentColor =
-    stats.avgScore >= 0.8 ? '#7C3AED' :
-    stats.avgScore >= 0.6 ? '#ff9800' : '#e94560';
+  const scoreGrade =
+    stats.avgScore >= 0.8 ? '🏆 완벽해요!' :
+    stats.avgScore >= 0.6 ? '🌟 잘했어요!' :
+    stats.avgScore >= 0.4 ? '💪 노력해봐요!' : '다음엔 더 잘할 수 있어요!';
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={st.root} edges={['top', 'bottom']}>
+      {/* Confetti overlay */}
+      <Confetti show={showConfetti} />
+
+      {/* CSS injection for confetti animation */}
+      {/* @ts-ignore */}
+      {typeof window !== 'undefined' && (
+        <style>{`
+          @keyframes confettiFall {
+            0%   { transform: translateY(0) rotate(0deg); opacity:1; }
+            100% { transform: translateY(120vh) rotate(720deg); opacity:0; }
+          }
+        `}</style>
+      )}
+
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        style={st.scroll}
+        contentContainerStyle={[st.content, { paddingHorizontal: Math.min(20, (width - 360) / 2 + 16) }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={goHome} style={styles.backIconBtn}>
-            <Text style={styles.backIconText}>←</Text>
+        {/* ── HEADER ─────────────────────────── */}
+        <Animated.View
+          style={[
+            st.headerRow,
+            { opacity: headerAnim, transform: [{ translateY: headerAnim.interpolate({ inputRange: [0,1], outputRange: [-20, 0] }) }] },
+          ]}
+        >
+          <TouchableOpacity onPress={goHome} style={st.backBtn}>
+            <Text style={st.backText}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>
-            {activeTemplate?.theme_emoji ?? '🎬'} 챌린지 완료!
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
-        {activeTemplate && (
-          <Text style={styles.subtitle}>{activeTemplate.name}</Text>
-        )}
-
-        {/* Score card */}
-        <View style={styles.scoreCard}>
-          <View style={[styles.scoreAccentBar, { backgroundColor: scoreAccentColor }]} />
-          <View style={styles.scoreCardBody}>
-            <Text style={[styles.scoreMain, { color: scoreAccentColor }]}>{scoreNum}</Text>
-            <Text style={styles.scoreLabel}>평균 점수</Text>
-            <View style={styles.successRateRow}>
-              <Text style={styles.successRateText}>
-                성공률 {Math.round(stats.successRate * 100)}%
-              </Text>
-            </View>
-            {scoreGrade ? <Text style={styles.starRating}>{scoreGrade}</Text> : null}
+          <View style={st.headerCenter}>
+            <Text style={st.headerTitle}>
+              {activeTemplate?.theme_emoji ?? '🎬'} 챌린지 완료!
+            </Text>
+            {activeTemplate && <Text style={st.headerSub}>{activeTemplate.name}</Text>}
           </View>
-        </View>
+          <View style={{ width: 44 }} />
+        </Animated.View>
 
-        {/* Tag distribution */}
-        <View style={styles.tagRow}>
-          {(['perfect', 'good', 'fail'] as JudgementTag[]).map((tag) => (
-            <View key={tag} style={styles.tagCard}>
-              <Text style={[styles.tagCount, { color: TAG_COLORS[tag] }]}>
-                {stats.counts[tag]}
-              </Text>
-              <Text style={styles.tagLabel}>
-                {tag === 'perfect' ? 'PERFECT' : tag === 'good' ? 'GOOD' : 'MISS'}
-              </Text>
+        {/* ── SCORE CARD ─────────────────────── */}
+        <Animated.View
+          style={[
+            st.scoreCard,
+            {
+              opacity: cardsAnim,
+              transform: [{ translateY: cardsAnim.interpolate({ inputRange: [0,1], outputRange: [30, 0] }) }],
+              // @ts-ignore web
+              background: isHighScore
+                ? `linear-gradient(135deg, ${accentColor}18, ${accentColor}08)`
+                : undefined,
+            },
+          ]}
+        >
+          <View style={[st.scoreAccent, { backgroundColor: accentColor }]} />
+          <View style={st.scoreBody}>
+            <AnimatedScore targetScore={scoreNum} color={accentColor} />
+            <View style={[st.gradeChip, { backgroundColor: accentColor + '18', borderColor: accentColor + '40' }]}>
+              <Text style={[st.gradeText, { color: accentColor }]}>{scoreGrade}</Text>
+            </View>
+            <View style={st.successRow}>
+              <Text style={st.successLabel}>성공률</Text>
+              <View style={st.successBarBg}>
+                <View style={[st.successBarFill, { width: `${Math.round(stats.successRate * 100)}%` as any, backgroundColor: accentColor }]} />
+              </View>
+              <Text style={[st.successPct, { color: accentColor }]}>{Math.round(stats.successRate * 100)}%</Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ── TAG DISTRIBUTION ───────────────── */}
+        <View style={st.tagRow}>
+          {(['perfect', 'good', 'fail'] as JudgementTag[]).map(tag => (
+            <View key={tag} style={[st.tagCard, { borderTopColor: TAG_COLORS[tag] }]}>
+              <Text style={[st.tagCount, { color: TAG_COLORS[tag] }]}>{stats.counts[tag]}</Text>
+              <Text style={st.tagName}>{TAG_LABELS[tag]}</Text>
             </View>
           ))}
         </View>
 
-        {/* VIDEO COMPOSE SECTION */}
+        {/* ── VIDEO COMPOSE SECTION ──────────── */}
         {videoTemplate && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎬 CapCut 스타일 완성 영상</Text>
+          <View style={st.section}>
+            <Text style={st.sectionTitle}>🎬 CapCut 스타일 완성 영상</Text>
 
-            <View style={styles.vtMeta}>
-              <Text style={styles.vtMetaText}>
-                {videoTemplate.name} · {videoTemplate.clip_slots.length}개 클립 슬롯 · {Math.round(videoTemplate.duration_ms / 1000)}초
-              </Text>
-              <View style={styles.vtHashtags}>
-                {videoTemplate.hashtags.map((h) => (
-                  <View key={h} style={styles.hashChip}>
-                    <Text style={styles.hashChipText}>#{h}</Text>
-                  </View>
-                ))}
+            {/* Template info chips */}
+            <View style={st.vtChips}>
+              <View style={st.vtChip}>
+                <Text style={st.vtChipText}>📋 {videoTemplate.name}</Text>
+              </View>
+              <View style={st.vtChip}>
+                <Text style={st.vtChipText}>⏱ {Math.round(videoTemplate.duration_ms / 1000)}초</Text>
+              </View>
+              <View style={st.vtChip}>
+                <Text style={st.vtChipText}>🎵 {videoTemplate.bgm.genre}</Text>
               </View>
             </View>
 
-            {/* ── TEMPLATE DIAGRAM (shown before composing) ── */}
-            {!composedUri && !composing && videoTemplate && (
-              <View style={styles.templateDiagram}>
-                <Text style={styles.templateDiagramTitle}>🎬 {videoTemplate.name} 템플릿</Text>
-                <Text style={styles.templateDiagramDesc}>{videoTemplate.description}</Text>
-                <View style={[styles.diagramBox, { backgroundColor: videoTemplate.gradientColors[0] + '22' }]}>
-                  <View style={styles.diagTop}>
-                    <Text style={styles.diagTopText}>📺 상단 타이틀 존</Text>
-                  </View>
-                  <View style={styles.diagCenter}>
-                    <Text style={styles.diagCenterIcon}>🎬</Text>
-                    <Text style={styles.diagCenterText}>내 챌린지 영상</Text>
-                    <Text style={styles.diagCenterSub}>(촬영본이 이 위치에 삽입)</Text>
-                  </View>
-                  <View style={styles.diagBottom}>
-                    <Text style={styles.diagBottomText}>▶ 해시태그 스크롤 바</Text>
-                  </View>
+            {/* Hashtags */}
+            <View style={st.hashRow}>
+              {videoTemplate.hashtags.slice(0, 6).map(h => (
+                <View key={h} style={st.hashChip}>
+                  <Text style={st.hashText}>#{h}</Text>
                 </View>
-                <View style={styles.diagFeatures}>
-                  <Text style={styles.diagFeature}>🎨 배경: 전용 그라디언트 디자인</Text>
-                  <Text style={styles.diagFeature}>🎵 BGM: {videoTemplate.bgm.genre} 스타일 배경음</Text>
-                  <Text style={styles.diagFeature}>📝 자막: {videoTemplate.text_overlays.length}개 자동 삽입</Text>
-                  <Text style={styles.diagFeature}>📱 크기: 720×1280 (Instagram/TikTok 최적)</Text>
-                </View>
-              </View>
+              ))}
+            </View>
+
+            {/* Template diagram (before composing) */}
+            {!composedUri && !composing && (
+              <TemplatePreview vtId={videoTemplate.id} genre={activeTemplate?.genre ?? ''} />
             )}
 
+            {/* Pre-compose CTA */}
             {!composedUri && !composing && (
-              <View style={styles.composeSection}>
-                <Text style={styles.composeSectionTitle}>🎬 CapCut 스타일 완성 영상 만들기</Text>
-                <Text style={styles.composeDesc}>
-                  촬영한 영상 + 사전 제작 템플릿을 합성하여{'\n'}
-                  고퀄리티 SNS 영상을 완성합니다
+              <View style={st.composeBlock}>
+                <Text style={st.composeDesc}>
+                  촬영한 영상 + {videoTemplate.name} 템플릿을 합성하여{'\n'}
+                  Instagram / TikTok용 고퀄리티 영상을 완성합니다
                 </Text>
-                <View style={styles.templateInfoCard}>
-                  <Text style={styles.templateInfoTitle}>📋 {videoTemplate.name}</Text>
-                  <Text style={styles.templateInfoDesc}>{videoTemplate.description}</Text>
-                  <Text style={styles.templateInfoTime}>
-                    ⏱ 합성 소요 시간: 약 {Math.round(videoTemplate.duration_ms / 1000)}초
-                  </Text>
-                </View>
                 <TouchableOpacity
-                  style={[styles.composeBtn, !rawVideoUri && styles.composeBtnDisabled]}
+                  style={[st.composeBtn, !rawVideoUri && st.composeBtnDis]}
                   onPress={handleCompose}
                   disabled={!rawVideoUri}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.composeBtnText}>✨ 완성 영상 만들기</Text>
+                  <Text style={st.composeBtnText}>✨ 완성 영상 만들기</Text>
                 </TouchableOpacity>
                 {!rawVideoUri && (
-                  <Text style={styles.noVideoHint}>먼저 챌린지를 녹화해주세요</Text>
+                  <Text style={st.noVideoHint}>먼저 챌린지를 녹화해주세요</Text>
                 )}
               </View>
             )}
 
+            {/* Composing progress */}
             {composing && (
-              <View style={styles.composingSection}>
-                <ActivityIndicator size="large" color="#7C3AED" />
-                <Text style={styles.composingTitle}>🎬 영상 합성 중...</Text>
-                <Text style={styles.composingDesc}>{progress?.phase ?? '준비 중...'}</Text>
-                <View style={styles.progressBarBg}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${progress?.percent ?? 0}%` as any },
-                    ]}
-                  />
+              <View style={st.composingBlock}>
+                <ActivityIndicator size="large" color="#7c3aed" />
+                <Text style={st.composingTitle}>🎬 영상 합성 중...</Text>
+                <Text style={st.composingPhase}>{progress?.phase ?? '준비 중...'}</Text>
+                <View style={st.progBg}>
+                  <View style={[st.progFill, { width: `${progress?.percent ?? 0}%` as any }]} />
                 </View>
-                <Text style={styles.composingPct}>{Math.round(progress?.percent ?? 0)}% 완료</Text>
-                <Text style={styles.composingNote}>
-                  📌 실시간 처리 방식입니다 — 영상 길이만큼 소요됩니다
+                <Text style={st.progPct}>{Math.round(progress?.percent ?? 0)}%</Text>
+                <Text style={st.composingNote}>
+                  📌 실시간 처리 방식 — 영상 길이만큼 소요됩니다
                 </Text>
               </View>
             )}
 
+            {/* Error */}
             {composeError && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorBoxText}>⚠️ {composeError}</Text>
-                <TouchableOpacity style={styles.retrySmallBtn} onPress={handleCompose}>
-                  <Text style={styles.retrySmallText}>다시 시도</Text>
+              <View style={st.errorBox}>
+                <Text style={st.errorText}>⚠️ {composeError}</Text>
+                <TouchableOpacity style={st.retrySmall} onPress={handleCompose}>
+                  <Text style={st.retrySmallText}>다시 시도</Text>
                 </TouchableOpacity>
               </View>
             )}
 
+            {/* Composed video preview */}
             {composedUri && (
-              <View style={styles.videoPreviewSection}>
-                <Text style={styles.videoPreviewTitle}>🎉 완성 영상</Text>
+              <View style={st.videoBlock}>
+                <View style={st.videoTitleRow}>
+                  <Text style={st.videoTitle}>🎉 완성 영상</Text>
+                  <View style={[st.readyBadge, { backgroundColor: accentColor }]}>
+                    <Text style={st.readyText}>완성!</Text>
+                  </View>
+                </View>
                 {/* @ts-ignore */}
                 <video
                   src={composedUri}
@@ -435,145 +620,119 @@ export default function ResultScreen() {
                   playsInline
                   style={{
                     width: '100%',
-                    maxHeight: 400,
+                    maxHeight: 380,
                     borderRadius: 16,
                     display: 'block',
                     background: '#000',
+                    // @ts-ignore
+                    boxShadow: `0 8px 32px ${accentColor}44`,
                   }}
                 />
-                <View style={styles.videoActionRow}>
+                {/* Action row */}
+                <View style={st.actionRow}>
                   <TouchableOpacity
-                    style={styles.downloadBtn}
+                    style={st.downloadBtn}
                     onPress={() => doDownload(composedUri, activeTemplate?.name ?? 'challenge')}
                   >
-                    <Text style={styles.downloadBtnText}>⬇ 다운로드</Text>
+                    <Text style={st.downloadText}>⬇ 다운로드</Text>
                   </TouchableOpacity>
-                  {activeTemplate && (
-                    <TouchableOpacity
-                      style={styles.shareBtn}
-                      onPress={async () => {
-                        const result = await doShare(composedBlob, rawVideoUri, activeTemplate, stats.avgScore);
-                        setShared(true);
-                        setShareResult(result);
-                        if (result === 'copied') {
-                          Alert.alert('클립보드에 복사됨!', '캡션이 복사되었습니다. SNS에 붙여넣으세요!');
-                        }
-                      }}
-                    >
-                      <Text style={styles.shareBtnText}>📤 SNS 공유</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    style={[st.shareBtn, { backgroundColor: accentColor }]}
+                    onPress={() => handleShare(composedBlob)}
+                  >
+                    <Text style={st.shareText}>📤 SNS 공유</Text>
+                  </TouchableOpacity>
                 </View>
-                {shared && (
-                  <Text style={styles.sharedText}>
-                    {shareResult === 'shared' ? '✅ 공유 완료!' :
-                     shareResult === 'copied' ? '✅ 클립보드에 복사됨!' :
-                     shareResult === 'cancelled' ? '공유가 취소되었습니다.' :
-                     '✅ 공유 또는 복사 완료!'}
+                {shareResult !== '' && (
+                  <Text style={st.shareResult}>
+                    {shareResult === 'shared'    ? '✅ 공유 완료!' :
+                     shareResult === 'copied'    ? '✅ 클립보드에 복사됨!' :
+                     shareResult === 'cancelled' ? '공유가 취소되었습니다.' : ''}
                   </Text>
                 )}
               </View>
             )}
 
-            {/* ── PLATFORM SHARE BUTTONS (shown after composedUri is ready) ── */}
+            {/* Platform share buttons */}
             {composedUri && (
-              <View style={styles.platformRow}>
-                <Text style={styles.platformLabel}>📤 SNS에 공유하기</Text>
-                <View style={styles.platformBtns}>
-                  {[
-                    { key: 'twitter',   label: '𝕏 Twitter',   color: '#000' },
-                    { key: 'facebook',  label: 'f Facebook',   color: '#1877f2' },
-                    { key: 'instagram', label: '📸 Instagram', color: '#e1306c' },
-                    { key: 'youtube',   label: '▶ YouTube',    color: '#ff0000' },
-                  ].map((p) => (
+              <View style={st.platformBlock}>
+                <Text style={st.platformTitle}>📤 직접 업로드하기</Text>
+                <Text style={st.platformSub}>다운로드 후 각 플랫폼에 업로드하세요</Text>
+                <View style={st.platformGrid}>
+                  {PLATFORMS.map(p => (
                     <TouchableOpacity
                       key={p.key}
-                      style={[styles.platformBtn, { backgroundColor: p.color }]}
+                      style={[st.platformBtn, { backgroundColor: p.color }]}
                       onPress={() => {
-                        const text =
-                          (activeTemplate?.name ?? '챌린지') +
-                          ' 완성! ' +
-                          (
-                            activeTemplate?.sns_template?.hashtags ??
-                            []
-                          )
-                            .map((h: string) => '#' + h)
-                            .join(' ');
-                        openPlatformShare(p.key, text, composedUri ?? undefined);
+                        const caption = activeTemplate?.sns_template.caption_template
+                          ?.replace('{template_name}', activeTemplate.name)
+                          ?.replace('{score}', String(scoreNum)) ?? '';
+                        const ht = (activeTemplate?.sns_template.hashtags ?? [])
+                          .map(h => '#' + h).join(' ');
+                        openPlatformShare(p.key, caption + ' ' + ht);
                       }}
+                      activeOpacity={0.85}
                     >
-                      <Text style={styles.platformBtnText}>{p.label}</Text>
+                      <Text style={st.platformBtnText}>{p.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                <Text style={styles.platformHint}>
-                  💡 다운로드 후 Instagram/YouTube에 직접 업로드 가능합니다
+                <Text style={st.platformNote}>
+                  💡 영상을 다운로드한 후 Instagram 릴스, TikTok, YouTube 쇼츠에 직접 업로드할 수 있습니다
                 </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* RAW VIDEO SHARE (before composing) */}
+        {/* ── RAW SHARE (before compose) ───── */}
         {activeTemplate && !composedUri && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📤 원본 영상 공유</Text>
-            <View style={styles.hashtagRow}>
-              {activeTemplate.sns_template.hashtags.map((tag) => (
-                <View key={tag} style={styles.hashtagChip}>
-                  <Text style={styles.hashtagText}>#{tag}</Text>
+          <View style={st.section}>
+            <Text style={st.sectionTitle}>📤 원본 영상 공유</Text>
+            <View style={st.captionBox}>
+              <Text style={st.captionText}>
+                {activeTemplate.sns_template.caption_template
+                  .replace('{template_name}', activeTemplate.name)
+                  .replace('{score}', String(scoreNum))}
+              </Text>
+            </View>
+            <View style={st.hashRow}>
+              {activeTemplate.sns_template.hashtags.map(h => (
+                <View key={h} style={st.hashChip}>
+                  <Text style={st.hashText}>#{h}</Text>
                 </View>
               ))}
             </View>
-            <View style={styles.captionBox}>
-              <Text style={styles.captionText}>
-                {activeTemplate.sns_template.caption_template
-                  .replace('{template_name}', activeTemplate.name)
-                  .replace('{score}', String(Math.round(stats.avgScore * 100)))}
-              </Text>
-            </View>
-            <View style={styles.videoActionRow}>
+            <View style={st.actionRow}>
               <TouchableOpacity
-                style={styles.shareBtn}
-                onPress={async () => {
-                  const result = await doShare(null, rawVideoUri, activeTemplate, stats.avgScore);
-                  setShared(true);
-                  setShareResult(result);
-                  if (result === 'copied') {
-                    Alert.alert('클립보드에 복사됨!', '캡션이 복사되었습니다. SNS에 붙여넣으세요!');
-                  }
-                }}
+                style={[st.shareBtn, { backgroundColor: '#7c3aed', flex: 1 }]}
+                onPress={() => handleShare(null)}
               >
-                <Text style={styles.shareBtnText}>📤 공유하기</Text>
+                <Text style={st.shareText}>📤 공유하기</Text>
               </TouchableOpacity>
               {rawVideoUri !== '' && (
                 <TouchableOpacity
-                  style={styles.downloadBtn}
+                  style={st.downloadBtn}
                   onPress={() => doDownload(rawVideoUri, activeTemplate.name)}
                 >
-                  <Text style={styles.downloadBtnText}>⬇ 다운로드</Text>
+                  <Text style={st.downloadText}>⬇ 원본</Text>
                 </TouchableOpacity>
               )}
             </View>
-            {shared && !composedUri && (
-              <Text style={styles.sharedText}>
-                {shareResult === 'copied' ? '클립보드에 복사되었습니다!' : '✅ 공유 완료!'}
-              </Text>
-            )}
           </View>
         )}
 
-        {/* SAVE SECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💾 세션 저장</Text>
+        {/* ── SAVE SECTION ───────────────────── */}
+        <View style={st.section}>
+          <Text style={st.sectionTitle}>💾 세션 저장</Text>
           {saved ? (
-            <View style={styles.savedBox}>
-              <Text style={styles.savedEmoji}>✅</Text>
-              <Text style={styles.savedText}>저장 완료!</Text>
+            <View style={st.savedRow}>
+              <Text style={st.savedEmoji}>✅</Text>
+              <Text style={st.savedText}>저장 완료! 기록에 남겨졌어요.</Text>
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+              style={[st.saveBtn, saving && st.saveBtnDis]}
               onPress={handleSave}
               disabled={saving}
               activeOpacity={0.85}
@@ -581,19 +740,19 @@ export default function ResultScreen() {
               {saving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.saveBtnText}>💾 기록 저장하기</Text>
+                <Text style={st.saveBtnText}>💾 내 기록 저장</Text>
               )}
             </TouchableOpacity>
           )}
         </View>
 
-        {/* BOTTOM ACTIONS */}
-        <View style={styles.bottomActions}>
-          <TouchableOpacity style={styles.retakeBtn} onPress={doRetake} activeOpacity={0.85}>
-            <Text style={styles.retakeBtnText}>🔄 다시 촬영</Text>
+        {/* ── BOTTOM ACTIONS ─────────────────── */}
+        <View style={st.bottomRow}>
+          <TouchableOpacity style={st.retakeBtn} onPress={doRetake} activeOpacity={0.85}>
+            <Text style={st.retakeText}>🔄 다시 도전</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.homeBtn} onPress={goHome} activeOpacity={0.85}>
-            <Text style={styles.homeBtnText}>🏠 홈으로</Text>
+          <TouchableOpacity style={[st.homeBtn, { backgroundColor: accentColor }]} onPress={goHome} activeOpacity={0.85}>
+            <Text style={st.homeText}>🏠 홈으로</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -601,420 +760,198 @@ export default function ResultScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F8FC' },
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const st = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F4F5F9' },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 60, gap: 16 },
+  content: { paddingTop: 8, paddingBottom: 80, gap: 14 },
 
+  // Header
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingTop: 4, paddingBottom: 4,
   },
-  backIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+  backBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
   },
-  backIconText: { fontSize: 20, color: '#333', fontWeight: '700' },
-
-  title: {
-    color: '#1a1a2e',
-    fontSize: 22,
-    fontWeight: '900',
-    textAlign: 'center',
-    flex: 1,
-  },
-  subtitle: {
-    color: '#777',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: -8,
-  },
+  backText: { fontSize: 22, color: '#333', fontWeight: '700' },
+  headerCenter: { flex: 1, alignItems: 'center', gap: 2 },
+  headerTitle: { fontSize: 20, fontWeight: '900', color: '#1a1a2e', textAlign: 'center' },
+  headerSub:   { fontSize: 12, color: '#999' },
 
   // Score card
   scoreCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    flexDirection: 'row',
+    backgroundColor: '#fff', borderRadius: 24,
+    flexDirection: 'row', overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08, shadowRadius: 14, elevation: 4,
   },
-  scoreAccentBar: {
-    width: 6,
-    borderRadius: 0,
+  scoreAccent: { width: 6 },
+  scoreBody: {
+    flex: 1, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, gap: 10,
   },
-  scoreCardBody: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 28,
-    gap: 4,
+  gradeChip: {
+    borderRadius: 20, borderWidth: 1.5,
+    paddingHorizontal: 18, paddingVertical: 7,
   },
-  scoreMain: { fontSize: 80, fontWeight: '900', lineHeight: 88 },
-  scoreLabel: { color: '#999', fontSize: 14, marginBottom: 4 },
-  successRateRow: {
-    backgroundColor: '#F0FFF4',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 12,
+  gradeText: { fontSize: 15, fontWeight: '800' },
+  successRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8 },
+  successLabel: { color: '#9ca3af', fontSize: 12, fontWeight: '600', width: 40 },
+  successBarBg: {
+    flex: 1, height: 8, backgroundColor: '#f1f5f9',
+    borderRadius: 4, overflow: 'hidden',
   },
-  successRateText: { color: '#2e7d32', fontSize: 16, fontWeight: '700' },
-  starRating: { fontSize: 16, marginTop: 6, color: '#1a1a2e', fontWeight: '700' },
+  successBarFill: { height: '100%', borderRadius: 4 },
+  successPct: { fontSize: 13, fontWeight: '800', width: 38, textAlign: 'right' },
 
-  // Tag row
+  // Tag distribution
   tagRow: { flexDirection: 'row', gap: 10 },
   tagCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    alignItems: 'center',
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    flex: 1, backgroundColor: '#fff', borderRadius: 16,
+    alignItems: 'center', paddingVertical: 16,
+    borderTopWidth: 3,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
-  tagCount: { fontSize: 30, fontWeight: '900' },
-  tagLabel: { color: '#999', fontSize: 10, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
+  tagCount: { fontSize: 32, fontWeight: '900' },
+  tagName:  { color: '#9ca3af', fontSize: 10, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
 
-  // Sections
+  // Section
   section: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 18,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: '#fff', borderRadius: 20, padding: 18, gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
-  sectionTitle: { color: '#1a1a2e', fontSize: 16, fontWeight: '800' },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
 
-  // Video template meta
-  vtMeta: { gap: 8 },
-  vtMetaText: { color: '#666', fontSize: 13 },
-  vtHashtags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // Video template chips
+  vtChips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  vtChip: {
+    backgroundColor: '#EDE9FF', borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: '#DDD6FE',
+  },
+  vtChipText: { color: '#7c3aed', fontSize: 12, fontWeight: '700' },
+
+  // Hashtags
+  hashRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   hashChip: {
-    backgroundColor: '#EDE9FF',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    backgroundColor: '#F0F9FF', borderRadius: 16,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#BAE6FD',
   },
-  hashChipText: { color: '#7C3AED', fontSize: 12, fontWeight: '600' },
+  hashText: { color: '#0369a1', fontSize: 12, fontWeight: '600' },
 
-  // Template diagram
-  templateDiagram: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  templateDiagramTitle: { color: '#1a1a2e', fontSize: 16, fontWeight: '800' },
-  templateDiagramDesc: { color: '#6b7280', fontSize: 13 },
-  diagramBox: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  diagTop: { backgroundColor: '#4f46e5', padding: 10, alignItems: 'center' },
-  diagTopText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  diagCenter: {
-    backgroundColor: '#111',
-    padding: 20,
-    alignItems: 'center',
-    gap: 4,
-    minHeight: 100,
-    justifyContent: 'center',
-  },
-  diagCenterIcon: { fontSize: 32 },
-  diagCenterText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  diagCenterSub: { color: '#9ca3af', fontSize: 11 },
-  diagBottom: { backgroundColor: '#312e81', padding: 8, alignItems: 'center' },
-  diagBottomText: { color: '#c4b5fd', fontSize: 11 },
-  diagFeatures: { gap: 4 },
-  diagFeature: { color: '#374151', fontSize: 12 },
-
-  // Compose section (pre-compose)
-  composeSection: {
-    gap: 12,
-  },
-  composeSectionTitle: {
-    color: '#1a1a2e',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  composeDesc: {
-    color: '#666',
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  templateInfoCard: {
-    backgroundColor: '#F7F4FF',
-    borderRadius: 12,
-    padding: 14,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
-  },
-  templateInfoTitle: {
-    color: '#5B21B6',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  templateInfoDesc: {
-    color: '#7C3AED',
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  templateInfoTime: {
-    color: '#6D28D9',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
-  },
+  // Compose block
+  composeBlock: { gap: 12 },
+  composeDesc: { color: '#6b7280', fontSize: 13, lineHeight: 20, textAlign: 'center' },
   composeBtn: {
-    // @ts-ignore web gradient
-    background: 'linear-gradient(135deg, #7C3AED, #9b59b6)',
-    backgroundColor: '#7C3AED',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    minHeight: 58,
-    justifyContent: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    // @ts-ignore web
+    background: 'linear-gradient(135deg, #7c3aed, #ec4899)',
+    backgroundColor: '#7c3aed',
+    paddingVertical: 18, borderRadius: 16,
+    alignItems: 'center', minHeight: 58, justifyContent: 'center',
+    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
   },
-  composeBtnDisabled: {
-    backgroundColor: '#ccc',
-    shadowOpacity: 0,
-  },
+  composeBtnDis: { backgroundColor: '#d1d5db', shadowOpacity: 0 },
   composeBtnText: { color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
-  noVideoHint: {
-    color: '#999',
-    fontSize: 12,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
+  noVideoHint: { color: '#9ca3af', fontSize: 12, textAlign: 'center', fontStyle: 'italic' },
 
-  // Composing section (in-progress)
-  composingSection: {
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-  },
-  composingTitle: {
-    color: '#1a1a2e',
-    fontSize: 16,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  composingDesc: {
-    color: '#555',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  progressBarBg: {
-    width: '100%',
-    height: 10,
-    backgroundColor: '#F0EFFF',
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#7C3AED',
-    borderRadius: 5,
-  },
-  composingPct: {
-    color: '#7C3AED',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  composingNote: {
-    color: '#999',
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginTop: 2,
-  },
+  // Composing progress
+  composingBlock: { alignItems: 'center', gap: 10, paddingVertical: 8 },
+  composingTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
+  composingPhase: { color: '#7c3aed', fontSize: 13, fontWeight: '600' },
+  progBg: { width: '100%', height: 8, backgroundColor: '#EDE9FF', borderRadius: 4, overflow: 'hidden' },
+  progFill: { height: '100%', backgroundColor: '#7c3aed', borderRadius: 4 },
+  progPct: { color: '#7c3aed', fontSize: 13, fontWeight: '700' },
+  composingNote: { color: '#9ca3af', fontSize: 11, textAlign: 'center', lineHeight: 16 },
 
   // Error
   errorBox: {
-    backgroundColor: '#fff5f5',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    alignItems: 'center',
+    backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, gap: 8,
+    borderWidth: 1, borderColor: '#FECACA', alignItems: 'center',
   },
-  errorBoxText: { color: '#dc2626', fontSize: 13, textAlign: 'center' },
-  retrySmallBtn: {
-    backgroundColor: '#7C3AED',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 10,
+  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center' },
+  retrySmall: {
+    backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10,
   },
   retrySmallText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Video preview section (post-compose)
-  videoPreviewSection: {
-    gap: 12,
-  },
-  videoPreviewTitle: {
-    color: '#1a1a2e',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  videoActionRow: { flexDirection: 'row', gap: 10 },
-  sharedText: {
-    color: '#2e7d32',
-    fontSize: 13,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
+  // Video preview
+  videoBlock: { gap: 12 },
+  videoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  videoTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e', flex: 1 },
+  readyBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+  readyText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
-  // Platform share buttons
-  platformRow: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  platformLabel: { color: '#1a1a2e', fontSize: 15, fontWeight: '800' },
-  platformBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  platformBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    minHeight: 40,
-    justifyContent: 'center',
-  },
-  platformBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  platformHint: { color: '#9ca3af', fontSize: 11 },
-
-  // SNS / raw share
-  hashtagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  hashtagChip: {
-    backgroundColor: '#EDE9FF',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  hashtagText: { color: '#7C3AED', fontSize: 12, fontWeight: '600' },
-  captionBox: { backgroundColor: '#F7F8FC', borderRadius: 10, padding: 12 },
-  captionText: { color: '#666', fontSize: 13, lineHeight: 20 },
-
-  // Share / download
-  shareBtn: {
-    flex: 1,
-    backgroundColor: '#7C3AED',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    minHeight: 50,
-    justifyContent: 'center',
-  },
-  shareBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  // Action row
+  actionRow: { flexDirection: 'row', gap: 10 },
   downloadBtn: {
-    flex: 1,
-    backgroundColor: '#F7F8FC',
-    borderWidth: 1.5,
-    borderColor: '#E0E0E8',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    minHeight: 50,
-    justifyContent: 'center',
+    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E5E7EB',
+    paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+    minHeight: 50, justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
-  downloadBtnText: { color: '#555', fontSize: 14, fontWeight: '700' },
+  downloadText: { color: '#374151', fontSize: 14, fontWeight: '700' },
+  shareBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    alignItems: 'center', minHeight: 50, justifyContent: 'center',
+    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
+  },
+  shareText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  shareResult: { color: '#059669', fontSize: 13, textAlign: 'center', fontWeight: '600' },
+
+  // Platform share
+  platformBlock: { gap: 10 },
+  platformTitle: { fontSize: 15, fontWeight: '800', color: '#1a1a2e' },
+  platformSub: { fontSize: 12, color: '#6b7280' },
+  platformGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  platformBtn: {
+    paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10,
+    minHeight: 40, justifyContent: 'center',
+  },
+  platformBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  platformNote: { color: '#9ca3af', fontSize: 11, lineHeight: 16 },
+
+  // Caption
+  captionBox: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12 },
+  captionText: { color: '#6b7280', fontSize: 13, lineHeight: 20 },
 
   // Save
   saveBtn: {
-    backgroundColor: '#059669',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    minHeight: 54,
-    justifyContent: 'center',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    backgroundColor: '#059669', paddingVertical: 16, borderRadius: 14,
+    alignItems: 'center', minHeight: 54, justifyContent: 'center',
+    shadowColor: '#059669', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
   },
-  saveBtnDisabled: { backgroundColor: '#ccc', shadowOpacity: 0 },
+  saveBtnDis: { backgroundColor: '#d1d5db', shadowOpacity: 0 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  savedBox: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' },
   savedEmoji: { fontSize: 24 },
-  savedText: { color: '#059669', fontSize: 16, fontWeight: '700' },
+  savedText: { color: '#059669', fontSize: 15, fontWeight: '700' },
 
   // Bottom actions
-  bottomActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  bottomRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   retakeBtn: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#E0E0E8',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E5E7EB',
+    paddingVertical: 16, borderRadius: 14, alignItems: 'center',
+    minHeight: 56, justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
-  retakeBtnText: { color: '#333', fontSize: 15, fontWeight: '800' },
+  retakeText: { color: '#374151', fontSize: 15, fontWeight: '800' },
   homeBtn: {
-    flex: 1,
-    // @ts-ignore web gradient
-    background: 'linear-gradient(135deg, #7C3AED, #9b59b6)',
-    backgroundColor: '#7C3AED',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    flex: 1, paddingVertical: 16, borderRadius: 14,
+    alignItems: 'center', minHeight: 56, justifyContent: 'center',
+    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
   },
-  homeBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  homeText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
