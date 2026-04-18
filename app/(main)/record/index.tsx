@@ -19,7 +19,7 @@ import {
   useWindowDimensions, Alert, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import RecordingCamera, { type RecordingCameraHandle } from '../../../components/camera/RecordingCamera';
 import TimingBar              from '../../../components/ui/TimingBar';
@@ -337,137 +337,222 @@ const mc = StyleSheet.create({
   statusText: { color: '#fff', fontSize: 15, fontWeight: '900' },
 });
 
-// ─── Template Overlay (붕어빵 껍질 — 녹화 중 화면 위 레이어) ─────────────────────
+// ─── Template Overlay (붕어빵 껍질 — 녹화 중 실시간 템플릿 레이어) ──────────────
 
 interface SubtitleEntry {
   start_ms: number; end_ms: number; text: string; style?: string;
 }
+
+const GENRE_STYLES: Record<string, { headerBg: string; accentColor: string; textGlow: string; borderColor: string }> = {
+  news:       { headerBg: 'rgba(13,28,53,0.95)',   accentColor: '#1565c0', textGlow: '#64b5f6', borderColor: '#1565c0' },
+  kpop:       { headerBg: 'rgba(10,10,30,0.95)',   accentColor: '#e94560', textGlow: '#ff80ab', borderColor: '#e94560' },
+  english:    { headerBg: 'rgba(15,30,70,0.95)',   accentColor: '#2196f3', textGlow: '#90caf9', borderColor: '#2196f3' },
+  kids:       { headerBg: 'rgba(80,20,100,0.95)',  accentColor: '#a855f7', textGlow: '#d8b4fe', borderColor: '#ec4899' },
+  travel:     { headerBg: 'rgba(0,60,80,0.95)',    accentColor: '#00bcd4', textGlow: '#80deea', borderColor: '#00bcd4' },
+  fitness:    { headerBg: 'rgba(10,50,40,0.95)',   accentColor: '#14b8a6', textGlow: '#5eead4', borderColor: '#14b8a6' },
+  hiphop:     { headerBg: 'rgba(20,20,20,0.95)',   accentColor: '#f7b731', textGlow: '#fde68a', borderColor: '#f7b731' },
+  daily:      { headerBg: 'rgba(40,20,80,0.95)',   accentColor: '#9b59b6', textGlow: '#d8b4fe', borderColor: '#9b59b6' },
+  promotion:  { headerBg: 'rgba(80,10,60,0.95)',   accentColor: '#e91e63', textGlow: '#f48fb1', borderColor: '#e91e63' },
+};
 
 function TemplateOverlay({
   template, elapsed, isRecording,
 }: {
   template: any; elapsed: number; isRecording: boolean;
 }) {
-  if (!isRecording) return null;
+  if (!isRecording || !template) return null;
 
-  // Current subtitle from template's subtitle_timeline
+  const genre = template.genre ?? 'daily';
+  const gs    = GENRE_STYLES[genre] ?? GENRE_STYLES.daily;
+
   const subtitles: SubtitleEntry[] = template.subtitle_timeline ?? [];
-  const currentSub = subtitles.find(
-    s => elapsed >= s.start_ms && elapsed < s.end_ms,
-  );
+  const currentSub = subtitles.find(s => elapsed >= s.start_ms && elapsed < s.end_ms);
+  const totalMs    = (template.duration_sec ?? 30) * 1000;
+  const progress   = Math.min(1, elapsed / totalMs);
+  const elapsedSec = Math.floor(elapsed / 1000);
+  const totalSec   = template.duration_sec ?? 30;
+  const remainSec  = Math.max(0, totalSec - elapsedSec);
 
-  const isHighlight = currentSub?.style === 'highlight' || currentSub?.style === 'bold';
-  const bg = template.virtual_bg;
-  const overlayTop: string | undefined = bg?.overlayTop;
-  const overlayBottom: string | undefined = bg?.overlayBottom;
-  const frameColor: string = bg?.frameColor ?? '#7c3aed';
+  const bg         = template.virtual_bg ?? {};
+  const overlayTop: string | undefined    = bg.overlayTop;
+  const overlayBottom: string | undefined = bg.overlayBottom;
 
-  // Progress bar (elapsed / template.duration_sec * 1000)
-  const totalMs  = (template.duration_sec ?? 30) * 1000;
-  const progress = Math.min(1, elapsed / totalMs);
+  const isHighlight = currentSub?.style === 'highlight';
+  const isBold      = currentSub?.style === 'bold';
 
   return (
     <>
-      {/* ── Top brand bar ────────────────────────────────────────── */}
-      {overlayTop ? (
-        <View style={[tov.topBar, { backgroundColor: frameColor + 'dd' }]}>
-          <Text style={tov.topText} numberOfLines={1}>{overlayTop}</Text>
+      {/* ── 상단 브랜드 바 ─────────────────────────── */}
+      <View style={[tov.topBar, { backgroundColor: gs.headerBg, borderBottomColor: gs.borderColor + '88' }]}>
+        {/* Live 버튼 */}
+        <View style={[tov.livePill, { backgroundColor: '#ef4444' }]}>
+          <View style={tov.liveDot} />
+          <Text style={tov.liveText}>LIVE</Text>
         </View>
-      ) : null}
+        {/* 템플릿 이름 */}
+        <Text style={[tov.topTitle, { color: gs.textGlow }]} numberOfLines={1}>
+          {template.theme_emoji}  {template.name}
+        </Text>
+        {/* 남은 시간 */}
+        <View style={[tov.timerPill, { backgroundColor: gs.accentColor + '33', borderColor: gs.accentColor + '55' }]}>
+          <Text style={[tov.timerText, { color: gs.textGlow }]}>
+            {String(Math.floor(remainSec / 60)).padStart(2,'0')}:{String(remainSec % 60).padStart(2,'0')}
+          </Text>
+        </View>
+      </View>
 
-      {/* ── Center subtitle ──────────────────────────────────────── */}
-      {currentSub ? (
-        <View
-          style={[
-            tov.subtitleWrap,
+      {/* ── 장르별 장식 요소 — 뉴스 ─────────────────── */}
+      {genre === 'news' && (
+        <>
+          <View style={[tov.newsTickerBar, { backgroundColor: gs.accentColor }]}>
+            <Text style={tov.newsTickerText} numberOfLines={1}>
+              📺 속보 · BREAKING NEWS · 오늘의 챌린지 뉴스 · LIVE BROADCAST · 속보 · BREAKING NEWS · 오늘의 챌린지 뉴스
+            </Text>
+          </View>
+          <View style={[tov.newsBorderLeft,  { backgroundColor: gs.accentColor }]} />
+          <View style={[tov.newsBorderRight, { backgroundColor: gs.accentColor }]} />
+        </>
+      )}
+
+      {/* ── 장르별 장식 요소 — K-POP ─────────────────── */}
+      {(genre === 'kpop' || genre === 'hiphop') && (
+        <>
+          <View style={[tov.stageLight, tov.stageLightLeft,  { backgroundColor: gs.accentColor }]} />
+          <View style={[tov.stageLight, tov.stageLightRight, { backgroundColor: gs.accentColor }]} />
+        </>
+      )}
+
+      {/* ── 장르별 장식 요소 — 피트니스 ─────────────── */}
+      {genre === 'fitness' && (
+        <View style={[tov.fitnessBorder, { borderColor: gs.borderColor + '66' }]} />
+      )}
+
+      {/* ── 현재 자막 (subtitle_timeline) ─────────── */}
+      {currentSub && (
+        <View style={[
+          tov.subtitleWrap,
+          isHighlight ? { backgroundColor: gs.accentColor + 'dd', borderColor: '#fff5' }
+            : isBold  ? { backgroundColor: 'rgba(0,0,0,0.85)', borderColor: gs.borderColor + '99' }
+            :           { backgroundColor: 'rgba(0,0,0,0.72)', borderColor: 'rgba(255,255,255,0.15)' },
+        ]}>
+          {isHighlight && (
+            <View style={[tov.subtitleAccent, { backgroundColor: '#fff4' }]} />
+          )}
+          <Text style={[
+            tov.subtitleText,
             isHighlight
-              ? { backgroundColor: frameColor + 'cc', borderColor: '#fff4', borderWidth: 1.5 }
-              : { backgroundColor: 'rgba(0,0,0,0.72)' },
-          ]}
-        >
-          <Text style={tov.subtitleText} numberOfLines={3}>
+              ? { color: '#fff', fontSize: 22, fontWeight: '900' }
+              : isBold
+              ? { color: gs.textGlow, fontSize: 20, fontWeight: '800' }
+              : { color: '#f0f0f0', fontSize: 18, fontWeight: '700' },
+          ]} numberOfLines={3}>
             {currentSub.text}
           </Text>
         </View>
-      ) : null}
+      )}
 
-      {/* ── Bottom hashtag / info bar ─────────────────────────────── */}
-      {overlayBottom ? (
-        <View style={[tov.bottomBar, { backgroundColor: frameColor + 'cc' }]}>
-          <Text style={tov.bottomText} numberOfLines={1}>{overlayBottom}</Text>
-        </View>
-      ) : null}
-
-      {/* ── Timeline progress bar ────────────────────────────────── */}
-      <View style={tov.progressTrack}>
-        <View style={[tov.progressFill, { width: `${progress * 100}%` as any, backgroundColor: frameColor }]} />
+      {/* ── 하단 해시태그 바 ─────────────────────────── */}
+      <View style={[tov.bottomBar, { backgroundColor: gs.headerBg, borderTopColor: gs.borderColor + '66' }]}>
+        <Text style={[tov.bottomText, { color: gs.textGlow + 'cc' }]} numberOfLines={1}>
+          {overlayBottom ?? (template.sns_template?.hashtags ?? []).slice(0,5).map((h: string) => '#' + h).join('  ')}
+        </Text>
       </View>
 
-      {/* ── Elapsed timer ────────────────────────────────────────── */}
-      <View style={tov.timerChip}>
-        <Text style={tov.timerText}>
-          {Math.floor(elapsed / 1000)}s / {template.duration_sec ?? 30}s
-        </Text>
+      {/* ── 하단 진행 바 ─────────────────────────────── */}
+      <View style={tov.progressTrack}>
+        <View style={[tov.progressFill, { width: `${progress * 100}%` as any, backgroundColor: gs.accentColor }]} />
       </View>
     </>
   );
 }
 
 const tov = StyleSheet.create({
+  // 상단 바
   topBar: {
-    position: 'absolute', top: 0, left: 0, right: 0,
-    paddingVertical: 10, paddingHorizontal: 16,
-    alignItems: 'center', zIndex: 15,
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, paddingHorizontal: 12, gap: 10,
+    borderBottomWidth: 1,
   },
-  topText: {
-    color: '#fff', fontSize: 14, fontWeight: '800',
-    letterSpacing: 1, textAlign: 'center',
+  livePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  liveText: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  topTitle: { flex: 1, fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  timerPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1,
+  },
+  timerText: { fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'] as any },
+
+  // 뉴스 장식
+  newsTickerBar: {
+    position: 'absolute', top: 46, left: 0, right: 0, zIndex: 18,
+    paddingVertical: 5, paddingHorizontal: 12,
+  },
+  newsTickerText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  newsBorderLeft: {
+    position: 'absolute', left: 0, top: 46, bottom: 44, width: 4, zIndex: 18,
+    opacity: 0.8,
+  },
+  newsBorderRight: {
+    position: 'absolute', right: 0, top: 46, bottom: 44, width: 4, zIndex: 18,
+    opacity: 0.8,
+  },
+
+  // K-POP 무대 조명
+  stageLight: {
+    position: 'absolute', top: 46, width: 3, height: '60%', zIndex: 18,
+    opacity: 0.6,
+  },
+  stageLightLeft:  { left: 12,  transform: [{ skewX: '8deg' }] as any },
+  stageLightRight: { right: 12, transform: [{ skewX: '-8deg' }] as any },
+
+  // 피트니스 테두리
+  fitnessBorder: {
+    position: 'absolute', top: 46, left: 6, right: 6, bottom: 44,
+    borderWidth: 2, borderRadius: 8, zIndex: 18,
     // @ts-ignore web
-    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+    boxShadow: '0 0 12px rgba(20,184,166,0.3)',
   },
+
+  // 자막
   subtitleWrap: {
     position: 'absolute',
-    bottom: 160,
-    left: 16,
-    right: 16,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    zIndex: 25,
+    bottom: 120,
+    left: 12, right: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 14, paddingHorizontal: 18,
+    alignItems: 'center', zIndex: 22,
+    overflow: 'hidden',
     // @ts-ignore web
-    backdropFilter: 'blur(12px)',
+    backdropFilter: 'blur(16px)',
+  },
+  subtitleAccent: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 2, borderRadius: 2,
   },
   subtitleText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-    lineHeight: 28,
+    textAlign: 'center', lineHeight: 30,
     // @ts-ignore web
-    textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+    textShadow: '0 2px 8px rgba(0,0,0,0.8)',
   },
+
+  // 하단 바
   bottomBar: {
-    position: 'absolute', bottom: 44, left: 0, right: 0,
-    paddingVertical: 8, paddingHorizontal: 12,
-    alignItems: 'center', zIndex: 15,
-    overflow: 'hidden',
+    position: 'absolute', bottom: 44, left: 0, right: 0, zIndex: 20,
+    paddingVertical: 7, paddingHorizontal: 14,
+    borderTopWidth: 1, alignItems: 'center',
   },
-  bottomText: {
-    color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '700',
-    letterSpacing: 0.5, textAlign: 'center',
-  },
+  bottomText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+
+  // 진행 바
   progressTrack: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: 4, backgroundColor: 'rgba(255,255,255,0.15)', zIndex: 40,
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: 3,
+    backgroundColor: 'rgba(255,255,255,0.12)', zIndex: 30,
   },
-  progressFill: { height: '100%', borderRadius: 2 },
-  timerChip: {
-    position: 'absolute', bottom: 8, right: 12, zIndex: 40,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
-  },
-  timerText: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '700' },
+  progressFill: { height: '100%' },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -511,28 +596,31 @@ export default function RecordScreen() {
 
   const maxW = Math.min(width - 32, 500);
 
-  // ── Focus cleanup — fires every time screen gains focus (Expo Router 캐시 대응) ──
-  // useEffect([], []) 는 캐시된 화면에서 재실행 안됨 → useFocusEffect 필수
-  useFocusEffect(
-    useCallback(() => {
-      // 마이크 권한 한 번에 미리 확보 (SpeechRecognition 별도 팝업 방지)
-      prewarmMic();
+  // ── activeTemplate.id 변경 감지 → 새 챌린지 선택 시 리셋 ──────────────────
+  // Tabs 레이아웃에서 화면이 영구 마운트되므로 useFocusEffect 대신 data-driven 리셋 사용
+  const prevTemplateIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeTemplate) return;
+    if (activeTemplate.id === prevTemplateIdRef.current) return;
+    prevTemplateIdRef.current = activeTemplate.id;
 
-      resetRecording();          // state='idle', elapsed=0, videoUri=null
-      resetVoice();
-      comboRef.current = 0;
-      setCombo(0);
-      prevMissionSeqRef.current = null;
-      prevTagRef.current        = 'fail';
-      setCharState('idle');
-      setCurrentScore(0);
-      setCurrentTag('fail');
-      setCurrentMission(null);
-      setParticles([]);
-      setBurstVisible(false);
-      hudOpacity.setValue(0);
-    }, []), // eslint-disable-line
-  );
+    // 마이크 권한 한 번에 미리 확보 (SpeechRecognition 별도 팝업 방지)
+    prewarmMic();
+
+    resetRecording();
+    resetVoice();
+    comboRef.current = 0;
+    setCombo(0);
+    prevMissionSeqRef.current = null;
+    prevTagRef.current        = 'fail';
+    setCharState('idle');
+    setCurrentScore(0);
+    setCurrentTag('fail');
+    setCurrentMission(null);
+    setParticles([]);
+    setBurstVisible(false);
+    hudOpacity.setValue(0);
+  }, [activeTemplate?.id]); // eslint-disable-line
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
   useEffect(() => () => { resetVoice(); }, [resetVoice]);

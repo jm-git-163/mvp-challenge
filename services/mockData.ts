@@ -1042,6 +1042,81 @@ export const MOCK_TEMPLATES: Template[] = [
       },
     ],
   },
+
+  // ─── 19. 스쿼트 50개 챌린지 (fitness-squat-50) ────────────────────────────
+  {
+    id: 'fitness-squat-50',
+    name: '🏆 스쿼트 50개 챌린지',
+    genre: 'fitness',
+    theme_id: 'motivation',
+    camera_mode: 'normal',
+    difficulty: 3,
+    duration_sec: 120,
+    bpm: 110,
+    bgm_url: '',
+    thumbnail_url: '',
+    theme_emoji: '🏆',
+    scene: '스쿼트 50개에 도전! 꾸준히 하면 살이 빠지고 근육이 생겨요. 하루 1세트부터 시작!',
+    created_at: new Date().toISOString(),
+    virtual_bg: {
+      type: 'gradient',
+      css: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+      overlayTop: '🏆 SQUAT 50 CHALLENGE',
+      overlayBottom: '#스쿼트50개  #홈트  #다이어트  #하체운동  #squat50challenge  #홈트레이닝',
+      frameColor: '#14b8a6',
+    },
+    sns_template: {
+      hashtags: ['스쿼트50개', '스쿼트챌린지', '홈트', '하체운동', '다이어트운동', 'squat50'],
+      caption_template: '스쿼트 50개 달성! 🏆 {template_name} {score}점! 같이 도전해봐요~ #스쿼트50개 #홈트',
+      video_frame_css: 'border: 3px solid #14b8a6; border-radius: 12px;',
+    },
+    subtitle_timeline: [
+      { start_ms: 0,      end_ms: 8000,   text: '🦶 발을 어깨 너비로! 준비 자세 잡아요', style: 'bold' },
+      { start_ms: 8000,   end_ms: 28000,  text: '⬇️ 1~10개! 천천히 내려가고 올라와요', style: 'highlight' },
+      { start_ms: 28000,  end_ms: 50000,  text: '💪 11~20개! 무릎이 발끝 안쪽으로!', style: 'bold' },
+      { start_ms: 50000,  end_ms: 70000,  text: '🔥 21~30개! 절반! 포기하지 마세요!', style: 'highlight' },
+      { start_ms: 70000,  end_ms: 90000,  text: '💥 31~40개! 엉덩이 더 내려요!', style: 'bold' },
+      { start_ms: 90000,  end_ms: 108000, text: '🌟 41~50개! 마지막! 최선을 다해요!', style: 'highlight' },
+      { start_ms: 108000, end_ms: 120000, text: '🏆 완료! 50개 달성! 당신은 최고야!', style: 'bold' },
+    ],
+    missions: [
+      {
+        seq: 1, start_ms: 0, end_ms: 8000,
+        type: 'timing',
+        threshold: 0.6, guide_text: '준비 자세! 발을 어깨 너비로 🦶', anim_type: 'pulse',
+      },
+      {
+        seq: 2, start_ms: 8000, end_ms: 28000,
+        type: 'timing',
+        threshold: 0.65, guide_text: '1~10개 스쿼트! 천천히 ⬇️', anim_type: 'bounce',
+      },
+      {
+        seq: 3, start_ms: 28000, end_ms: 50000,
+        type: 'timing',
+        threshold: 0.70, guide_text: '11~20개! 리듬 유지 💪', anim_type: 'bounce',
+      },
+      {
+        seq: 4, start_ms: 50000, end_ms: 70000,
+        type: 'timing',
+        threshold: 0.72, guide_text: '21~30개! 절반 왔어요! 🔥', anim_type: 'shake',
+      },
+      {
+        seq: 5, start_ms: 70000, end_ms: 90000,
+        type: 'timing',
+        threshold: 0.75, guide_text: '31~40개! 포기 금지! 💥', anim_type: 'shake',
+      },
+      {
+        seq: 6, start_ms: 90000, end_ms: 108000,
+        type: 'timing',
+        threshold: 0.78, guide_text: '41~50개! 마지막이야! 🌟', anim_type: 'bounce',
+      },
+      {
+        seq: 7, start_ms: 108000, end_ms: 120000,
+        type: 'expression',
+        threshold: 0.6, guide_text: '완료! 승리 포즈! 🏆', guide_emoji: '🏆', anim_type: 'float',
+      },
+    ],
+  },
 ];
 
 export const MOCK_USER_ID = 'mock-user-0001';

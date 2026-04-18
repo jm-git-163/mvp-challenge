@@ -55,22 +55,26 @@ function openPlatformShare(platform: string, text: string, videoUri: string | nu
   if (typeof window === 'undefined') return;
   const enc = encodeURIComponent(text);
 
-  // For platforms that support URL sharing, include text
   const shareMap: Record<string, string> = {
-    twitter:  `https://twitter.com/intent/tweet?text=${enc}`,
-    facebook: `https://www.facebook.com/sharer/sharer.php?quote=${enc}`,
-    threads:  `https://www.threads.net/intent/post?text=${enc}`,
+    twitter:   `https://twitter.com/intent/tweet?text=${enc}`,
+    facebook:  `https://www.facebook.com/sharer/sharer.php?quote=${enc}`,
+    threads:   `https://www.threads.net/intent/post?text=${enc}`,
     instagram: 'https://www.instagram.com/create/story',
     tiktok:    'https://www.tiktok.com/upload',
     youtube:   'https://studio.youtube.com/channel/UC/videos/upload',
   };
 
   const url = shareMap[platform];
-  if (url) {
-    // Try window.open; if blocked, fallback to location.href
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!w) window.location.href = url;
-  }
+  if (!url) return;
+
+  // Use anchor element with rel="noopener" — bypasses popup blocker
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 async function doShare(
