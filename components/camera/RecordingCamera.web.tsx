@@ -485,8 +485,10 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         // 5. Mission card
         if (isRec && mission) drawMissionCard(ctx, mission, score);
 
-        // 6. Skeleton
-        if (lms && lms.length > 0) drawSkeleton(ctx, lms as NormalizedLandmark[], face === 'front');
+        // 6. Skeleton — 실제 MediaPipe 랜드마크일 때만 (score < 0.98 = real, not mock)
+        const hasRealPose = lms && lms.length > 0 &&
+          lms.some((l: any) => l.score !== undefined && l.score < 0.98 && l.score > 0.3);
+        if (hasRealPose) drawSkeleton(ctx, lms as NormalizedLandmark[], face === 'front');
 
         rafRef.current = requestAnimationFrame(drawFrame);
       };
@@ -605,15 +607,19 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           muted
         />
 
+        {/* Canvas: 9:16 portrait — height fills container, width auto-calculated */}
         <canvas
           ref={canvasRef}
           width={CW}
           height={CH}
           style={{
-            width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            width: 'auto',
+            maxWidth: '100%',
             display: 'block',
+            margin: '0 auto',
+            // @ts-ignore web
+            objectFit: 'contain',
           }}
         />
 

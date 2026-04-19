@@ -20,7 +20,7 @@ import { useJudgement }              from '../../../hooks/useJudgement';
 import { useRecording }              from '../../../hooks/useRecording';
 import { useSessionStore }           from '../../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../../utils/soundUtils';
-import { prewarmMic } from '../../../utils/speechUtils';
+// prewarmMic 제거 — 별도 오디오 getUserMedia가 마이크 팝업 유발
 import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
 import type { JudgementTag }         from '../../../types/session';
 import type { TemplateIntro, TemplateOutro } from '../../../types/template';
@@ -1335,7 +1335,7 @@ export default function RecordScreen() {
     if (!activeTemplate) return;
     if (sessionKey === prevSessionKeyRef.current) return;
     prevSessionKeyRef.current = sessionKey;
-    prewarmMic();
+    // prewarmMic() 제거: 카메라 스트림에 이미 오디오 포함, 별도 getUserMedia 호출은 마이크 팝업 유발
     try { setSquatMockMode(activeTemplate?.genre === 'fitness'); } catch { /* ignore */ }
     resetRecording();
     resetVoice();

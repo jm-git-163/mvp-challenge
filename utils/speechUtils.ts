@@ -233,7 +233,13 @@ export class SpeechRecognizer {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onerror = (e: any) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
-      if (e.error === 'not-allowed') { this._listening = false; return; }
+      if (e.error === 'not-allowed') {
+        // 마이크 권한 거부 → 사용자에게 interim으로 알림
+        this._listening = false;
+        onInterim('[마이크 권한 필요: 브라우저 주소창 옆 🔒에서 마이크 허용]');
+        onFinal('');
+        return;
+      }
       this._listening = false;
       onFinal(this._finalText || accumulated.trim());
     };
