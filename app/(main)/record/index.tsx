@@ -831,7 +831,7 @@ export default function RecordScreen() {
   const defaultFacing = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
   const [facing, setFacing] = useState<'front' | 'back'>(defaultFacing);
 
-  const { isReady, landmarks } = usePoseDetection();
+  const { isReady, landmarks, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, resetVoice } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset: resetRecording } = useRecording();
 
@@ -877,6 +877,9 @@ export default function RecordScreen() {
 
     // 마이크 권한 한 번에 미리 확보 (SpeechRecognition 별도 팝업 방지)
     prewarmMic();
+
+    // 피트니스 장르: 스쿼트 목 포즈 시뮬레이션 활성화 (TF.js 없어도 카운터 데모)
+    setSquatMockMode(activeTemplate?.genre === 'fitness');
 
     resetRecording();
     resetVoice(); // also resets squat counter inside

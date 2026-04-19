@@ -346,6 +346,86 @@ const GESTURE_CYCLE: GestureId[] = [
   'arms_spread', 'thumbs_up', 'point_cam', 'arms_cross',
 ];
 
+// ── 스쿼트 목 포즈 (서있음 ↔ 앉음 사이클) ─────────────────────────────────────
+// 스쿼트 동작을 시뮬레이션: 4초 주기로 standing → squatting → standing
+
+// 서 있는 자세 (전신) — 무릎 각도 ≈ 170°
+const SQUAT_STANDING: [number, number][] = [
+  [0.50, 0.08], // nose
+  [0.47, 0.06], // left_eye
+  [0.53, 0.06], // right_eye
+  [0.44, 0.07], // left_ear
+  [0.56, 0.07], // right_ear
+  [0.38, 0.22], // left_shoulder
+  [0.62, 0.22], // right_shoulder
+  [0.30, 0.42], // left_elbow
+  [0.70, 0.42], // right_elbow
+  [0.26, 0.60], // left_wrist
+  [0.74, 0.60], // right_wrist
+  [0.42, 0.55], // left_hip
+  [0.58, 0.55], // right_hip
+  [0.42, 0.78], // left_knee
+  [0.58, 0.78], // right_knee
+  [0.42, 0.96], // left_ankle
+  [0.58, 0.96], // right_ankle
+];
+
+// 스쿼트 완료 자세 — 무릎 각도 ≈ 85°
+const SQUAT_DOWN: [number, number][] = [
+  [0.50, 0.20], // nose (몸이 내려가서 전체적으로 y가 증가)
+  [0.47, 0.18], // left_eye
+  [0.53, 0.18], // right_eye
+  [0.44, 0.19], // left_ear
+  [0.56, 0.19], // right_ear
+  [0.38, 0.36], // left_shoulder
+  [0.62, 0.36], // right_shoulder
+  [0.28, 0.50], // left_elbow (팔은 앞으로)
+  [0.72, 0.50], // right_elbow
+  [0.30, 0.62], // left_wrist
+  [0.70, 0.62], // right_wrist
+  [0.40, 0.65], // left_hip (낮아짐)
+  [0.60, 0.65], // right_hip
+  [0.35, 0.85], // left_knee (앞으로 나옴)
+  [0.65, 0.85], // right_knee
+  [0.40, 0.95], // left_ankle
+  [0.60, 0.95], // right_ankle
+];
+
+/**
+ * 스쿼트 목 포즈 — t(ms) 기반으로 서있음↔앉음 보간
+ * 4초 주기: 0~1s 내려가기, 1~2s 유지, 2~3s 올라오기, 3~4s 유지
+ */
+export function generateSquatMockPose(t: number): NormalizedLandmark[] {
+  const cycleMs = 4000;
+  const phase   = (t % cycleMs) / cycleMs; // 0~1
+
+  // easeInOut 보간
+  let blend: number;
+  if (phase < 0.25) {
+    // 내려가기 (0→1)
+    const p = phase / 0.25;
+    blend = p * p * (3 - 2 * p); // smoothstep
+  } else if (phase < 0.5) {
+    // 아래 유지
+    blend = 1;
+  } else if (phase < 0.75) {
+    // 올라오기 (1→0)
+    const p = (phase - 0.5) / 0.25;
+    blend = 1 - p * p * (3 - 2 * p);
+  } else {
+    // 위 유지
+    blend = 0;
+  }
+
+  const interp = (a: number, b: number) => a + (b - a) * blend;
+  const coords = SQUAT_STANDING.map(([ax, ay], i) => [
+    interp(ax, SQUAT_DOWN[i][0]),
+    interp(ay, SQUAT_DOWN[i][1]),
+  ] as [number, number]);
+
+  return makePose(coords, 0.92);
+}
+
 export function generateMockPose(t: number): NormalizedLandmark[] {
   const cycleMs = 3000;
   const idx = Math.floor(t / cycleMs) % GESTURE_CYCLE.length;

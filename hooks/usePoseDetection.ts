@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { NormalizedLandmark } from '../utils/poseUtils';
-import { normalizeLandmarks, generateMockPose } from '../utils/poseUtils';
+import { normalizeLandmarks, generateMockPose, generateSquatMockPose } from '../utils/poseUtils';
 
 // ── 타입 (TF.js 없어도 컴파일 가능하도록 느슨하게) ──
 type PoseDetector = {
@@ -35,6 +35,8 @@ interface UsePoseDetectionReturn {
   landmarks: NormalizedLandmark[];
   detect: (base64Jpeg: string, width: number, height: number) => Promise<void>;
   error: string | null;
+  /** 목 모드에서 스쿼트 포즈 시뮬레이션으로 전환 */
+  setSquatMockMode: (enabled: boolean) => void;
 }
 
 /**
@@ -49,16 +51,24 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   const detectorRef               = useRef<PoseDetector | null>(null);
   const intervalRef               = useRef<ReturnType<typeof setInterval> | null>(null);
   const mockTimerRef              = useRef(0);
-  const inferringRef              = useRef(false); // 추론 중 중복 방지
+  const inferringRef              = useRef(false);  // 추론 중 중복 방지
+  const squatMockRef              = useRef(false);  // 스쿼트 목 모드 플래그
 
   const startMockMode = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       mockTimerRef.current += 100;
-      setLandmarks(generateMockPose(mockTimerRef.current));
+      const pose = squatMockRef.current
+        ? generateSquatMockPose(mockTimerRef.current)
+        : generateMockPose(mockTimerRef.current);
+      setLandmarks(pose);
     }, 100);
     setIsReady(true);
   };
+
+  const setSquatMockMode = useCallback((enabled: boolean) => {
+    squatMockRef.current = enabled;
+  }, []);
 
   // ── 모델 초기화 ─────────────────────────────
   useEffect(() => {
@@ -70,7 +80,9 @@ export function usePoseDetection(): UsePoseDetectionReturn {
       };
     }
 
-    // Web: TF.js WebGL + MoveNet
+    // Web: 즉시 목 모드 시작 (TF.js 로딩 중에도 UI 동작)
+    startMockMode();
+
     let cancelled = false;
 
     (async () => {
@@ -93,7 +105,9 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
         if (cancelled) { detector.dispose(); return; }
         detectorRef.current = detector;
-        setIsReady(true);
+
+        // 목 모드 인터벌 → 실제 추론 인터벌로 교체
+        if (intervalRef.current) clearInterval(intervalRef.current);
 
         // 100 ms 인터벌로 video element에서 추론
         intervalRef.current = setInterval(async () => {
@@ -123,8 +137,8 @@ export function usePoseDetection(): UsePoseDetectionReturn {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : 'TF.js 초기화 실패';
         setError(msg);
-        console.warn('[usePoseDetection] TF.js 로드 실패 → 목 모드 폴백:', msg);
-        startMockMode();
+        console.warn('[usePoseDetection] TF.js 로드 실패 → 목 모드 유지:', msg);
+        // 이미 startMockMode()로 실행 중 — 추가 조치 불필요
       }
     })();
 
@@ -142,5 +156,5 @@ export function usePoseDetection(): UsePoseDetectionReturn {
     // Native: 목 모드이므로 호출 불필요
   }, []);
 
-  return { isReady, landmarks, detect, error };
+  return { isReady, landmarks, detect, error, setSquatMockMode };
 }
