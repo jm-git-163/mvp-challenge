@@ -117,6 +117,8 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             videoRef.current.play().catch(() => {
               // autoplay may be briefly blocked; not fatal
             });
+            // Expose video element globally for pose detection (TF.js web)
+            (window as any).__poseVideoEl = videoRef.current;
           }
           setDenied(false);
           setReady(true);

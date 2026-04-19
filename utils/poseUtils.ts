@@ -146,6 +146,71 @@ export function detectGesture(
 }
 
 // ──────────────────────────────────────────────
+// 스쿼트 감지 (knee angle 기반)
+// ──────────────────────────────────────────────
+
+/**
+ * 세 관절(a→b→c)이 이루는 각도를 0~180° 범위로 반환
+ * b = vertex (무릎), a = 위(힙), c = 아래(발목)
+ */
+export function calculateAngle(
+  a: NormalizedLandmark,
+  b: NormalizedLandmark,
+  c: NormalizedLandmark,
+): number {
+  const radians =
+    Math.atan2(c.y - b.y, c.x - b.x) -
+    Math.atan2(a.y - b.y, a.x - b.x);
+  let angle = Math.abs(radians * (180 / Math.PI));
+  if (angle > 180) angle = 360 - angle;
+  return angle;
+}
+
+export interface SquatState {
+  phase: 'up' | 'down' | 'unknown';
+  kneeAngle: number; // degrees — average of both knees
+  score: number;     // 0~1 quality of squat
+}
+
+/**
+ * 랜드마크에서 스쿼트 자세 감지
+ *  - phase 'down' : 무릎 각도 < 110° (스쿼트 완료)
+ *  - phase 'up'   : 무릎 각도 > 155° (서 있는 상태)
+ *  - score        : 1.0(90°), 0.85(~120°), 0.65(~150°), 0.4(서있음)
+ */
+export function detectSquat(lms: NormalizedLandmark[], minConf = 0.25): SquatState {
+  const MIN = minConf;
+  const safe = (name: string) => {
+    const idx = JOINT_INDEX[name];
+    if (idx === undefined) return null;
+    const lm = lms[idx];
+    return lm && lm.score >= MIN ? lm : null;
+  };
+
+  const lhip = safe('left_hip');   const rhip = safe('right_hip');
+  const lknee = safe('left_knee'); const rknee = safe('right_knee');
+  const lank = safe('left_ankle'); const rank = safe('right_ankle');
+
+  const angles: number[] = [];
+  if (lhip && lknee && lank) angles.push(calculateAngle(lhip, lknee, lank));
+  if (rhip && rknee && rank) angles.push(calculateAngle(rhip, rknee, rank));
+
+  if (angles.length === 0) return { phase: 'unknown', kneeAngle: 180, score: 0 };
+
+  const avg = angles.reduce((s, v) => s + v, 0) / angles.length;
+  const phase: SquatState['phase'] =
+    avg < 110 ? 'down' :
+    avg > 155 ? 'up'   : 'unknown';
+
+  const score =
+    avg < 90  ? 1.00 :
+    avg < 120 ? 0.85 :
+    avg < 150 ? 0.65 : 0.40;
+
+  return { phase, kneeAngle: avg, score };
+}
+
+// ──────────────────────────────────────────────
 // 코사인 유사도 (pose 타입 미션용 — 레거시)
 // ──────────────────────────────────────────────
 export function computePoseSimilarity(

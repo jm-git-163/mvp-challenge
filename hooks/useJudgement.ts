@@ -8,7 +8,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
-import { detectGesture }   from '../utils/poseUtils';
+import { detectGesture, detectSquat }   from '../utils/poseUtils';
 import { SpeechRecognizer, textSimilarity } from '../utils/speechUtils';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
@@ -33,8 +33,12 @@ export function useJudgement(): {
     tag: JudgementTag;
     currentMission: Mission | null;
     voiceTranscript: string;
+    squatCount: number;
+    squatPhase: 'up' | 'down' | 'unknown';
+    kneeAngle: number;
   };
   voiceTranscript: string;
+  squatCount: number;
   resetVoice: () => void;
 } {
   const { activeTemplate, appendFrameTag } = useSessionStore();
@@ -48,8 +52,15 @@ export function useJudgement(): {
   const voiceTranscriptRef = useRef('');
   const stopVoiceRef       = useRef<(() => void) | null>(null);
 
+  // Squat counter refs (persist across renders, no dep-cycle)
+  const squatPhaseRef   = useRef<'up' | 'down' | 'unknown'>('unknown');
+  const squatCountRef   = useRef(0);
+  const squatCountState = useRef(0); // mirrors squatCountRef for setState trigger
+  const lastKneeAngle   = useRef(180);
+
   // State for UI updates
   const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [squatCount, setSquatCount]           = useState(0);
 
   const judge = useCallback(
     (landmarks: NormalizedLandmark[], elapsedMs: number) => {
@@ -75,6 +86,35 @@ export function useJudgement(): {
         voiceScoreRef.current      = 0.62;
         voiceTranscriptRef.current = '';
         setVoiceTranscript('');
+      }
+
+      // ── 스쿼트 카운터 (fitness 장르 전용 — 전 미션에 걸쳐 지속) ─────────
+      let squatPhaseOut: 'up' | 'down' | 'unknown' = squatPhaseRef.current;
+      let kneeAngleOut = lastKneeAngle.current;
+
+      if (template && template.genre === 'fitness' && landmarks.length > 0) {
+        const sq = detectSquat(landmarks);
+        kneeAngleOut = sq.kneeAngle;
+        lastKneeAngle.current = sq.kneeAngle;
+
+        // State machine: up → down → up = 1 rep
+        if (squatPhaseRef.current !== 'down' && sq.phase === 'down') {
+          // Entered squat position
+          squatPhaseRef.current = 'down';
+          squatPhaseOut = 'down';
+        } else if (squatPhaseRef.current === 'down' && sq.phase === 'up') {
+          // Completed one full squat rep
+          squatCountRef.current += 1;
+          squatPhaseRef.current = 'up';
+          squatPhaseOut = 'up';
+          if (squatCountRef.current !== squatCountState.current) {
+            squatCountState.current = squatCountRef.current;
+            setSquatCount(squatCountRef.current);
+          }
+        } else if (sq.phase !== 'unknown') {
+          squatPhaseRef.current = sq.phase;
+          squatPhaseOut = sq.phase;
+        }
       }
 
       let score = 0;
@@ -132,7 +172,16 @@ export function useJudgement(): {
           case 'timing':
           case 'expression':
           default: {
-            score = Math.min(0.88, 0.62 + missionProg * 0.36);
+            // Fitness 장르: 스쿼트 활동 기반 점수 (squat depth → higher score)
+            if (template && template.genre === 'fitness' && kneeAngleOut < 180) {
+              const sqScore =
+                kneeAngleOut < 90  ? 1.00 :
+                kneeAngleOut < 120 ? 0.88 :
+                kneeAngleOut < 150 ? 0.70 : 0.62;
+              score = Math.max(sqScore, 0.62 + missionProg * 0.3);
+            } else {
+              score = Math.min(0.88, 0.62 + missionProg * 0.36);
+            }
             break;
           }
         }
@@ -151,7 +200,13 @@ export function useJudgement(): {
         lastAppendRef.current = now;
       }
 
-      return { score, tag, currentMission: mission, voiceTranscript: voiceTranscriptRef.current };
+      return {
+        score, tag, currentMission: mission,
+        voiceTranscript: voiceTranscriptRef.current,
+        squatCount: squatCountRef.current,
+        squatPhase: squatPhaseOut,
+        kneeAngle: kneeAngleOut,
+      };
     },
     // Intentionally minimal deps — values read via refs inside callback
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,7 +223,13 @@ export function useJudgement(): {
     voiceScoreRef.current       = 0.62;
     voiceTranscriptRef.current  = '';
     setVoiceTranscript('');
+    // 스쿼트 카운터 리셋
+    squatCountRef.current       = 0;
+    squatCountState.current     = 0;
+    squatPhaseRef.current       = 'unknown';
+    lastKneeAngle.current       = 180;
+    setSquatCount(0);
   }, []);
 
-  return { judge, voiceTranscript, resetVoice };
+  return { judge, voiceTranscript, squatCount, resetVoice };
 }

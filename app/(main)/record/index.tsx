@@ -634,6 +634,191 @@ const tov = StyleSheet.create({
   progressFill: { height: '100%' },
 });
 
+// ─── Squat HUD ───────────────────────────────────────────────────────────────
+
+function SquatHUD({
+  count, phase, kneeAngle,
+}: { count: number; phase: 'up' | 'down' | 'unknown'; kneeAngle: number }) {
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const prevCount  = useRef(count);
+
+  useEffect(() => {
+    if (count !== prevCount.current) {
+      prevCount.current = count;
+      Animated.sequence([
+        Animated.spring(bounceAnim, { toValue: 1.5, tension: 150, friction: 5, useNativeDriver: true }),
+        Animated.spring(bounceAnim, { toValue: 1.0, tension: 80,  friction: 8, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [count]);
+
+  const phaseColor = phase === 'down' ? '#22c55e' : phase === 'up' ? '#f59e0b' : '#94a3b8';
+  const phaseLabel = phase === 'down' ? '⬇️ 내려가는 중' : phase === 'up' ? '⬆️ 올라가는 중' : '🏋️ 준비';
+  const depthPct = Math.max(0, Math.min(100, ((180 - kneeAngle) / 90) * 100));
+
+  return (
+    <View style={sq.wrap}>
+      {/* 카운터 */}
+      <Animated.View style={[sq.countBox, { transform: [{ scale: bounceAnim }] }]}>
+        <Text style={sq.countNum}>{count}</Text>
+        <Text style={sq.countLabel}>개</Text>
+      </Animated.View>
+
+      {/* 깊이 게이지 */}
+      <View style={sq.gaugeWrap}>
+        <Text style={sq.gaugeLabel}>스쿼트 깊이</Text>
+        <View style={sq.gaugeBg}>
+          <View style={[sq.gaugeFill, {
+            width: `${depthPct}%` as any,
+            backgroundColor: depthPct > 70 ? '#22c55e' : depthPct > 40 ? '#f59e0b' : '#ef4444',
+          }]} />
+        </View>
+        <Text style={[sq.phaseLabel, { color: phaseColor }]}>{phaseLabel}</Text>
+      </View>
+
+      {/* 각도 표시 */}
+      <View style={sq.angleBox}>
+        <Text style={sq.angleNum}>{Math.round(kneeAngle)}°</Text>
+        <Text style={sq.angleLabel}>무릎</Text>
+      </View>
+    </View>
+  );
+}
+
+const sq = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    top: 60, right: 10,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 31,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    // @ts-ignore web
+    backdropFilter: 'blur(12px)',
+    borderRadius: 18, padding: 12,
+    borderWidth: 1.5, borderColor: 'rgba(20,184,166,0.5)',
+    // @ts-ignore web
+    boxShadow: '0 0 20px rgba(20,184,166,0.3)',
+    minWidth: 90,
+  },
+  countBox: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 2,
+    // @ts-ignore web
+    textShadow: '0 0 20px rgba(20,184,166,0.8)',
+  },
+  countNum: {
+    color: '#14b8a6', fontSize: 56, fontWeight: '900', lineHeight: 60,
+  },
+  countLabel: { color: '#5eead4', fontSize: 20, fontWeight: '700', paddingBottom: 4 },
+  gaugeWrap: { width: 80, gap: 4, alignItems: 'center' },
+  gaugeLabel: { color: 'rgba(255,255,255,0.55)', fontSize: 9, fontWeight: '600' },
+  gaugeBg: {
+    width: '100%', height: 7,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 4, overflow: 'hidden',
+  },
+  gaugeFill: { height: '100%', borderRadius: 4 },
+  phaseLabel: { fontSize: 9, fontWeight: '700', textAlign: 'center' },
+  angleBox: { alignItems: 'center' },
+  angleNum: { color: 'rgba(255,255,255,0.8)', fontSize: 18, fontWeight: '900' },
+  angleLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '600' },
+});
+
+// ─── Voice Transcript Large Overlay ──────────────────────────────────────────
+
+function VoiceTranscriptOverlay({ transcript, readText }: { transcript: string; readText?: string }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: transcript ? 1 : 0.6,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [!!transcript]);
+
+  return (
+    <Animated.View style={[vt.wrap, { opacity: fadeAnim }]}>
+      {/* 대본 (위) */}
+      {readText && (
+        <View style={vt.scriptBox}>
+          <Text style={vt.scriptLabel}>📜 따라 읽을 문장</Text>
+          <Text style={vt.scriptText}>{readText}</Text>
+        </View>
+      )}
+
+      {/* 인식된 텍스트 (아래) */}
+      <View style={[vt.transcriptBox, transcript ? vt.transcriptActive : vt.transcriptEmpty]}>
+        <Text style={vt.micIcon}>🎤</Text>
+        <Text style={vt.transcriptText} numberOfLines={3}>
+          {transcript || '지금 말해주세요...'}
+        </Text>
+        {/* 진행 도트 (말하는 중 애니메이션 시뮬레이션) */}
+        {!transcript && (
+          <View style={vt.dotRow}>
+            {[0,1,2].map(i => (
+              <View key={i} style={[vt.dot, { opacity: 0.3 + i * 0.25 }]} />
+            ))}
+          </View>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+const vt = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    bottom: 150,
+    left: 8, right: 8,
+    gap: 6,
+    zIndex: 25,
+    alignItems: 'center',
+  },
+  scriptBox: {
+    width: '100%',
+    backgroundColor: 'rgba(30,30,60,0.90)',
+    // @ts-ignore web
+    backdropFilter: 'blur(14px)',
+    borderRadius: 14, paddingVertical: 10, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.4)',
+    alignItems: 'center', gap: 4,
+  },
+  scriptLabel: { color: 'rgba(167,139,250,0.8)', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  scriptText: {
+    color: '#c4b5fd', fontSize: 18, fontWeight: '800', textAlign: 'center', lineHeight: 26,
+    // @ts-ignore web
+    textShadow: '0 0 12px rgba(167,139,250,0.6)',
+  },
+  transcriptBox: {
+    width: '100%',
+    borderRadius: 16, paddingVertical: 14, paddingHorizontal: 18,
+    borderWidth: 2,
+    alignItems: 'center', gap: 6,
+    // @ts-ignore web
+    backdropFilter: 'blur(14px)',
+  },
+  transcriptActive: {
+    backgroundColor: 'rgba(34,197,94,0.18)',
+    borderColor: 'rgba(34,197,94,0.6)',
+    // @ts-ignore web
+    boxShadow: '0 0 18px rgba(34,197,94,0.3)',
+  },
+  transcriptEmpty: {
+    backgroundColor: 'rgba(0,0,0,0.60)',
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  micIcon: { fontSize: 22 },
+  transcriptText: {
+    color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center', lineHeight: 30,
+    // @ts-ignore web
+    textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+  },
+  dotRow: { flexDirection: 'row', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#94a3b8' },
+});
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RecordScreen() {
@@ -647,13 +832,17 @@ export default function RecordScreen() {
   const [facing, setFacing] = useState<'front' | 'back'>(defaultFacing);
 
   const { isReady, landmarks } = usePoseDetection();
-  const { judge, voiceTranscript, resetVoice } = useJudgement();
+  const { judge, voiceTranscript, squatCount, resetVoice } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset: resetRecording } = useRecording();
 
   // Judgement state
   const [currentScore,   setCurrentScore]   = useState(0);
   const [currentTag,     setCurrentTag]     = useState<JudgementTag>('fail');
   const [currentMission, setCurrentMission] = useState<any>(null);
+
+  // Squat HUD state
+  const [squatKneeAngle, setSquatKneeAngle] = useState(180);
+  const [squatPhase,     setSquatPhase]     = useState<'up' | 'down' | 'unknown'>('unknown');
 
   // Visual effects state
   const [burstVisible, setBurstVisible] = useState(false);
@@ -690,7 +879,7 @@ export default function RecordScreen() {
     prewarmMic();
 
     resetRecording();
-    resetVoice();
+    resetVoice(); // also resets squat counter inside
     comboRef.current = 0;
     setCombo(0);
     prevMissionSeqRef.current = null;
@@ -701,6 +890,8 @@ export default function RecordScreen() {
     setCurrentMission(null);
     setParticles([]);
     setBurstVisible(false);
+    setSquatKneeAngle(180);
+    setSquatPhase('unknown');
     hudOpacity.setValue(0);
   }, [sessionKey]); // eslint-disable-line
 
@@ -750,6 +941,10 @@ export default function RecordScreen() {
     setCurrentScore(result.score);
     setCurrentTag(result.tag);
     setCurrentMission(result.currentMission);
+    if (activeTemplate?.genre === 'fitness') {
+      setSquatKneeAngle(result.kneeAngle);
+      setSquatPhase(result.squatPhase);
+    }
 
     // New mission
     if (result.currentMission && result.currentMission.seq !== prevMissionSeqRef.current) {
@@ -948,8 +1143,17 @@ export default function RecordScreen() {
                 </Animated.View>
               )}
 
+              {/* ── SQUAT HUD (fitness 장르 전용) ─── */}
+              {isRecording && activeTemplate?.genre === 'fitness' && (
+                <SquatHUD
+                  count={squatCount}
+                  phase={squatPhase}
+                  kneeAngle={squatKneeAngle}
+                />
+              )}
+
               {/* ── MISSION CARD ──────────────────── */}
-              {isRecording && currentMission && (
+              {isRecording && currentMission && currentMission.type !== 'voice_read' && (
                 <MissionCard
                   mission={currentMission}
                   progress={missionProg}
@@ -957,6 +1161,14 @@ export default function RecordScreen() {
                   voiceTranscript={voiceTranscript}
                   anim={missionAnim}
                   maxW={maxW}
+                />
+              )}
+
+              {/* ── VOICE TRANSCRIPT OVERLAY (voice_read 미션 전용) ─── */}
+              {isRecording && currentMission?.type === 'voice_read' && (
+                <VoiceTranscriptOverlay
+                  transcript={voiceTranscript}
+                  readText={currentMission.read_text}
                 />
               )}
 

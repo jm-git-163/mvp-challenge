@@ -13,12 +13,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import { normalizeLandmarks, generateMockPose } from '../utils/poseUtils';
-
-// ── 환경 플래그 ─────────────────────────────────
-// 개발 중 TF.js 없이 UI만 테스트할 때 true로 설정
-const USE_MOCK = true; // Supabase/TF.js 없이 UI 완전 동작
 
 // ── 타입 (TF.js 없어도 컴파일 가능하도록 느슨하게) ──
 type PoseDetector = {
@@ -31,20 +28,6 @@ type PoseDetector = {
 };
 
 // ──────────────────────────────────────────────
-// base64 JPEG → Uint8Array
-// ──────────────────────────────────────────────
-function base64ToUint8Array(b64: string): Uint8Array {
-  // data:image/jpeg;base64, 접두사 제거
-  const pure = b64.includes(',') ? b64.split(',')[1] : b64;
-  const binaryStr = atob(pure);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return bytes;
-}
-
-// ──────────────────────────────────────────────
 // 훅
 // ──────────────────────────────────────────────
 interface UsePoseDetectionReturn {
@@ -54,99 +37,110 @@ interface UsePoseDetectionReturn {
   error: string | null;
 }
 
+/**
+ * Web 환경: __poseVideoEl(HTMLVideoElement)을 직접 읽어 TF.js MoveNet 추론
+ * Native 환경: 목 포즈 유지 (react-native tfjs 별도 설정 필요)
+ * TF.js 로드 실패 시 자동으로 목 모드 폴백
+ */
 export function usePoseDetection(): UsePoseDetectionReturn {
-  const [isReady, setIsReady] = useState(USE_MOCK);
+  const [isReady, setIsReady]     = useState(false);
   const [landmarks, setLandmarks] = useState<NormalizedLandmark[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const detectorRef = useRef<PoseDetector | null>(null);
-  const mockTimerRef = useRef(0);
+  const [error, setError]         = useState<string | null>(null);
+  const detectorRef               = useRef<PoseDetector | null>(null);
+  const intervalRef               = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mockTimerRef              = useRef(0);
+  const inferringRef              = useRef(false); // 추론 중 중복 방지
+
+  const startMockMode = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      mockTimerRef.current += 100;
+      setLandmarks(generateMockPose(mockTimerRef.current));
+    }, 100);
+    setIsReady(true);
+  };
 
   // ── 모델 초기화 ─────────────────────────────
   useEffect(() => {
-    if (USE_MOCK) {
-      // 목 모드: 100ms마다 사인파 포즈 업데이트
-      const id = setInterval(() => {
-        mockTimerRef.current += 100;
-        setLandmarks(generateMockPose(mockTimerRef.current));
-      }, 100);
-      return () => clearInterval(id);
+    // Native: 목 모드 유지
+    if (Platform.OS !== 'web') {
+      startMockMode();
+      return () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
     }
 
+    // Web: TF.js WebGL + MoveNet
     let cancelled = false;
 
     (async () => {
       try {
-        // dynamic import → 빌드 에러 방지
+        // @tensorflow/tfjs v4 includes WebGL backend — no extra import needed
         const tf = await import('@tensorflow/tfjs');
-        await import('@tensorflow/tfjs-react-native');
-        const poseDetection = await import('@tensorflow-models/pose-detection');
-
+        // Prefer WebGL; fall back to CPU
+        try { await tf.setBackend('webgl'); } catch { await tf.setBackend('cpu'); }
         await tf.ready();
 
+        const poseDetection = await import('@tensorflow-models/pose-detection');
         const detector = await poseDetection.createDetector(
           poseDetection.SupportedModels.MoveNet,
           {
-            modelType: (poseDetection as any).movenet?.modelType?.SINGLEPOSE_LIGHTNING ?? 'SinglePose.Lightning',
+            modelType: (poseDetection as any).movenet?.modelType?.SINGLEPOSE_LIGHTNING
+              ?? 'SinglePose.Lightning',
             enableSmoothing: true,
           }
         ) as unknown as PoseDetector;
 
-        if (!cancelled) {
-          detectorRef.current = detector;
-          setIsReady(true);
-        }
+        if (cancelled) { detector.dispose(); return; }
+        detectorRef.current = detector;
+        setIsReady(true);
+
+        // 100 ms 인터벌로 video element에서 추론
+        intervalRef.current = setInterval(async () => {
+          if (inferringRef.current) return; // 이전 추론이 아직 진행 중
+          const video = (typeof window !== 'undefined')
+            ? (window as any).__poseVideoEl as HTMLVideoElement | undefined
+            : undefined;
+          if (!video || video.readyState < 2 || !detectorRef.current) return;
+
+          inferringRef.current = true;
+          try {
+            const poses = await detectorRef.current.estimatePoses(video, {
+              flipHorizontal: true, // 전면 카메라 미러 보정
+            });
+            const kps = poses[0]?.keypoints ?? [];
+            if (kps.length > 0) {
+              setLandmarks(
+                normalizeLandmarks(kps, video.videoWidth || 640, video.videoHeight || 480)
+              );
+            }
+          } catch { /* 프레임 에러 무시 */ } finally {
+            inferringRef.current = false;
+          }
+        }, 100);
+
       } catch (e) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : '모델 로드 실패';
-          setError(msg);
-          console.warn('[usePoseDetection] TF.js 초기화 실패:', msg);
-          // 폴백: 목 모드로 전환
-          const id = setInterval(() => {
-            mockTimerRef.current += 100;
-            setLandmarks(generateMockPose(mockTimerRef.current));
-          }, 100);
-          // 정리는 클린업에서 못 하므로 ref에 저장
-          (detectorRef as any)._mockId = id;
-          setIsReady(true); // UI는 동작하도록
-        }
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : 'TF.js 초기화 실패';
+        setError(msg);
+        console.warn('[usePoseDetection] TF.js 로드 실패 → 목 모드 폴백:', msg);
+        startMockMode();
       }
     })();
 
     return () => {
       cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
       detectorRef.current?.dispose();
-      if ((detectorRef as any)._mockId) clearInterval((detectorRef as any)._mockId);
+      detectorRef.current = null;
     };
+  }, []); // eslint-disable-line
+
+  // ── detect: 웹에서는 video 인터벌이 자동 처리 — no-op으로 유지 ──
+  const detect = useCallback(async (_base64Jpeg: string, _w: number, _h: number) => {
+    // Web: video element loop handles inference
+    // Native: 목 모드이므로 호출 불필요
   }, []);
-
-  // ── 단일 프레임 추론 ─────────────────────────
-  const detect = useCallback(
-    async (base64Jpeg: string, width: number, height: number) => {
-      if (USE_MOCK || !detectorRef.current) return;
-
-      try {
-        const tf = await import('@tensorflow/tfjs');
-        const { decodeJpeg } = await import('@tensorflow/tfjs-react-native');
-
-        const bytes = base64ToUint8Array(base64Jpeg);
-        const tensor = decodeJpeg(bytes);
-
-        const poses = await detectorRef.current.estimatePoses(tensor, {
-          flipHorizontal: true, // 전면 카메라 미러 보정
-        });
-
-        tf.dispose(tensor);
-
-        const kps = poses[0]?.keypoints ?? [];
-        if (kps.length > 0) {
-          setLandmarks(normalizeLandmarks(kps, width, height));
-        }
-      } catch (e) {
-        // 프레임 단위 에러는 무시 (다음 프레임에서 재시도)
-      }
-    },
-    []
-  );
 
   return { isReady, landmarks, detect, error };
 }
