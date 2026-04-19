@@ -21,17 +21,23 @@ export const POSE_CONNECTIONS: [number, number][] = [
 ];
 
 export interface NormalizedLandmark {
-  name: string; x: number; y: number; score: number;
+  name?: string;
+  x: number;
+  y: number;
+  z?: number;
+  score?: number;
+  visibility?: number;
 }
 
 export function normalizeLandmarks(
-  keypoints: Array<{ x: number; y: number; score?: number; name?: string }>,
+  keypoints: Array<{ x: number; y: number; z?: number; score?: number; name?: string }>,
   imageWidth: number, imageHeight: number,
 ): NormalizedLandmark[] {
   const names = Object.keys(JOINT_INDEX);
   return keypoints.map((kp, i) => ({
     name: kp.name ?? names[i] ?? `joint_${i}`,
     x: kp.x / imageWidth, y: kp.y / imageHeight,
+    z: kp.z,
     score: kp.score ?? 1,
   }));
 }
@@ -51,7 +57,7 @@ export function detectGesture(
     const idx = JOINT_INDEX[name];
     if (idx === undefined) return null;
     const lm = lms[idx];
-    return lm && lm.score >= minConf ? lm : null;
+    return lm && (lm.score ?? lm.visibility ?? 1) >= minConf ? lm : null;
   };
 
   const clamp = (v: number) => Math.max(0, Math.min(1, v));
@@ -184,7 +190,7 @@ export function detectSquat(lms: NormalizedLandmark[], minConf = 0.25): SquatSta
     const idx = JOINT_INDEX[name];
     if (idx === undefined) return null;
     const lm = lms[idx];
-    return lm && lm.score >= MIN ? lm : null;
+    return lm && (lm.score ?? lm.visibility ?? 1) >= MIN ? lm : null;
   };
 
   const lhip = safe('left_hip');   const rhip = safe('right_hip');
@@ -223,7 +229,7 @@ export function computePoseSimilarity(
   let dot = 0, normA = 0, normB = 0, valid = 0;
   for (const name of jointNames) {
     const idx = JOINT_INDEX[name]; if (idx === undefined) continue;
-    const lm = current[idx]; if (!lm || lm.score < minConfidence) continue;
+    const lm = current[idx]; if (!lm || (lm.score ?? lm.visibility ?? 1) < minConfidence) continue;
     const [tx, ty] = targetJoints[name]!;
     dot += lm.x * tx + lm.y * ty;
     normA += lm.x ** 2 + lm.y ** 2;
@@ -240,7 +246,7 @@ export function computePoseSimilarity(
 const NAMES = Object.keys(JOINT_INDEX);
 
 function makePose(coords: [number,number][], score = 0.92): NormalizedLandmark[] {
-  return coords.map(([x,y], i) => ({ name: NAMES[i], x, y, score }));
+  return coords.map(([x,y], i) => ({ name: NAMES[i], x, y, z: 0, score }));
 }
 
 // 기본 정면 앉은 자세 (상반신만 보임)

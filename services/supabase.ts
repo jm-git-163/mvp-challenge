@@ -85,10 +85,21 @@ export async function fetchTemplates(options?: {
     if (options?.difficulty) q = q.eq('difficulty', options.difficulty);
     const { data, error } = await q;
     if (error) throw error;
-    return (data ?? []) as Template[];
+    const result = (data ?? []) as Template[];
+    // DB에 해당 장르 데이터가 없으면 목 데이터 폴백 (빈 화면 방지)
+    if (result.length === 0) {
+      let fallback = [...MOCK_TEMPLATES];
+      if (options?.genre)      fallback = fallback.filter(t => t.genre === options.genre);
+      if (options?.difficulty) fallback = fallback.filter(t => t.difficulty === options.difficulty);
+      return fallback.length > 0 ? fallback : MOCK_TEMPLATES;
+    }
+    return result;
   } catch {
     // DB 오류 시 목 데이터 폴백
-    return MOCK_TEMPLATES;
+    let fallback = [...MOCK_TEMPLATES];
+    if (options?.genre)      fallback = fallback.filter(t => t.genre === options.genre);
+    if (options?.difficulty) fallback = fallback.filter(t => t.difficulty === options.difficulty);
+    return fallback.length > 0 ? fallback : MOCK_TEMPLATES;
   }
 }
 

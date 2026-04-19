@@ -40,7 +40,7 @@ export interface TemplateZone {
 }
 
 export interface BgmSpec {
-  genre: 'lofi' | 'news' | 'kpop' | 'bright' | 'fairy' | 'none';
+  genre: 'lofi' | 'news' | 'kpop' | 'bright' | 'fairy' | 'fitness' | 'travel' | 'hiphop' | 'none';
   bpm: number;
   volume: number;
 }
@@ -59,8 +59,8 @@ export interface VideoTemplate {
   duration_ms: number;
   gradientColors: [string, string];
   accentColor: string;
-  bgStyle: 'vlog' | 'news' | 'kpop' | 'english' | 'fairy';
-  decorativeElements?: 'stars' | 'circles' | 'lines' | 'sparkles' | 'stage_lights' | 'bokeh' | 'magic';
+  bgStyle: 'vlog' | 'news' | 'kpop' | 'english' | 'fairy' | 'fitness' | 'travel' | 'hiphop';
+  decorativeElements?: 'stars' | 'circles' | 'lines' | 'sparkles' | 'stage_lights' | 'bokeh' | 'magic' | 'energy' | 'world' | 'urban';
   topZone?: TemplateZone;
   bottomZone?: TemplateZone;
   clipArea: ClipArea;
@@ -680,6 +680,163 @@ const vt_fairy: VideoTemplate = {
 };
 
 // ---------------------------------------------------------------------------
+// FITNESS template — dark gym aesthetic, energetic HUD
+// ---------------------------------------------------------------------------
+
+const vt_fitness: VideoTemplate = {
+  id: 'vt-fitness',
+  name: '💪 피트니스 챌린지',
+  description: '강렬한 피트니스 스튜디오 스타일 — 운동 HUD와 에너지 게이지',
+  duration_ms: 40000,
+  gradientColors: ['#0d1b0f', '#0f3b2e'],
+  accentColor: '#14b8a6',
+  bgStyle: 'fitness',
+  decorativeElements: 'energy',
+  mascotEmoji: '💪',
+  clipArea: {
+    xPct: 0.03,
+    yPct: 0.14,
+    wPct: 0.94,
+    hPct: 0.68,
+    borderRadius: 12,
+    glowColor: 'rgba(20,184,166,0.5)',
+    borderColor: '#14b8a6',
+    borderWidth: 2,
+  },
+  topZone: {
+    text: '💪 FITNESS CHALLENGE',
+    bgColor: 'rgba(0,0,0,0.92)',
+    textColor: '#14b8a6',
+    bold: true,
+    subtext: '⚡ WORKOUT · CHALLENGE · SWEAT',
+    logoEmoji: '🔥',
+  },
+  bottomZone: {
+    text: '#피트니스챌린지 #홈트 #운동 #다이어트 #스쿼트 #FitnessChallenge #Workout #홈트레이닝 #건강 ',
+    bgColor: 'rgba(0,0,0,0.95)',
+    textColor: '#14b8a6',
+    scrolling: true,
+    fontSize: 13,
+  },
+  bgm: { genre: 'fitness', bpm: 130, volume: 0.55 },
+  text_overlays: [
+    { text: '🔥 CHALLENGE START!', start_ms: 0, end_ms: 3000, xPct: 0.5, yPct: 0.855, fontSize: 28, color: '#14b8a6', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(0,0,0,0.8)' },
+    { text: '💪 GO! GO! GO!', start_ms: 3000, end_ms: 8000, xPct: 0.5, yPct: 0.855, fontSize: 26, color: '#fff', align: 'center', animation: 'bounce', bold: true },
+    { text: '⚡ 몸이 반응한다!', start_ms: 8000, end_ms: 15000, xPct: 0.5, yPct: 0.855, fontSize: 22, color: '#fbbf24', align: 'center', animation: 'fade' },
+    { text: '🔥 절반 완료! KEEP GOING!', start_ms: 15000, end_ms: 22000, xPct: 0.5, yPct: 0.855, fontSize: 24, color: '#14b8a6', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(0,30,20,0.8)' },
+    { text: '💥 BURN IT! 마지막 스퍼트!', start_ms: 22000, end_ms: 32000, xPct: 0.5, yPct: 0.855, fontSize: 26, color: '#ef4444', align: 'center', animation: 'bounce', bold: true },
+    { text: '🏆 MISSION COMPLETE!', start_ms: 32000, end_ms: 40000, xPct: 0.5, yPct: 0.855, fontSize: 30, color: '#fbbf24', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(0,0,0,0.85)' },
+    { text: '▶ CHALLENGE STUDIO', start_ms: 0, end_ms: 40000, xPct: 0.97, yPct: 0.855, fontSize: 11, color: 'rgba(20,184,166,0.6)', align: 'right', animation: 'fade' },
+  ],
+  clip_slots: [{ id: 'fitness_main', start_ms: 0, end_ms: 40000, label: '운동 챌린지' }],
+  hashtags: ['피트니스챌린지', '홈트', '운동', '다이어트', 'Workout'],
+};
+
+// ---------------------------------------------------------------------------
+// TRAVEL template — vibrant sunset / wanderlust vibe
+// ---------------------------------------------------------------------------
+
+const vt_travel: VideoTemplate = {
+  id: 'vt-travel',
+  name: '✈️ 여행 브이로그',
+  description: '선셋 그라데이션과 함께하는 여행 스타일 영상 템플릿',
+  duration_ms: 30000,
+  gradientColors: ['#1a0533', '#4a1060'],
+  accentColor: '#f97316',
+  bgStyle: 'travel',
+  decorativeElements: 'world',
+  mascotEmoji: '✈️',
+  clipArea: {
+    xPct: 0.03,
+    yPct: 0.16,
+    wPct: 0.94,
+    hPct: 0.65,
+    borderRadius: 20,
+    glowColor: 'rgba(249,115,22,0.5)',
+    borderColor: 'rgba(249,115,22,0.8)',
+    borderWidth: 2,
+  },
+  topZone: {
+    text: '✈️ TRAVEL CHALLENGE',
+    bgColor: 'rgba(249,115,22,0.95)',
+    textColor: '#fff',
+    bold: true,
+    subtext: '🌏 EXPLORE · DISCOVER · SHARE',
+    logoEmoji: '🗺️',
+  },
+  bottomZone: {
+    text: '#여행챌린지 #여행 #travel #vlog #여행브이로그 #TravelChallenge #세계여행 #여행스타그램 ',
+    bgColor: 'rgba(26,5,51,0.95)',
+    textColor: '#f97316',
+    scrolling: true,
+    fontSize: 13,
+  },
+  bgm: { genre: 'travel', bpm: 115, volume: 0.55 },
+  text_overlays: [
+    { text: '🌏 여행 챌린지 출발!', start_ms: 0, end_ms: 4000, xPct: 0.5, yPct: 0.845, fontSize: 28, color: '#fff', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(249,115,22,0.85)' },
+    { text: '📸 순간을 담아요!', start_ms: 4000, end_ms: 10000, xPct: 0.5, yPct: 0.845, fontSize: 22, color: '#fde68a', align: 'center', animation: 'fade' },
+    { text: '🗺️ 도전 중!', start_ms: 10000, end_ms: 17000, xPct: 0.5, yPct: 0.845, fontSize: 24, color: '#fff', align: 'center', animation: 'bounce', bold: true },
+    { text: '🌅 이 순간 최고!', start_ms: 17000, end_ms: 24000, xPct: 0.5, yPct: 0.845, fontSize: 26, color: '#fbbf24', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(249,115,22,0.7)' },
+    { text: '🏆 여행 챌린지 완료!', start_ms: 24000, end_ms: 30000, xPct: 0.5, yPct: 0.845, fontSize: 30, color: '#fff', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(249,115,22,0.9)' },
+    { text: '✈️ CHALLENGE STUDIO', start_ms: 0, end_ms: 30000, xPct: 0.97, yPct: 0.845, fontSize: 11, color: 'rgba(249,115,22,0.6)', align: 'right', animation: 'fade' },
+  ],
+  clip_slots: [{ id: 'travel_main', start_ms: 0, end_ms: 30000, label: '여행 챌린지' }],
+  hashtags: ['여행챌린지', '여행', 'travel', 'vlog', '여행브이로그'],
+};
+
+// ---------------------------------------------------------------------------
+// HIPHOP template — dark urban, gold accent
+// ---------------------------------------------------------------------------
+
+const vt_hiphop: VideoTemplate = {
+  id: 'vt-hiphop',
+  name: '🎧 힙합 챌린지',
+  description: '어두운 도시 감성의 힙합 스타일 챌린지 영상',
+  duration_ms: 30000,
+  gradientColors: ['#0a0a0a', '#1a1a0a'],
+  accentColor: '#f7b731',
+  bgStyle: 'hiphop',
+  decorativeElements: 'urban',
+  mascotEmoji: '🎧',
+  clipArea: {
+    xPct: 0.04,
+    yPct: 0.15,
+    wPct: 0.92,
+    hPct: 0.65,
+    borderRadius: 8,
+    glowColor: 'rgba(247,183,49,0.6)',
+    borderColor: 'rgba(247,183,49,0.9)',
+    borderWidth: 3,
+  },
+  topZone: {
+    text: '🎧 HIPHOP CHALLENGE',
+    bgColor: 'rgba(10,10,10,0.95)',
+    textColor: '#f7b731',
+    bold: true,
+    subtext: '🔥 FLOW · BARS · CYPHER',
+    logoEmoji: '🎤',
+  },
+  bottomZone: {
+    text: '#힙합챌린지 #hiphop #랩챌린지 #cypher #랩 #힙합 #HiphopChallenge #freestyle #랩스타 ',
+    bgColor: 'rgba(5,5,5,0.98)',
+    textColor: '#f7b731',
+    scrolling: true,
+    fontSize: 13,
+  },
+  bgm: { genre: 'hiphop', bpm: 92, volume: 0.60 },
+  text_overlays: [
+    { text: '🎤 DROP THE BEAT!', start_ms: 0, end_ms: 3000, xPct: 0.5, yPct: 0.84, fontSize: 32, color: '#f7b731', align: 'center', animation: 'slide_up', bold: true },
+    { text: '🔥 FIRE FLOW!', start_ms: 3000, end_ms: 8000, xPct: 0.5, yPct: 0.84, fontSize: 28, color: '#fff', align: 'center', animation: 'bounce', bold: true, bgColor: 'rgba(247,183,49,0.2)' },
+    { text: '💫 GOING HARD!', start_ms: 8000, end_ms: 14000, xPct: 0.5, yPct: 0.84, fontSize: 26, color: '#fde68a', align: 'center', animation: 'fade' },
+    { text: '⚡ BARS ON BARS!', start_ms: 14000, end_ms: 20000, xPct: 0.5, yPct: 0.84, fontSize: 28, color: '#f7b731', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(10,10,10,0.8)' },
+    { text: '🏆 CHALLENGE DONE!', start_ms: 24000, end_ms: 30000, xPct: 0.5, yPct: 0.84, fontSize: 32, color: '#f7b731', align: 'center', animation: 'slide_up', bold: true },
+    { text: '🎧 CHALLENGE STUDIO', start_ms: 0, end_ms: 30000, xPct: 0.97, yPct: 0.84, fontSize: 11, color: 'rgba(247,183,49,0.5)', align: 'right', animation: 'fade' },
+  ],
+  clip_slots: [{ id: 'hiphop_main', start_ms: 0, end_ms: 30000, label: '힙합 챌린지' }],
+  hashtags: ['힙합챌린지', 'hiphop', '랩챌린지', 'cypher', '힙합'],
+};
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -689,6 +846,9 @@ export const VIDEO_TEMPLATES: VideoTemplate[] = [
   vt_kpop,
   vt_english,
   vt_fairy,
+  vt_fitness,
+  vt_travel,
+  vt_hiphop,
 ];
 
 export function getVideoTemplate(id: string): VideoTemplate | null {
@@ -702,14 +862,21 @@ export function getVideoTemplate(id: string): VideoTemplate | null {
 export function getTemplateByMissionId(genre: string): VideoTemplate | null {
   const normalized = genre.toLowerCase().trim();
   const mapping: Record<string, string> = {
-    daily: 'vt-vlog',
-    vlog: 'vt-vlog',
-    news: 'vt-news',
-    kpop: 'vt-kpop',
-    english: 'vt-english',
-    kids: 'vt-fairy',
-    fairy: 'vt-fairy',
-    children: 'vt-fairy',
+    daily:     'vt-vlog',
+    vlog:      'vt-vlog',
+    news:      'vt-news',
+    kpop:      'vt-kpop',
+    english:   'vt-english',
+    kids:      'vt-fairy',
+    fairy:     'vt-fairy',
+    children:  'vt-fairy',
+    fitness:   'vt-fitness',
+    workout:   'vt-fitness',
+    travel:    'vt-travel',
+    hiphop:    'vt-hiphop',
+    hip_hop:   'vt-hiphop',
+    challenge: 'vt-kpop',
+    promotion: 'vt-news',
   };
   const templateId = mapping[normalized] ?? 'vt-vlog';
   return getVideoTemplate(templateId);

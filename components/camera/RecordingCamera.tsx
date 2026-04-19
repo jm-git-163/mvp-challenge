@@ -14,6 +14,7 @@ import React, {
 import { StyleSheet, View, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import type { CameraView as CameraViewType } from 'expo-camera';
+import type { NormalizedLandmark } from '../../utils/poseUtils';
 
 const FRAME_INTERVAL  = 100;   // 10fps
 const CAPTURE_QUALITY = 0.25;
@@ -30,6 +31,7 @@ interface Props {
   onPermissionDenied?: () => void;
   children?:           React.ReactNode;
   paused?:             boolean;
+  landmarks?:          NormalizedLandmark[];  // used only on web; ignored on native
 }
 
 const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(

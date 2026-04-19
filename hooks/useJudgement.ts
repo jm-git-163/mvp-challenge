@@ -5,6 +5,8 @@
  *  - voiceScore/voiceTranscript를 ref로 관리해서 useCallback 의존성 사이클 제거
  *  - SpeechRecognizer continuous mode 활용 (speechUtils.ts 업데이트 반영)
  *  - 미션 전환 시 깔끔한 인식 재시작
+ *  - onProgress 콜백으로 실시간 정확도 업데이트 (자모 기반)
+ *  - 중간 transcript도 목표 텍스트와 실시간 비교
  */
 import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
@@ -33,11 +35,13 @@ export function useJudgement(): {
     tag: JudgementTag;
     currentMission: Mission | null;
     voiceTranscript: string;
+    voiceAccuracy: number;
     squatCount: number;
     squatPhase: 'up' | 'down' | 'unknown';
     kneeAngle: number;
   };
   voiceTranscript: string;
+  voiceAccuracy: number;
   squatCount: number;
   resetVoice: () => void;
 } {
@@ -58,8 +62,12 @@ export function useJudgement(): {
   const squatCountState = useRef(0); // mirrors squatCountRef for setState trigger
   const lastKneeAngle   = useRef(180);
 
+  // Real-time voice accuracy (0~1) for accuracy bar
+  const voiceAccuracyRef = useRef(0);
+
   // State for UI updates
   const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceAccuracy,   setVoiceAccuracy]   = useState(0);
   const [squatCount, setSquatCount]           = useState(0);
 
   const judge = useCallback(
@@ -84,8 +92,10 @@ export function useJudgement(): {
 
         // Reset voice score for new mission
         voiceScoreRef.current      = 0.62;
+        voiceAccuracyRef.current   = 0;
         voiceTranscriptRef.current = '';
         setVoiceTranscript('');
+        setVoiceAccuracy(0);
       }
 
       // ── 스쿼트 카운터 (fitness 장르 전용 — 전 미션에 걸쳐 지속) ─────────
@@ -146,20 +156,43 @@ export function useJudgement(): {
                 voiceActiveRef.current = true;
                 const stopFn = speechRef.current.listen(
                   (mission.read_lang ?? 'ko') as 'ko' | 'en',
+                  // onInterim: 실시간 중간 결과 + 목표 텍스트와 실시간 비교
                   (interim) => {
                     voiceTranscriptRef.current = interim;
                     setVoiceTranscript(interim);
+                    // 중간 결과도 실시간 점수에 반영 (낙관적 업데이트)
+                    if (mission.read_text && interim) {
+                      const interimSim = textSimilarity(mission.read_text, interim);
+                      // 중간 결과는 0.8 가중치로 반영 (확정 아니므로)
+                      const newScore = Math.max(voiceScoreRef.current, interimSim * 0.8 + 0.62 * 0.2);
+                      voiceScoreRef.current    = Math.min(1, newScore);
+                      voiceAccuracyRef.current = interimSim;
+                      setVoiceAccuracy(interimSim);
+                    }
                   },
+                  // onFinal: 최종 결과 확정
                   (final) => {
                     voiceActiveRef.current = false;
+                    const sim = mission.read_text
+                      ? textSimilarity(mission.read_text, final)
+                      : 0.72;
+                    // 최종 점수: 유사도를 0.62~1.0 범위로 매핑
                     const s = mission.read_text
-                      ? Math.max(0.62, textSimilarity(mission.read_text, final))
+                      ? Math.max(0.62, sim)
                       : 0.72;
                     voiceScoreRef.current      = s;
+                    voiceAccuracyRef.current   = sim;
                     voiceTranscriptRef.current = final;
                     setVoiceTranscript(final);
+                    setVoiceAccuracy(sim);
                   },
-                  Math.min(remainingMs, 15000), // cap at 15 seconds
+                  Math.min(remainingMs, 15000),
+                  // targetText와 onProgress 전달로 실시간 정확도 바 업데이트
+                  mission.read_text,
+                  (similarity) => {
+                    voiceAccuracyRef.current = similarity;
+                    setVoiceAccuracy(similarity);
+                  },
                 );
                 stopVoiceRef.current = stopFn;
               }
@@ -203,6 +236,7 @@ export function useJudgement(): {
       return {
         score, tag, currentMission: mission,
         voiceTranscript: voiceTranscriptRef.current,
+        voiceAccuracy:   voiceAccuracyRef.current,
         squatCount: squatCountRef.current,
         squatPhase: squatPhaseOut,
         kneeAngle: kneeAngleOut,
@@ -221,8 +255,10 @@ export function useJudgement(): {
     voiceActiveRef.current      = false;
     lastMissionSeqRef.current   = null;
     voiceScoreRef.current       = 0.62;
+    voiceAccuracyRef.current    = 0;
     voiceTranscriptRef.current  = '';
     setVoiceTranscript('');
+    setVoiceAccuracy(0);
     // 스쿼트 카운터 리셋
     squatCountRef.current       = 0;
     squatCountState.current     = 0;
@@ -231,5 +267,5 @@ export function useJudgement(): {
     setSquatCount(0);
   }, []);
 
-  return { judge, voiceTranscript, squatCount, resetVoice };
+  return { judge, voiceTranscript, voiceAccuracy, squatCount, resetVoice };
 }

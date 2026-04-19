@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
+import type { NormalizedLandmark } from '../../utils/poseUtils';
 
 // ---------------------------------------------------------------------------
 // Module-level stream cache (singleton) -- persists across navigations
@@ -56,6 +57,116 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
 }
 
 // ---------------------------------------------------------------------------
+// MediaPipe Pose 33-point connections
+// ---------------------------------------------------------------------------
+const POSE_CONNECTIONS: [number, number][] = [
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
+  [9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],
+  [17,19],[12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+  [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
+  [27,29],[28,30],[29,31],[30,32],[27,31],[28,32],
+];
+
+function landmarkColor(index: number): string {
+  if (index <= 10) return 'rgba(255,200,0,0.85)';
+  if (index <= 22) return 'rgba(0,255,136,0.95)';
+  return 'rgba(0,150,255,0.95)';
+}
+
+// ---------------------------------------------------------------------------
+// Canvas Skeleton Overlay
+// ---------------------------------------------------------------------------
+interface SkeletonCanvasProps {
+  landmarks: NormalizedLandmark[];
+  mirrored: boolean;
+}
+
+function SkeletonCanvas({ landmarks, mirrored }: SkeletonCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (!landmarks || landmarks.length === 0) return;
+
+    const toX = (lm: NormalizedLandmark) => {
+      const x = lm.x * w;
+      return mirrored ? w - x : x;
+    };
+    const toY = (lm: NormalizedLandmark) => lm.y * h;
+
+    const conf = (lm: NormalizedLandmark) =>
+      lm.visibility ?? lm.score ?? 1;
+
+    // Draw connections
+    for (const [a, b] of POSE_CONNECTIONS) {
+      const lmA = landmarks[a];
+      const lmB = landmarks[b];
+      if (!lmA || !lmB) continue;
+      if (conf(lmA) < 0.3 || conf(lmB) < 0.3) continue;
+
+      const color = landmarkColor(a);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(toX(lmA), toY(lmA));
+      ctx.lineTo(toX(lmB), toY(lmB));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw landmark dots
+    for (let i = 0; i < landmarks.length; i++) {
+      const lm = landmarks[i];
+      if (!lm || conf(lm) < 0.3) continue;
+      const color = landmarkColor(i);
+      const radius = i <= 10 ? 4 : 5;
+
+      ctx.save();
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(toX(lm), toY(lm), radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Colored ring
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }, [landmarks, mirrored]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={640}
+      height={480}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 5,
+      }}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 export interface RecordingCameraWebProps {
@@ -64,6 +175,7 @@ export interface RecordingCameraWebProps {
   onPermissionDenied?: () => void;
   children?: React.ReactNode;
   paused?: boolean;
+  landmarks?: NormalizedLandmark[];
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +189,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       onPermissionDenied,
       children,
       paused = false,
+      landmarks,
     },
     ref,
   ) => {
@@ -279,6 +392,10 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           playsInline
           muted
         />
+        {/* Skeleton overlay — drawn on canvas for zero RN layout overhead */}
+        {landmarks && landmarks.length > 0 && (
+          <SkeletonCanvas landmarks={landmarks} mirrored={facing === 'front'} />
+        )}
         {/* Children are rendered absolutely on top of the video feed */}
         {children && (
           <View style={styles.childrenLayer} pointerEvents="box-none">

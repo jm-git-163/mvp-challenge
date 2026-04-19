@@ -1,41 +1,37 @@
 /**
- * result/index.tsx — 챌린지 완료 & CapCut 스타일 영상 합성 화면
+ * result/index.tsx — 챌린지 완료 결과 화면 (게임급 UI)
  *
- * 🎮 최신 게임/캡컷 수준 UI:
- *   - 애니메이션 스코어 카운터 (숫자 올라가는 효과)
- *   - 파티클 confetti 축하 효과
- *   - 7레이어 템플릿 합성 (ClipArea 개념)
- *   - Web Share API (파일 공유) + 플랫폼별 버튼
- *   - Glassmorphism 카드 디자인
+ * Features:
+ *  - 애니메이션 스코어 카운터 (숫자 올라가는 효과)
+ *  - 미션별 결과 카드 (MissionResultCard)
+ *  - 달성 뱃지 시스템 (PERFECT / COMBO / SPEED / VOICE / SQUAT)
+ *  - 영상 재생 + 다운로드
+ *  - SNS 공유 모달 (Web Share / TikTok / Instagram / 카카오 / 링크 복사)
+ *  - Confetti 파티클 효과
  */
 
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, {
+  useEffect, useMemo, useState, useCallback, useRef,
+} from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Animated,
-  useWindowDimensions,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  ActivityIndicator, Alert, Animated, Modal, useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionStore } from '../../../store/sessionStore';
-import { useUserStore } from '../../../store/userStore';
+import { useUserStore }    from '../../../store/userStore';
 import {
-  createSession,
-  upsertUserProfile,
-  fetchUserProfile,
+  createSession, upsertUserProfile, fetchUserProfile,
 } from '../../../services/supabase';
-import { requestAutoEdit } from '../../../services/api';
+import { requestAutoEdit }  from '../../../services/api';
 import { composeVideo, type CompositorProgress } from '../../../utils/videoCompositor';
-import { getVideoTemplate, VIDEO_TEMPLATES } from '../../../utils/videoTemplates';
-import type { JudgementTag } from '../../../types/session';
+import { getVideoTemplate, VIDEO_TEMPLATES }     from '../../../utils/videoTemplates';
+import type { JudgementTag, FrameTag } from '../../../types/session';
+import type { MissionType } from '../../../types/template';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const TAG_COLORS: Record<JudgementTag, string> = {
   perfect: '#22c55e',
@@ -49,25 +45,150 @@ const TAG_LABELS: Record<JudgementTag, string> = {
   fail:    'MISS',
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const MISSION_TYPE_LABEL: Record<MissionType, string> = {
+  gesture:    '제스처',
+  voice_read: '음성',
+  timing:     '타이밍',
+  expression: '표정',
+};
 
-function openPlatformShare(platform: string, text: string, videoUri: string | null): void {
+const MISSION_TYPE_ICON: Record<MissionType, string> = {
+  gesture:    '🤸',
+  voice_read: '🎤',
+  timing:     '⏱',
+  expression: '😊',
+};
+
+// ─── Badge definitions ────────────────────────────────────────────────────────
+
+interface BadgeInfo {
+  id: string;
+  emoji: string;
+  label: string;
+  desc: string;
+  color: string;
+}
+
+const ALL_BADGES: BadgeInfo[] = [
+  { id: 'PERFECT', emoji: '👑', label: '왕관',        desc: '90%+ 점수 달성',      color: '#f59e0b' },
+  { id: 'COMBO',   emoji: '🔥', label: '콤보마스터',   desc: '3회+ 연속 PERFECT',  color: '#ef4444' },
+  { id: 'SPEED',   emoji: '⚡', label: '스피드스타',   desc: '빠른 미션 완료',      color: '#6366f1' },
+  { id: 'VOICE',   emoji: '🎤', label: '보이스킹',    desc: '음성 80%+ 정확도',    color: '#8b5cf6' },
+  { id: 'SQUAT',   emoji: '💪', label: '스쿼트챔피언', desc: '10회+ 스쿼트',        color: '#059669' },
+];
+
+// ─── Score helpers ────────────────────────────────────────────────────────────
+
+function scoreToColor(score: number): string {
+  if (score >= 0.8) return '#22c55e';
+  if (score >= 0.6) return '#f59e0b';
+  return '#ef4444';
+}
+
+function scoreToGradient(score: number): [string, string] {
+  if (score >= 0.8) return ['#22c55e', '#16a34a'];
+  if (score >= 0.6) return ['#f59e0b', '#d97706'];
+  return ['#ef4444', '#dc2626'];
+}
+
+function computeBadges(
+  avgScore: number,
+  frameTags: FrameTag[],
+  squatCount: number,
+): string[] {
+  const unlocked: string[] = [];
+
+  if (avgScore >= 0.9) unlocked.push('PERFECT');
+
+  // COMBO: 3+ consecutive perfect tags
+  let consecutive = 0;
+  let maxConsecutive = 0;
+  for (const ft of frameTags) {
+    if (ft.tag === 'perfect') { consecutive++; maxConsecutive = Math.max(maxConsecutive, consecutive); }
+    else consecutive = 0;
+  }
+  if (maxConsecutive >= 3) unlocked.push('COMBO');
+
+  // SPEED: avg score good AND fast mission transitions (heuristic: many tags per time)
+  if (frameTags.length > 0 && avgScore >= 0.7) {
+    const durationMs = (frameTags[frameTags.length - 1]?.timestamp_ms ?? 0) -
+                       (frameTags[0]?.timestamp_ms ?? 0);
+    const tagsPerSec = (frameTags.length / Math.max(1, durationMs / 1000));
+    if (tagsPerSec >= 5) unlocked.push('SPEED');
+  }
+
+  // VOICE: check voice_read mission scores above 0.8
+  const voiceTags = frameTags.filter(ft => ft.score >= 0.8);
+  if (voiceTags.length >= frameTags.length * 0.3 && avgScore >= 0.75) unlocked.push('VOICE');
+
+  // SQUAT: 10+ squats
+  if (squatCount >= 10) unlocked.push('SQUAT');
+
+  return unlocked;
+}
+
+// ─── Per-mission result computation ──────────────────────────────────────────
+
+interface MissionResult {
+  seq: number;
+  type: MissionType;
+  avgScore: number;
+  count: number;
+}
+
+function computeMissionResults(frameTags: FrameTag[]): MissionResult[] {
+  const map = new Map<number, { totalScore: number; count: number; type: MissionType }>();
+  for (const ft of frameTags) {
+    const seq = ft.mission_seq;
+    if (!map.has(seq)) {
+      map.set(seq, { totalScore: 0, count: 0, type: 'timing' });
+    }
+    const entry = map.get(seq)!;
+    entry.totalScore += ft.score;
+    entry.count++;
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([seq, data]) => ({
+      seq,
+      type: data.type,
+      avgScore: data.count > 0 ? data.totalScore / data.count : 0,
+      count: data.count,
+    }));
+}
+
+// ─── Download helper ──────────────────────────────────────────────────────────
+
+function doDownload(uri: string, name: string, mimeType?: string): void {
+  if (typeof window === 'undefined' || !uri) return;
+  const ext = mimeType?.includes('mp4') ? 'mp4' : 'mp4';
+  const safeName = (name || 'challenge').replace(/[^\w가-힣\s]/g, '').trim();
+  const a = document.createElement('a');
+  a.href = uri;
+  a.download = `${safeName}_챌린지.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function getBlobExt(blob: Blob): string {
+  if (blob.type.includes('mp4')) return 'mp4';
+  if (blob.type.includes('webm')) return 'webm';
+  return 'mp4';
+}
+
+function openPlatformShare(platform: string, text: string): void {
   if (typeof window === 'undefined') return;
   const enc = encodeURIComponent(text);
-
   const shareMap: Record<string, string> = {
     twitter:   `https://twitter.com/intent/tweet?text=${enc}`,
     facebook:  `https://www.facebook.com/sharer/sharer.php?quote=${enc}`,
     threads:   `https://www.threads.net/intent/post?text=${enc}`,
     instagram: 'https://www.instagram.com/create/story',
     tiktok:    'https://www.tiktok.com/upload',
-    youtube:   'https://studio.youtube.com/channel/UC/videos/upload',
   };
-
   const url = shareMap[platform];
   if (!url) return;
-
-  // Use anchor element with rel="noopener" — bypasses popup blocker
   const a = document.createElement('a');
   a.href = url;
   a.target = '_blank';
@@ -77,69 +198,26 @@ function openPlatformShare(platform: string, text: string, videoUri: string | nu
   document.body.removeChild(a);
 }
 
-async function doShare(
-  composedBlob: Blob | null,
-  rawUri: string,
-  templateName: string,
-  hashtags: string[],
-  caption: string,
-): Promise<'shared' | 'copied' | 'cancelled' | 'none'> {
-  const fullText = caption + '\n' + hashtags.map(h => '#' + h).join(' ');
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-  if (composedBlob && navigator?.share) {
-    try {
-      const file = new File([composedBlob], 'challenge.webm', { type: composedBlob.type || 'video/webm' });
-      if ((navigator as any).canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: templateName, text: fullText });
-        return 'shared';
-      }
-      // text-only share
-      await navigator.share({ title: templateName, text: fullText });
-      return 'shared';
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return 'cancelled';
-    }
-  }
-
-  try {
-    await navigator.clipboard.writeText(fullText);
-    return 'copied';
-  } catch { /* ignore */ }
-  return 'none';
-}
-
-function doDownload(uri: string, name: string, mimeType?: string): void {
-  if (typeof window === 'undefined' || !uri) return;
-  const ext = mimeType?.includes('mp4') ? 'mp4' : 'webm';
-  const a = document.createElement('a');
-  a.href = uri;
-  a.download = `${name}_챌린지.${ext}`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-// ─── Score Counter Animation ──────────────────────────────────────────────────
-
+/** 숫자가 0에서 목표까지 카운트업하는 애니메이션 */
 function AnimatedScore({ targetScore, color }: { targetScore: number; color: string }) {
   const [displayed, setDisplayed] = useState(0);
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const opacAnim  = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Count-up animation
-    let start = 0;
-    const step = Math.ceil(targetScore / 40);
+    let current = 0;
+    const step = Math.max(1, Math.ceil(targetScore / 40));
     const timer = setInterval(() => {
-      start += step;
-      if (start >= targetScore) { setDisplayed(targetScore); clearInterval(timer); }
-      else setDisplayed(start);
-    }, 30);
+      current += step;
+      if (current >= targetScore) { setDisplayed(targetScore); clearInterval(timer); }
+      else setDisplayed(current);
+    }, 28);
 
-    // Scale in
     Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }),
-      Animated.timing(opacAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 65, friction: 7, useNativeDriver: true }),
+      Animated.timing(opacAnim,  { toValue: 1, duration: 380, useNativeDriver: true }),
     ]).start();
 
     return () => clearInterval(timer);
@@ -148,40 +226,174 @@ function AnimatedScore({ targetScore, color }: { targetScore: number; color: str
   return (
     <Animated.View style={{ opacity: opacAnim, transform: [{ scale: scaleAnim }], alignItems: 'center' }}>
       <Text style={[sc.scoreNum, { color }]}>{displayed}</Text>
-      <Text style={sc.scoreLabel}>점</Text>
+      <Text style={sc.scoreUnit}>점</Text>
     </Animated.View>
   );
 }
 
 const sc = StyleSheet.create({
-  scoreNum: { fontSize: 88, fontWeight: '900', lineHeight: 96, letterSpacing: -2 },
-  scoreLabel: { fontSize: 16, color: '#999', fontWeight: '600', marginTop: -4 },
+  scoreNum:  { fontSize: 88, fontWeight: '900', lineHeight: 96, letterSpacing: -2 },
+  scoreUnit: { fontSize: 16, color: '#999', fontWeight: '600', marginTop: -4 },
 });
 
-// ─── Confetti Particle ────────────────────────────────────────────────────────
+/** 점수 바 (그라디언트 느낌, 0~100%) */
+function ScoreBar({ score, color, animated = false }: { score: number; color: string; animated?: boolean }) {
+  const widthAnim = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    if (animated) {
+      Animated.timing(widthAnim, {
+        toValue: score,
+        duration: 900,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [score, animated]);
+
+  const pct = animated
+    ? widthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] })
+    : `${Math.round(score)}%`;
+
+  return (
+    <View style={bar.bg}>
+      <Animated.View style={[bar.fill, { width: pct as any, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+const bar = StyleSheet.create({
+  bg:   { flex: 1, height: 10, backgroundColor: '#f1f5f9', borderRadius: 5, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 5 },
+});
+
+/** 미션별 결과 카드 */
+function MissionResultCard({ result, missionType, index }: {
+  result: MissionResult;
+  missionType?: MissionType;
+  index: number;
+}) {
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const opacAnim  = useRef(new Animated.Value(0)).current;
+
+  const type = missionType ?? result.type;
+  const pct  = Math.round(result.avgScore * 100);
+  const color = scoreToColor(result.avgScore);
+  const success = result.avgScore >= 0.55;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, { toValue: 0, duration: 350, delay: index * 80, useNativeDriver: true }),
+      Animated.timing(opacAnim,  { toValue: 1, duration: 350, delay: index * 80, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[mrc.wrap, { opacity: opacAnim, transform: [{ translateX: slideAnim }] }]}>
+      <View style={[mrc.iconWrap, { backgroundColor: color + '18' }]}>
+        <Text style={mrc.icon}>{MISSION_TYPE_ICON[type]}</Text>
+      </View>
+      <View style={mrc.center}>
+        <Text style={mrc.typeLabel}>{MISSION_TYPE_LABEL[type]}</Text>
+        <View style={mrc.barRow}>
+          <ScoreBar score={pct} color={color} animated />
+          <Text style={[mrc.pct, { color }]}>{pct}%</Text>
+        </View>
+      </View>
+      <View style={[mrc.badge, { backgroundColor: success ? '#dcfce7' : '#fef3c7' }]}>
+        <Text style={[mrc.badgeText, { color: success ? '#15803d' : '#92400e' }]}>
+          {success ? '✅ 성공' : '⚠️ 아쉬움'}
+        </Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+const mrc = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#f8fafc', borderRadius: 14,
+    padding: 12, borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  iconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  icon:     { fontSize: 22 },
+  center:   { flex: 1, gap: 6 },
+  typeLabel: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pct:   { fontSize: 13, fontWeight: '800', width: 40, textAlign: 'right' },
+  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+});
+
+/** 달성 뱃지 아이템 (spring pop-in 애니메이션) */
+function BadgeItem({ badge, unlocked, index }: {
+  badge: BadgeInfo;
+  unlocked: boolean;
+  index: number;
+}) {
+  const scaleAnim = useRef(new Animated.Value(0.3)).current;
+  const opacAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!unlocked) return;
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1, tension: 80, friction: 5, delay: index * 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacAnim, {
+        toValue: 1, duration: 200, delay: index * 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [unlocked]);
+
+  return (
+    <Animated.View
+      style={[
+        bdg.wrap,
+        unlocked ? { borderColor: badge.color, backgroundColor: badge.color + '12' } : bdg.locked,
+        { opacity: unlocked ? opacAnim : 0.35, transform: [{ scale: unlocked ? scaleAnim : 1 }] },
+      ]}
+    >
+      <Text style={bdg.emoji}>{badge.emoji}</Text>
+      <Text style={[bdg.label, { color: unlocked ? badge.color : '#9ca3af' }]} numberOfLines={1}>
+        {badge.label}
+      </Text>
+      {unlocked && (
+        <View style={[bdg.dot, { backgroundColor: badge.color }]} />
+      )}
+    </Animated.View>
+  );
+}
+
+const bdg = StyleSheet.create({
+  wrap: {
+    width: 72, alignItems: 'center', gap: 4,
+    paddingVertical: 10, paddingHorizontal: 6,
+    borderRadius: 16, borderWidth: 1.5, borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  locked: { borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
+  emoji: { fontSize: 26 },
+  label: { fontSize: 10, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
+  dot:   { width: 6, height: 6, borderRadius: 3, marginTop: 2 },
+});
+
+/** Confetti overlay */
 function Confetti({ show }: { show: boolean }) {
   const items = useMemo(() =>
     ['🎉','🎊','⭐','✨','🌟','💫','🎈','🎁','🔥','💥'].map((e, i) => ({
-      emoji: e,
-      left: `${5 + i * 9}%`,
-      delay: i * 120,
-    })),
-  []);
+      emoji: e, left: `${5 + i * 9}%`, delay: i * 120,
+    })), []);
 
   if (!show) return null;
-
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {items.map((item, i) => (
         <Text
           key={i}
-          style={[
-            conf.item,
-            { left: item.left as any },
-            // @ts-ignore web
-            { animationDelay: `${item.delay}ms` },
-          ]}
+          // @ts-ignore web — left is a string percentage, animationDelay is web-only
+          style={[cft.item, { left: item.left, animationDelay: `${item.delay}ms` }]}
         >
           {item.emoji}
         </Text>
@@ -190,112 +402,247 @@ function Confetti({ show }: { show: boolean }) {
   );
 }
 
-const conf = StyleSheet.create({
+const cft = StyleSheet.create({
   item: {
-    position: 'absolute',
-    top: -20,
-    fontSize: 28,
-    zIndex: 100,
+    position: 'absolute', top: -20, fontSize: 28, zIndex: 100,
     // @ts-ignore web
-    animation: 'confettiFall 2s ease-in forwards',
+    animation: 'confettiFall 2.2s ease-in forwards',
   },
 });
 
-// ─── Template Preview Card ────────────────────────────────────────────────────
+// ─── Share Modal ──────────────────────────────────────────────────────────────
 
-function TemplatePreview({ vtId, genre }: { vtId: string; genre: string }) {
-  const vt = getVideoTemplate(vtId);
-  if (!vt) return null;
+interface ShareModalProps {
+  visible: boolean;
+  onClose: () => void;
+  composedUri: string | null;
+  composedBlob: Blob | null;
+  rawVideoUri: string;
+  shareText: string;
+  templateName: string;
+  scoreNum: number;
+}
 
-  const colors = vt.gradientColors;
+function ShareModal({
+  visible, onClose, composedUri, composedBlob,
+  rawVideoUri, shareText, templateName, scoreNum,
+}: ShareModalProps) {
+  const [toastMsg, setToastMsg] = useState('');
+  const toastAnim = useRef(new Animated.Value(0)).current;
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    toastAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(1800),
+      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleWebShare = async () => {
+    if (typeof navigator === 'undefined') return;
+    if (navigator.share) {
+      try {
+        const videoUri = composedUri ?? rawVideoUri;
+        if (composedBlob && (navigator as any).canShare?.({ files: [new File([composedBlob], 'challenge.mp4', { type: 'video/mp4' })] })) {
+          const file = new File([composedBlob], `${templateName}_챌린지.mp4`, { type: 'video/mp4' });
+          await navigator.share({ files: [file], title: `${templateName} 챌린지 완료!`, text: shareText });
+        } else {
+          await navigator.share({ title: `${templateName} 챌린지 완료!`, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' });
+        }
+        onClose();
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') showToast('공유 실패. 다른 방법을 시도해보세요.');
+      }
+    }
+  };
+
+  const handleDownload = () => {
+    const uri = composedUri ?? rawVideoUri;
+    if (uri) {
+      doDownload(uri, templateName, composedBlob?.type);
+      showToast('📥 영상 저장 중...');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (typeof navigator === 'undefined') return;
+    try {
+      const url = typeof window !== 'undefined' ? window.location.href : '';
+      await navigator.clipboard.writeText(shareText + '\n' + url);
+      showToast('🔗 링크 복사됨!');
+    } catch {
+      showToast('복사 실패');
+    }
+  };
+
+  const shareOptions: Array<{
+    icon: string; label: string; bg: string; textColor: string;
+    onPress: () => void;
+  }> = [
+    {
+      icon: '🎵', label: 'TikTok', bg: '#010101', textColor: '#fff',
+      onPress: () => { openPlatformShare('tiktok', shareText); showToast('TikTok 업로드 페이지 열기...'); },
+    },
+    {
+      icon: '📸', label: 'Instagram', bg: '#c13584', textColor: '#fff',
+      onPress: () => { handleDownload(); openPlatformShare('instagram', shareText); },
+    },
+    {
+      icon: '💬', label: '카카오톡', bg: '#FEE500', textColor: '#3C1E1E',
+      onPress: () => {
+        if (typeof window !== 'undefined') {
+          const url = `https://sharer.kakao.com/talk/friends/picker/link?app_key=KAKAO_APP_KEY&link_ver=4.0&template_id=0&template_args=%7B%7D`;
+          openPlatformShare('twitter', shareText); // fallback to text share
+        }
+        showToast('카카오 공유 실행 중...');
+      },
+    },
+    {
+      icon: '🔗', label: '링크 복사', bg: '#6366f1', textColor: '#fff',
+      onPress: handleCopyLink,
+    },
+    {
+      icon: '📥', label: '영상 저장', bg: '#059669', textColor: '#fff',
+      onPress: handleDownload,
+    },
+  ];
+
+  // Add Web Share option if available
+  const hasWebShare = typeof navigator !== 'undefined' && !!navigator.share;
 
   return (
-    <View style={tp.wrap}>
-      <Text style={tp.label}>🎬 적용될 영상 템플릿</Text>
-      <View style={tp.card}>
-        {/* Top zone */}
-        <View style={[tp.topZone, { backgroundColor: colors[0] }]}>
-          <Text style={tp.topText}>{vt.topZone?.text ?? '상단 타이틀'}</Text>
-          {vt.topZone?.subtext && <Text style={tp.topSub}>{vt.topZone.subtext}</Text>}
-        </View>
-        {/* Clip area visualization */}
-        <View
-          style={[
-            tp.clipArea,
-            {
-              // @ts-ignore web
-              background: `linear-gradient(180deg, ${colors[0]}22, ${colors[1]}22)`,
-              backgroundColor: colors[0] + '22',
-              borderColor: colors[0] + '66',
-            },
-          ]}
-        >
-          <Text style={tp.clipIcon}>🎬</Text>
-          <Text style={tp.clipTitle}>내 챌린지 영상</Text>
-          <Text style={tp.clipSub}>촬영본이 이 위치에 삽입됩니다</Text>
-        </View>
-        {/* Bottom zone */}
-        <View style={[tp.bottomZone, { backgroundColor: colors[1] }]}>
-          <Text style={tp.bottomText} numberOfLines={1}>
-            {vt.bottomZone?.text ?? '해시태그 스크롤'}
-          </Text>
-        </View>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={sm.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={sm.sheet}>
+          {/* Handle */}
+          <View style={sm.handle} />
+
+          <Text style={sm.title}>🎉 공유하기</Text>
+          <Text style={sm.subtitle}>{templateName} 챌린지 {scoreNum}점 달성!</Text>
+
+          <View style={sm.divider} />
+
+          {/* Web Share (if available) */}
+          {hasWebShare && (
+            <TouchableOpacity style={[sm.row, { backgroundColor: '#7c3aed' }]} onPress={handleWebShare} activeOpacity={0.8}>
+              <Text style={sm.rowIcon}>📤</Text>
+              <Text style={[sm.rowLabel, { color: '#fff' }]}>기기 기본 공유</Text>
+              <Text style={[sm.rowArrow, { color: '#fff' }]}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Platform-specific options */}
+          {shareOptions.map((opt) => (
+            <TouchableOpacity
+              key={opt.label}
+              style={[sm.row, { backgroundColor: opt.bg }]}
+              onPress={opt.onPress}
+              activeOpacity={0.8}
+            >
+              <Text style={sm.rowIcon}>{opt.icon}</Text>
+              <Text style={[sm.rowLabel, { color: opt.textColor }]}>{opt.label}</Text>
+              <Text style={[sm.rowArrow, { color: opt.textColor + 'aa' }]}>›</Text>
+            </TouchableOpacity>
+          ))}
+
+          <View style={sm.divider} />
+
+          <TouchableOpacity style={sm.cancelBtn} onPress={onClose}>
+            <Text style={sm.cancelText}>취소</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+
+      {/* Toast */}
+      <Animated.View style={[sm.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+        <Text style={sm.toastText}>{toastMsg}</Text>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+const sm = StyleSheet.create({
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12,
+    gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12, shadowRadius: 20, elevation: 24,
+  },
+  handle: {
+    width: 40, height: 4, backgroundColor: '#e5e7eb',
+    borderRadius: 2, alignSelf: 'center', marginBottom: 8,
+  },
+  title: { fontSize: 20, fontWeight: '900', color: '#1a1a2e', textAlign: 'center' },
+  subtitle: { fontSize: 13, color: '#6b7280', textAlign: 'center' },
+  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingVertical: 14, paddingHorizontal: 18, borderRadius: 16,
+    minHeight: 56,
+  },
+  rowIcon:  { fontSize: 22 },
+  rowLabel: { flex: 1, fontSize: 15, fontWeight: '700' },
+  rowArrow: { fontSize: 22, fontWeight: '300' },
+  cancelBtn: {
+    alignItems: 'center', paddingVertical: 16, borderRadius: 16,
+    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb',
+  },
+  cancelText: { fontSize: 15, fontWeight: '700', color: '#6b7280' },
+  toast: {
+    position: 'absolute', bottom: 120, left: 20, right: 20,
+    backgroundColor: 'rgba(30,30,46,0.92)', borderRadius: 14,
+    paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center',
+  },
+  toastText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+});
+
+// ─── Compositing progress bar ─────────────────────────────────────────────────
+
+function ComposeProgress({ progress }: { progress: CompositorProgress | null }) {
+  return (
+    <View style={cp.wrap}>
+      <ActivityIndicator size="large" color="#7c3aed" />
+      <Text style={cp.title}>🎬 영상 합성 중...</Text>
+      <Text style={cp.phase}>{progress?.phase ?? '준비 중...'}</Text>
+      <View style={cp.barBg}>
+        <View style={[cp.barFill, { width: `${progress?.percent ?? 0}%` as any }]} />
       </View>
-      {/* Features */}
-      <View style={tp.feats}>
-        <View style={tp.featRow}>
-          <Text style={tp.feat}>🎨 {vt.name} 전용 디자인</Text>
-          <Text style={tp.feat}>🎵 {vt.bgm.genre} BGM 내장</Text>
-        </View>
-        <View style={tp.featRow}>
-          <Text style={tp.feat}>📝 자막 {vt.text_overlays.length}개 자동 삽입</Text>
-          <Text style={tp.feat}>📱 720×1280 (9:16 최적화)</Text>
-        </View>
-      </View>
+      <Text style={cp.pct}>{Math.round(progress?.percent ?? 0)}%</Text>
+      <Text style={cp.note}>실시간 처리 — 영상 길이만큼 소요됩니다</Text>
     </View>
   );
 }
 
-const tp = StyleSheet.create({
-  wrap: { gap: 12 },
-  label: { fontSize: 14, fontWeight: '800', color: '#374151' },
-  card: { borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb' },
-  topZone: { padding: 12, alignItems: 'center' },
-  topText: { color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  topSub:  { color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 2 },
-  clipArea: {
-    minHeight: 100, alignItems: 'center', justifyContent: 'center',
-    gap: 4, padding: 16, borderLeftWidth: 2, borderRightWidth: 2, borderColor: '#e5e7eb',
-  },
-  clipIcon: { fontSize: 32 },
-  clipTitle: { fontSize: 14, fontWeight: '700', color: '#374151' },
-  clipSub:   { fontSize: 11, color: '#9ca3af' },
-  bottomZone: { padding: 8, alignItems: 'center' },
-  bottomText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700' },
-  feats: { gap: 6 },
-  featRow: { flexDirection: 'row', gap: 10 },
-  feat: { flex: 1, fontSize: 12, color: '#6b7280', fontWeight: '500' },
+const cp = StyleSheet.create({
+  wrap: { alignItems: 'center', gap: 10, paddingVertical: 12 },
+  title: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
+  phase: { color: '#7c3aed', fontSize: 13, fontWeight: '600' },
+  barBg: { width: '100%', height: 8, backgroundColor: '#ede9ff', borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', backgroundColor: '#7c3aed', borderRadius: 4 },
+  pct:  { color: '#7c3aed', fontSize: 13, fontWeight: '700' },
+  note: { color: '#9ca3af', fontSize: 11, textAlign: 'center', lineHeight: 16 },
 });
-
-// ─── Platform buttons ─────────────────────────────────────────────────────────
-
-const PLATFORMS = [
-  { key: 'instagram', label: '📸 Instagram', color: '#c13584' },
-  { key: 'tiktok',    label: '🎵 TikTok',    color: '#010101' },
-  { key: 'youtube',   label: '▶ YouTube',    color: '#ff0000' },
-  { key: 'twitter',   label: '𝕏 Twitter',   color: '#000000' },
-  { key: 'facebook',  label: 'f Facebook',   color: '#1877f2' },
-];
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ResultScreen() {
   const router  = useRouter();
   const { width } = useWindowDimensions();
-  const params  = useLocalSearchParams<{ videoUri: string; videoTemplateId?: string }>();
+  const params  = useLocalSearchParams<{
+    videoUri?: string;
+    videoTemplateId?: string;
+    squatCount?: string;
+  }>();
 
   const rawVideoUri     = params.videoUri ?? '';
   const videoTemplateId = params.videoTemplateId ?? '';
+  const squatCountParam = parseInt(params.squatCount ?? '0', 10);
 
   const frameTags      = useSessionStore(s => s.frameTags);
   const activeTemplate = useSessionStore(s => s.activeTemplate);
@@ -304,7 +651,7 @@ export default function ResultScreen() {
   const startSession   = useSessionStore(s => s.startSession);
   const { userId }     = useUserStore();
 
-  // Composed video
+  // Composed video state
   const [composedUri,  setComposedUri]  = useState<string | null>(null);
   const [composedBlob, setComposedBlob] = useState<Blob | null>(null);
   const [composing,    setComposing]    = useState(false);
@@ -312,30 +659,15 @@ export default function ResultScreen() {
   const [progress,     setProgress]     = useState<CompositorProgress | null>(null);
 
   // UX state
-  const [saving,      setSaving]      = useState(false);
-  const [saved,       setSaved]       = useState(false);
-  const [shareResult, setShareResult] = useState<string>('');
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Animations
-  const headerAnim = useRef(new Animated.Value(0)).current;
-  const cardsAnim  = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.stagger(200, [
-      Animated.spring(headerAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
-      Animated.spring(cardsAnim,  { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
-    ]).start();
-
-    // Show confetti if good score
-    const avg = frameTags.length
-      ? frameTags.reduce((s, f) => s + f.score, 0) / frameTags.length
-      : 0;
-    if (avg >= 0.6) {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 2500);
-    }
-  }, []);
+  const headerAnim  = useRef(new Animated.Value(0)).current;
+  const scoreAnim   = useRef(new Animated.Value(0)).current;
+  const sectionsAnim = useRef(new Animated.Value(0)).current;
 
   // Stats
   const stats = useMemo(() => {
@@ -348,13 +680,37 @@ export default function ResultScreen() {
     return { avgScore, successRate, counts };
   }, [frameTags]);
 
+  const scoreNum    = Math.round(stats.avgScore * 100);
+  const accentColor = stats.avgScore >= 0.8 ? '#7c3aed' : stats.avgScore >= 0.6 ? '#f59e0b' : '#ef4444';
+
+  const scoreGrade =
+    stats.avgScore >= 0.9 ? '🏆 완벽해요!' :
+    stats.avgScore >= 0.8 ? '🌟 훌륭해요!' :
+    stats.avgScore >= 0.6 ? '💪 잘했어요!' :
+    stats.avgScore >= 0.4 ? '🙌 노력했어요!' : '다음엔 더 잘할 수 있어요!';
+
+  // Badges
+  const unlockedBadges = useMemo(
+    () => computeBadges(stats.avgScore, frameTags, squatCountParam),
+    [stats.avgScore, frameTags, squatCountParam],
+  );
+
+  // Mission results grouped by seq
+  const missionResults = useMemo(() => computeMissionResults(frameTags), [frameTags]);
+
   // Resolve video template
   const videoTemplate = useMemo(() => {
     if (videoTemplateId) return getVideoTemplate(videoTemplateId);
     if (activeTemplate) {
       const map: Record<string, string> = {
-        daily: 'vt-vlog', news: 'vt-news', kpop: 'vt-kpop',
-        english: 'vt-english', kids: 'vt-fairy',
+        daily: 'vt-vlog', vlog: 'vt-vlog',
+        news: 'vt-news', promotion: 'vt-news',
+        kpop: 'vt-kpop', challenge: 'vt-kpop',
+        english: 'vt-english',
+        kids: 'vt-fairy', fairy: 'vt-fairy', children: 'vt-fairy',
+        fitness: 'vt-fitness', workout: 'vt-fitness',
+        travel: 'vt-travel',
+        hiphop: 'vt-hiphop', hip_hop: 'vt-hiphop',
       };
       const vtId = map[activeTemplate.genre];
       if (vtId) return getVideoTemplate(vtId);
@@ -362,7 +718,33 @@ export default function ResultScreen() {
     return VIDEO_TEMPLATES[0];
   }, [videoTemplateId, activeTemplate]);
 
-  // Compose handler
+  // Share text for modal
+  const shareText = useMemo(() => {
+    if (!activeTemplate) return `챌린지 ${scoreNum}점 달성! #챌린지스튜디오`;
+    const caption = activeTemplate.sns_template.caption_template
+      .replace('{template_name}', activeTemplate.name)
+      .replace('{score}', String(scoreNum));
+    const hashtags = activeTemplate.sns_template.hashtags.map(h => '#' + h).join(' ');
+    return `${caption}\n${hashtags}`;
+  }, [activeTemplate, scoreNum]);
+
+  useEffect(() => {
+    Animated.stagger(150, [
+      Animated.spring(headerAnim, { toValue: 1, tension: 65, friction: 8, useNativeDriver: true }),
+      Animated.spring(scoreAnim,  { toValue: 1, tension: 65, friction: 8, useNativeDriver: true }),
+      Animated.spring(sectionsAnim, { toValue: 1, tension: 60, friction: 9, useNativeDriver: true }),
+    ]).start();
+
+    if (stats.avgScore >= 0.6) {
+      const t = setTimeout(() => {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 2500);
+      }, 600);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  // Handlers
   const handleCompose = useCallback(async () => {
     if (!videoTemplate || !rawVideoUri) return;
     setComposing(true);
@@ -382,16 +764,14 @@ export default function ResultScreen() {
       setComposedUri(composedUrl);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 2500);
-      // Auto-download the finished video
       doDownload(composedUrl, activeTemplate?.name ?? '챌린지', resultBlob.type);
     } catch (e) {
       setComposeError(e instanceof Error ? e.message : '합성 실패');
     } finally {
       setComposing(false);
     }
-  }, [videoTemplate, rawVideoUri]);
+  }, [videoTemplate, rawVideoUri, activeTemplate]);
 
-  // Save handler
   const handleSave = useCallback(async () => {
     if (!userId || !activeTemplate) { Alert.alert('오류', '로그인이 필요합니다.'); return; }
     setSaving(true);
@@ -425,73 +805,60 @@ export default function ResultScreen() {
     }
   }, [userId, activeTemplate, frameTags, rawVideoUri, composedUri, stats]);
 
-  const handleShare = useCallback(async (blob: Blob | null) => {
-    if (!activeTemplate) return;
-    const caption = activeTemplate.sns_template.caption_template
-      .replace('{template_name}', activeTemplate.name)
-      .replace('{score}', String(Math.round(stats.avgScore * 100)));
-    const result = await doShare(
-      blob, rawVideoUri, activeTemplate.name,
-      activeTemplate.sns_template.hashtags, caption,
-    );
-    setShareResult(result);
-    if (result === 'copied') Alert.alert('📋 복사 완료!', '캡션이 클립보드에 복사되었습니다.');
-  }, [activeTemplate, rawVideoUri, stats.avgScore]);
-
   const goHome = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
     reset();
     router.replace('/(main)/home');
-  }, [reset, composedUri]);
+  }, [reset, composedUri, router]);
 
   const doRetake = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
-    // reset() 대신 startSession() → activeTemplate 유지 + sessionKey 증가
-    // → record 화면 useEffect가 sessionKey 감지해서 자동 리셋 (idle 상태로 돌아감)
-    // reset()을 호출하면 activeTemplate=null → record 화면이 router.back() 실행되어 빈 화면이 됨
     if (activeTemplate) startSession(activeTemplate);
     router.replace('/(main)/record');
   }, [activeTemplate, startSession, composedUri, router]);
 
-  const scoreNum   = Math.round(stats.avgScore * 100);
-  const isHighScore = stats.avgScore >= 0.8;
-  const accentColor =
-    stats.avgScore >= 0.8 ? '#7c3aed' :
-    stats.avgScore >= 0.6 ? '#f59e0b' : '#ef4444';
-
-  const scoreGrade =
-    stats.avgScore >= 0.8 ? '🏆 완벽해요!' :
-    stats.avgScore >= 0.6 ? '🌟 잘했어요!' :
-    stats.avgScore >= 0.4 ? '💪 노력해봐요!' : '다음엔 더 잘할 수 있어요!';
+  const hPad = Math.min(20, (width - 360) / 2 + 16);
 
   return (
     <SafeAreaView style={st.root} edges={['top', 'bottom']}>
-      {/* Confetti overlay */}
-      <Confetti show={showConfetti} />
-
-      {/* CSS injection for confetti animation */}
-      {/* @ts-ignore */}
+      {/* CSS for confetti animation */}
       {typeof window !== 'undefined' && (
+        // @ts-ignore
         <style>{`
           @keyframes confettiFall {
             0%   { transform: translateY(0) rotate(0deg); opacity:1; }
-            100% { transform: translateY(120vh) rotate(720deg); opacity:0; }
+            100% { transform: translateY(130vh) rotate(720deg); opacity:0; }
           }
         `}</style>
       )}
 
+      <Confetti show={showConfetti} />
+
+      <ShareModal
+        visible={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        composedUri={composedUri}
+        composedBlob={composedBlob}
+        rawVideoUri={rawVideoUri}
+        shareText={shareText}
+        templateName={activeTemplate?.name ?? '챌린지'}
+        scoreNum={scoreNum}
+      />
+
       <ScrollView
         style={st.scroll}
-        contentContainerStyle={[st.content, { paddingHorizontal: Math.min(20, (width - 360) / 2 + 16) }]}
+        contentContainerStyle={[st.content, { paddingHorizontal: hPad }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── HEADER ─────────────────────────── */}
-        <Animated.View
-          style={[
-            st.headerRow,
-            { opacity: headerAnim, transform: [{ translateY: headerAnim.interpolate({ inputRange: [0,1], outputRange: [-20, 0] }) }] },
-          ]}
-        >
+
+        {/* ── HEADER ───────────────────────────────────── */}
+        <Animated.View style={[
+          st.headerRow,
+          {
+            opacity: headerAnim,
+            transform: [{ translateY: headerAnim.interpolate({ inputRange: [0,1], outputRange: [-24, 0] }) }],
+          },
+        ]}>
           <TouchableOpacity onPress={goHome} style={st.backBtn}>
             <Text style={st.backText}>←</Text>
           </TouchableOpacity>
@@ -504,293 +871,176 @@ export default function ResultScreen() {
           <View style={{ width: 44 }} />
         </Animated.View>
 
-        {/* ── SCORE CARD ─────────────────────── */}
-        <Animated.View
-          style={[
-            st.scoreCard,
-            {
-              opacity: cardsAnim,
-              transform: [{ translateY: cardsAnim.interpolate({ inputRange: [0,1], outputRange: [30, 0] }) }],
-              // @ts-ignore web
-              background: isHighScore
-                ? `linear-gradient(135deg, ${accentColor}18, ${accentColor}08)`
-                : undefined,
-            },
-          ]}
-        >
-          <View style={[st.scoreAccent, { backgroundColor: accentColor }]} />
+        {/* ── SCORE CARD ───────────────────────────────── */}
+        <Animated.View style={[
+          st.scoreCard,
+          {
+            opacity: scoreAnim,
+            transform: [{ scale: scoreAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+            borderTopColor: accentColor,
+          },
+        ]}>
+          {/* Accent stripe */}
+          <View style={[st.scoreStripe, { backgroundColor: accentColor }]} />
+
           <View style={st.scoreBody}>
             <AnimatedScore targetScore={scoreNum} color={accentColor} />
+
+            {/* Grade chip */}
             <View style={[st.gradeChip, { backgroundColor: accentColor + '18', borderColor: accentColor + '40' }]}>
               <Text style={[st.gradeText, { color: accentColor }]}>{scoreGrade}</Text>
             </View>
-            <View style={st.successRow}>
-              <Text style={st.successLabel}>성공률</Text>
-              <View style={st.successBarBg}>
-                <View style={[st.successBarFill, { width: `${Math.round(stats.successRate * 100)}%` as any, backgroundColor: accentColor }]} />
-              </View>
-              <Text style={[st.successPct, { color: accentColor }]}>{Math.round(stats.successRate * 100)}%</Text>
+
+            {/* Animated score bar */}
+            <View style={st.bigBarRow}>
+              <Text style={st.bigBarLabel}>최종 점수</Text>
+              <ScoreBar score={scoreNum} color={accentColor} animated />
+              <Text style={[st.bigBarPct, { color: accentColor }]}>{scoreNum}%</Text>
+            </View>
+
+            {/* Tag counts */}
+            <View style={st.tagRow}>
+              {(['perfect', 'good', 'fail'] as JudgementTag[]).map(tag => (
+                <View key={tag} style={[st.tagCard, { borderTopColor: TAG_COLORS[tag] }]}>
+                  <Text style={[st.tagCount, { color: TAG_COLORS[tag] }]}>{stats.counts[tag]}</Text>
+                  <Text style={st.tagName}>{TAG_LABELS[tag]}</Text>
+                </View>
+              ))}
             </View>
           </View>
         </Animated.View>
 
-        {/* ── TAG DISTRIBUTION ───────────────── */}
-        <View style={st.tagRow}>
-          {(['perfect', 'good', 'fail'] as JudgementTag[]).map(tag => (
-            <View key={tag} style={[st.tagCard, { borderTopColor: TAG_COLORS[tag] }]}>
-              <Text style={[st.tagCount, { color: TAG_COLORS[tag] }]}>{stats.counts[tag]}</Text>
-              <Text style={st.tagName}>{TAG_LABELS[tag]}</Text>
+        {/* ── MISSION RESULTS ──────────────────────────── */}
+        {missionResults.length > 0 && (
+          <Animated.View style={[
+            st.section,
+            { opacity: sectionsAnim, transform: [{ translateY: sectionsAnim.interpolate({ inputRange: [0,1], outputRange: [20, 0] }) }] },
+          ]}>
+            <Text style={st.sectionTitle}>📊 미션별 결과</Text>
+            <View style={st.missionList}>
+              {missionResults.map((mr, i) => {
+                // Try to get mission type from template
+                const mission = activeTemplate?.missions.find(m => m.seq === mr.seq);
+                return (
+                  <MissionResultCard
+                    key={mr.seq}
+                    result={mr}
+                    missionType={mission?.type}
+                    index={i}
+                  />
+                );
+              })}
             </View>
-          ))}
-        </View>
-
-        {/* ── VIDEO COMPOSE SECTION ──────────── */}
-        {videoTemplate && (
-          <View style={st.section}>
-            <Text style={st.sectionTitle}>🎬 CapCut 스타일 완성 영상</Text>
-
-            {/* Template info chips */}
-            <View style={st.vtChips}>
-              <View style={st.vtChip}>
-                <Text style={st.vtChipText}>📋 {videoTemplate.name}</Text>
-              </View>
-              <View style={st.vtChip}>
-                <Text style={st.vtChipText}>⏱ {Math.round(videoTemplate.duration_ms / 1000)}초</Text>
-              </View>
-              <View style={st.vtChip}>
-                <Text style={st.vtChipText}>🎵 {videoTemplate.bgm.genre}</Text>
-              </View>
-            </View>
-
-            {/* Hashtags */}
-            <View style={st.hashRow}>
-              {videoTemplate.hashtags.slice(0, 6).map(h => (
-                <View key={h} style={st.hashChip}>
-                  <Text style={st.hashText}>#{h}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Template diagram (before composing) */}
-            {!composedUri && !composing && (
-              <TemplatePreview vtId={videoTemplate.id} genre={activeTemplate?.genre ?? ''} />
-            )}
-
-            {/* Pre-compose CTA */}
-            {!composedUri && !composing && (
-              <View style={st.composeBlock}>
-                <Text style={st.composeDesc}>
-                  촬영한 영상 + {videoTemplate.name} 템플릿을 합성하여{'\n'}
-                  Instagram / TikTok용 고퀄리티 영상을 완성합니다
-                </Text>
-                <TouchableOpacity
-                  style={[st.composeBtn, !rawVideoUri && st.composeBtnDis]}
-                  onPress={handleCompose}
-                  disabled={!rawVideoUri}
-                  activeOpacity={0.85}
-                >
-                  <Text style={st.composeBtnText}>✨ 완성 영상 만들기</Text>
-                </TouchableOpacity>
-                {!rawVideoUri && (
-                  <Text style={st.noVideoHint}>먼저 챌린지를 녹화해주세요</Text>
-                )}
-              </View>
-            )}
-
-            {/* Composing progress */}
-            {composing && (
-              <View style={st.composingBlock}>
-                <ActivityIndicator size="large" color="#7c3aed" />
-                <Text style={st.composingTitle}>🎬 영상 합성 중...</Text>
-                <Text style={st.composingPhase}>{progress?.phase ?? '준비 중...'}</Text>
-                <View style={st.progBg}>
-                  <View style={[st.progFill, { width: `${progress?.percent ?? 0}%` as any }]} />
-                </View>
-                <Text style={st.progPct}>{Math.round(progress?.percent ?? 0)}%</Text>
-                <Text style={st.composingNote}>
-                  📌 실시간 처리 방식 — 영상 길이만큼 소요됩니다
-                </Text>
-              </View>
-            )}
-
-            {/* Error */}
-            {composeError && (
-              <View style={st.errorBox}>
-                <Text style={st.errorText}>⚠️ {composeError}</Text>
-                <TouchableOpacity style={st.retrySmall} onPress={handleCompose}>
-                  <Text style={st.retrySmallText}>다시 시도</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Composed video preview */}
-            {composedUri && (
-              <View style={st.videoBlock}>
-                <View style={st.videoTitleRow}>
-                  <Text style={st.videoTitle}>🎉 완성 영상</Text>
-                  <View style={[st.readyBadge, { backgroundColor: accentColor }]}>
-                    <Text style={st.readyText}>완성!</Text>
-                  </View>
-                </View>
-                {/* @ts-ignore */}
-                <video
-                  src={composedUri}
-                  controls
-                  playsInline
-                  style={{
-                    width: '100%',
-                    maxHeight: 380,
-                    borderRadius: 16,
-                    display: 'block',
-                    background: '#000',
-                    // @ts-ignore
-                    boxShadow: `0 8px 32px ${accentColor}44`,
-                  }}
-                />
-                {/* Action row */}
-                <View style={st.actionRow}>
-                  <TouchableOpacity
-                    style={st.downloadBtn}
-                    onPress={() => doDownload(composedUri, activeTemplate?.name ?? 'challenge', composedBlob?.type)}
-                  >
-                    <Text style={st.downloadText}>⬇ 다운로드</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[st.shareBtn, { backgroundColor: accentColor }]}
-                    onPress={() => handleShare(composedBlob)}
-                  >
-                    <Text style={st.shareText}>📤 SNS 공유</Text>
-                  </TouchableOpacity>
-                </View>
-                {shareResult !== '' && (
-                  <Text style={st.shareResult}>
-                    {shareResult === 'shared'    ? '✅ 공유 완료!' :
-                     shareResult === 'copied'    ? '✅ 클립보드에 복사됨!' :
-                     shareResult === 'cancelled' ? '공유가 취소되었습니다.' : ''}
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* Platform share buttons */}
-            {composedUri && (
-              <View style={st.platformBlock}>
-                <Text style={st.platformTitle}>📤 SNS 업로드 가이드</Text>
-
-                {/* Step 1: Download */}
-                <View style={st.stepBox}>
-                  <View style={[st.stepNum, { backgroundColor: accentColor }]}>
-                    <Text style={st.stepNumText}>1</Text>
-                  </View>
-                  <View style={st.stepContent}>
-                    <Text style={st.stepTitle}>영상 다운로드</Text>
-                    <Text style={st.stepDesc}>위 ⬇ 다운로드 버튼으로 영상을 저장하세요</Text>
-                  </View>
-                </View>
-
-                {/* Step 2: Copy caption */}
-                <TouchableOpacity
-                  style={st.stepBox}
-                  onPress={() => {
-                    const caption = activeTemplate?.sns_template.caption_template
-                      ?.replace('{template_name}', activeTemplate.name)
-                      ?.replace('{score}', String(scoreNum)) ?? '';
-                    const ht = (activeTemplate?.sns_template.hashtags ?? [])
-                      .map(h => '#' + h).join(' ');
-                    navigator?.clipboard?.writeText(caption + '\n' + ht).then(() => {
-                      setShareResult('copied');
-                    });
-                  }}
-                >
-                  <View style={[st.stepNum, { backgroundColor: '#06b6d4' }]}>
-                    <Text style={st.stepNumText}>2</Text>
-                  </View>
-                  <View style={st.stepContent}>
-                    <Text style={st.stepTitle}>캡션 복사 (탭하세요)</Text>
-                    <Text style={st.stepDesc} numberOfLines={2}>
-                      {activeTemplate?.sns_template.caption_template
-                        .replace('{template_name}', activeTemplate?.name ?? '')
-                        .replace('{score}', String(scoreNum))}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Step 3: Platform buttons */}
-                <View style={st.stepBox}>
-                  <View style={[st.stepNum, { backgroundColor: '#8b5cf6' }]}>
-                    <Text style={st.stepNumText}>3</Text>
-                  </View>
-                  <View style={st.stepContent}>
-                    <Text style={st.stepTitle}>업로드 페이지 열기</Text>
-                    <View style={st.platformGrid}>
-                      {PLATFORMS.map(p => (
-                        <TouchableOpacity
-                          key={p.key}
-                          style={[st.platformBtn, { backgroundColor: p.color }]}
-                          onPress={() => {
-                            const caption = activeTemplate?.sns_template.caption_template
-                              ?.replace('{template_name}', activeTemplate.name)
-                              ?.replace('{score}', String(scoreNum)) ?? '';
-                            const ht = (activeTemplate?.sns_template.hashtags ?? [])
-                              .map(h => '#' + h).join(' ');
-                            openPlatformShare(p.key, caption + ' ' + ht, composedUri);
-                          }}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={st.platformBtnText}>{p.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-
-                {shareResult === 'copied' && (
-                  <Text style={st.platformNote}>✅ 캡션이 클립보드에 복사되었습니다!</Text>
-                )}
-              </View>
-            )}
-          </View>
+          </Animated.View>
         )}
 
-        {/* ── RAW SHARE (before compose) ───── */}
-        {activeTemplate && !composedUri && (
-          <View style={st.section}>
-            <Text style={st.sectionTitle}>📤 원본 영상 공유</Text>
-            <View style={st.captionBox}>
-              <Text style={st.captionText}>
-                {activeTemplate.sns_template.caption_template
-                  .replace('{template_name}', activeTemplate.name)
-                  .replace('{score}', String(scoreNum))}
-              </Text>
-            </View>
-            <View style={st.hashRow}>
-              {activeTemplate.sns_template.hashtags.map(h => (
-                <View key={h} style={st.hashChip}>
-                  <Text style={st.hashText}>#{h}</Text>
+        {/* ── BADGES ───────────────────────────────────── */}
+        <Animated.View style={[
+          st.section,
+          { opacity: sectionsAnim, transform: [{ translateY: sectionsAnim.interpolate({ inputRange: [0,1], outputRange: [30, 0] }) }] },
+        ]}>
+          <Text style={st.sectionTitle}>🎯 달성 뱃지</Text>
+          {unlockedBadges.length === 0 ? (
+            <Text style={st.noBadge}>아직 뱃지가 없어요. 더 높은 점수에 도전해보세요!</Text>
+          ) : (
+            <Text style={st.badgeHint}>{unlockedBadges.length}개 달성!</Text>
+          )}
+          <View style={st.badgeRow}>
+            {ALL_BADGES.map((badge, i) => (
+              <BadgeItem
+                key={badge.id}
+                badge={badge}
+                unlocked={unlockedBadges.includes(badge.id)}
+                index={i}
+              />
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* ── VIDEO PLAYBACK & COMPOSE ──────────────────── */}
+        <Animated.View style={[
+          st.section,
+          { opacity: sectionsAnim, transform: [{ translateY: sectionsAnim.interpolate({ inputRange: [0,1], outputRange: [40, 0] }) }] },
+        ]}>
+          <Text style={st.sectionTitle}>🎬 영상</Text>
+
+          {/* Video player: composed first, else raw */}
+          {(composedUri || rawVideoUri) && (
+            <View style={st.videoWrap}>
+              {/* @ts-ignore */}
+              <video
+                src={composedUri ?? rawVideoUri}
+                controls
+                playsInline
+                style={{
+                  width: '100%', maxHeight: 360,
+                  borderRadius: 16, display: 'block', background: '#000',
+                  // @ts-ignore
+                  boxShadow: `0 8px 32px ${accentColor}33`,
+                }}
+              />
+              {composedUri && (
+                <View style={[st.composedBadge, { backgroundColor: accentColor }]}>
+                  <Text style={st.composedBadgeText}>✨ 합성 완료</Text>
                 </View>
-              ))}
-            </View>
-            <View style={st.actionRow}>
-              <TouchableOpacity
-                style={[st.shareBtn, { backgroundColor: '#7c3aed', flex: 1 }]}
-                onPress={() => handleShare(null)}
-              >
-                <Text style={st.shareText}>📤 공유하기</Text>
-              </TouchableOpacity>
-              {rawVideoUri !== '' && (
-                <TouchableOpacity
-                  style={st.downloadBtn}
-                  onPress={() => doDownload(rawVideoUri, activeTemplate.name)}
-                >
-                  <Text style={st.downloadText}>⬇ 원본</Text>
-                </TouchableOpacity>
               )}
             </View>
-          </View>
-        )}
+          )}
 
-        {/* ── SAVE SECTION ───────────────────── */}
-        <View style={st.section}>
+          {/* Compose CTA (before composing) */}
+          {!composedUri && !composing && videoTemplate && (
+            <View style={st.composeCta}>
+              <Text style={st.composeDesc}>
+                {videoTemplate.name} 템플릿 + 내 영상을 합성하여{'\n'}
+                TikTok / Instagram용 완성 영상을 만들어보세요!
+              </Text>
+              <TouchableOpacity
+                style={[st.composeBtn, !rawVideoUri && st.composeBtnDis]}
+                onPress={handleCompose}
+                disabled={!rawVideoUri}
+                activeOpacity={0.85}
+              >
+                <Text style={st.composeBtnText}>✨ 완성 영상 만들기</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Progress */}
+          {composing && <ComposeProgress progress={progress} />}
+
+          {/* Error */}
+          {composeError && (
+            <View style={st.errorBox}>
+              <Text style={st.errorText}>⚠️ {composeError}</Text>
+              <TouchableOpacity style={st.retryBtn} onPress={handleCompose}>
+                <Text style={st.retryBtnText}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View style={st.actionRow}>
+            <TouchableOpacity
+              style={st.downloadBtn}
+              onPress={() => doDownload(composedUri ?? rawVideoUri, activeTemplate?.name ?? 'challenge', composedBlob?.type)}
+              disabled={!composedUri && !rawVideoUri}
+            >
+              <Text style={st.downloadText}>📥 저장</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[st.shareBtn, { backgroundColor: accentColor }]}
+              onPress={() => setShowShareModal(true)}
+            >
+              <Text style={st.shareText}>📤 SNS 공유</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* ── SAVE SESSION ──────────────────────────────── */}
+        <Animated.View style={[
+          st.section,
+          { opacity: sectionsAnim },
+        ]}>
           <Text style={st.sectionTitle}>💾 세션 저장</Text>
           {saved ? (
             <View style={st.savedRow}>
@@ -804,24 +1054,28 @@ export default function ResultScreen() {
               disabled={saving}
               activeOpacity={0.85}
             >
-              {saving ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={st.saveBtnText}>💾 내 기록 저장</Text>
-              )}
+              {saving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={st.saveBtnText}>💾 내 기록 저장하기</Text>
+              }
             </TouchableOpacity>
           )}
-        </View>
+        </Animated.View>
 
-        {/* ── BOTTOM ACTIONS ─────────────────── */}
+        {/* ── BOTTOM ACTIONS ───────────────────────────── */}
         <View style={st.bottomRow}>
           <TouchableOpacity style={st.retakeBtn} onPress={doRetake} activeOpacity={0.85}>
             <Text style={st.retakeText}>🔄 다시 도전</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[st.homeBtn, { backgroundColor: accentColor }]} onPress={goHome} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[st.homeBtn, { backgroundColor: accentColor }]}
+            onPress={goHome}
+            activeOpacity={0.85}
+          >
             <Text style={st.homeText}>🏠 홈으로</Text>
           </TouchableOpacity>
         </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -830,9 +1084,9 @@ export default function ResultScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F5F9' },
-  scroll: { flex: 1 },
-  content: { paddingTop: 8, paddingBottom: 80, gap: 14 },
+  root:    { flex: 1, backgroundColor: '#F4F5F9' },
+  scroll:  { flex: 1 },
+  content: { paddingTop: 8, paddingBottom: 88, gap: 14 },
 
   // Header
   headerRow: {
@@ -845,49 +1099,46 @@ const st = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
   },
-  backText: { fontSize: 22, color: '#333', fontWeight: '700' },
+  backText:     { fontSize: 22, color: '#333', fontWeight: '700' },
   headerCenter: { flex: 1, alignItems: 'center', gap: 2 },
-  headerTitle: { fontSize: 20, fontWeight: '900', color: '#1a1a2e', textAlign: 'center' },
-  headerSub:   { fontSize: 12, color: '#999' },
+  headerTitle:  { fontSize: 20, fontWeight: '900', color: '#1a1a2e', textAlign: 'center' },
+  headerSub:    { fontSize: 12, color: '#999' },
 
   // Score card
   scoreCard: {
     backgroundColor: '#fff', borderRadius: 24,
-    flexDirection: 'row', overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08, shadowRadius: 14, elevation: 4,
+    overflow: 'hidden', borderTopWidth: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 16, elevation: 5,
   },
-  scoreAccent: { width: 6 },
+  scoreStripe: { height: 4, width: '100%' },
   scoreBody: {
-    flex: 1, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, gap: 10,
+    alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 12,
   },
   gradeChip: {
     borderRadius: 20, borderWidth: 1.5,
-    paddingHorizontal: 18, paddingVertical: 7,
+    paddingHorizontal: 20, paddingVertical: 8,
   },
   gradeText: { fontSize: 15, fontWeight: '800' },
-  successRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8 },
-  successLabel: { color: '#9ca3af', fontSize: 12, fontWeight: '600', width: 40 },
-  successBarBg: {
-    flex: 1, height: 8, backgroundColor: '#f1f5f9',
-    borderRadius: 4, overflow: 'hidden',
+  bigBarRow: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', gap: 10,
   },
-  successBarFill: { height: '100%', borderRadius: 4 },
-  successPct: { fontSize: 13, fontWeight: '800', width: 38, textAlign: 'right' },
+  bigBarLabel: { color: '#9ca3af', fontSize: 12, fontWeight: '600', width: 52 },
+  bigBarPct:   { fontSize: 14, fontWeight: '800', width: 42, textAlign: 'right' },
 
   // Tag distribution
-  tagRow: { flexDirection: 'row', gap: 10 },
+  tagRow: { flexDirection: 'row', gap: 10, width: '100%', marginTop: 4 },
   tagCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 16,
-    alignItems: 'center', paddingVertical: 16,
+    flex: 1, backgroundColor: '#f8fafc', borderRadius: 14,
+    alignItems: 'center', paddingVertical: 14,
     borderTopWidth: 3,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
-  tagCount: { fontSize: 32, fontWeight: '900' },
-  tagName:  { color: '#9ca3af', fontSize: 10, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
+  tagCount: { fontSize: 28, fontWeight: '900' },
+  tagName:  { color: '#9ca3af', fontSize: 10, fontWeight: '700', marginTop: 3, letterSpacing: 0.5 },
 
-  // Section
+  // Sections
   section: {
     backgroundColor: '#fff', borderRadius: 20, padding: 18, gap: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
@@ -895,27 +1146,25 @@ const st = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
 
-  // Video template chips
-  vtChips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  vtChip: {
-    backgroundColor: '#EDE9FF', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#DDD6FE',
-  },
-  vtChipText: { color: '#7c3aed', fontSize: 12, fontWeight: '700' },
+  // Mission results
+  missionList: { gap: 8 },
 
-  // Hashtags
-  hashRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  hashChip: {
-    backgroundColor: '#F0F9FF', borderRadius: 16,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: '#BAE6FD',
-  },
-  hashText: { color: '#0369a1', fontSize: 12, fontWeight: '600' },
+  // Badges
+  noBadge:  { color: '#9ca3af', fontSize: 13, textAlign: 'center', paddingVertical: 4 },
+  badgeHint: { color: '#7c3aed', fontSize: 13, fontWeight: '700' },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
 
-  // Compose block
-  composeBlock: { gap: 12 },
-  composeDesc: { color: '#6b7280', fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  // Video section
+  videoWrap:    { position: 'relative' },
+  composedBadge: {
+    position: 'absolute', top: 12, right: 12,
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10,
+  },
+  composedBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+
+  // Compose CTA
+  composeCta:   { gap: 12 },
+  composeDesc:  { color: '#6b7280', fontSize: 13, lineHeight: 20, textAlign: 'center' },
   composeBtn: {
     // @ts-ignore web
     background: 'linear-gradient(135deg, #7c3aed, #ec4899)',
@@ -925,41 +1174,22 @@ const st = StyleSheet.create({
     shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
   },
-  composeBtnDis: { backgroundColor: '#d1d5db', shadowOpacity: 0 },
+  composeBtnDis:  { backgroundColor: '#d1d5db', shadowOpacity: 0 },
   composeBtnText: { color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
-  noVideoHint: { color: '#9ca3af', fontSize: 12, textAlign: 'center', fontStyle: 'italic' },
 
-  // Composing progress
-  composingBlock: { alignItems: 'center', gap: 10, paddingVertical: 8 },
-  composingTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
-  composingPhase: { color: '#7c3aed', fontSize: 13, fontWeight: '600' },
-  progBg: { width: '100%', height: 8, backgroundColor: '#EDE9FF', borderRadius: 4, overflow: 'hidden' },
-  progFill: { height: '100%', backgroundColor: '#7c3aed', borderRadius: 4 },
-  progPct: { color: '#7c3aed', fontSize: 13, fontWeight: '700' },
-  composingNote: { color: '#9ca3af', fontSize: 11, textAlign: 'center', lineHeight: 16 },
-
-  // Error
+  // Error box
   errorBox: {
-    backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, gap: 8,
-    borderWidth: 1, borderColor: '#FECACA', alignItems: 'center',
+    backgroundColor: '#fef2f2', borderRadius: 12, padding: 14, gap: 8,
+    borderWidth: 1, borderColor: '#fecaca', alignItems: 'center',
   },
-  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center' },
-  retrySmall: {
-    backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10,
-  },
-  retrySmallText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
-  // Video preview
-  videoBlock: { gap: 12 },
-  videoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  videoTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e', flex: 1 },
-  readyBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  readyText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  errorText:    { color: '#dc2626', fontSize: 13, textAlign: 'center' },
+  retryBtn:     { backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10 },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   // Action row
   actionRow: { flexDirection: 'row', gap: 10 },
   downloadBtn: {
-    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E5E7EB',
+    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e5e7eb',
     paddingVertical: 14, borderRadius: 12, alignItems: 'center',
     minHeight: 50, justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
@@ -973,38 +1203,6 @@ const st = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
   },
   shareText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-  shareResult: { color: '#059669', fontSize: 13, textAlign: 'center', fontWeight: '600' },
-
-  // Platform share
-  platformBlock: { gap: 14 },
-  platformTitle: { fontSize: 15, fontWeight: '800', color: '#1a1a2e' },
-  platformSub: { fontSize: 12, color: '#6b7280' },
-  platformGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  platformBtn: {
-    paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10,
-    minHeight: 40, justifyContent: 'center',
-  },
-  platformBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  platformNote: { color: '#059669', fontSize: 12, fontWeight: '600', textAlign: 'center' },
-
-  // SNS step guide
-  stepBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: '#E2E8F0',
-  },
-  stepNum: {
-    width: 28, height: 28, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  stepNumText: { color: '#fff', fontSize: 13, fontWeight: '900' },
-  stepContent: { flex: 1, gap: 4 },
-  stepTitle: { fontSize: 14, fontWeight: '800', color: '#1e293b' },
-  stepDesc: { fontSize: 12, color: '#64748b', lineHeight: 18 },
-
-  // Caption
-  captionBox: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12 },
-  captionText: { color: '#6b7280', fontSize: 13, lineHeight: 20 },
 
   // Save
   saveBtn: {
@@ -1013,16 +1211,16 @@ const st = StyleSheet.create({
     shadowColor: '#059669', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
   },
-  saveBtnDis: { backgroundColor: '#d1d5db', shadowOpacity: 0 },
+  saveBtnDis:  { backgroundColor: '#d1d5db', shadowOpacity: 0 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' },
-  savedEmoji: { fontSize: 24 },
-  savedText: { color: '#059669', fontSize: 15, fontWeight: '700' },
+  savedRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' },
+  savedEmoji:  { fontSize: 24 },
+  savedText:   { color: '#059669', fontSize: 15, fontWeight: '700' },
 
-  // Bottom actions
+  // Bottom buttons
   bottomRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   retakeBtn: {
-    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E5E7EB',
+    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e5e7eb',
     paddingVertical: 16, borderRadius: 14, alignItems: 'center',
     minHeight: 56, justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },

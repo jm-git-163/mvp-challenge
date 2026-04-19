@@ -27,12 +27,12 @@ export default function PoseOverlay({
   const userLines = useMemo(() =>
     POSE_CONNECTIONS.map(([ai, bi]) => {
       const a = userPose[ai], b = userPose[bi];
-      if (!a || !b || a.score < MIN_CONF || b.score < MIN_CONF) return null;
+      if (!a || !b || (a.score ?? a.visibility ?? 1) < MIN_CONF || (b.score ?? b.visibility ?? 1) < MIN_CONF) return null;
       return { x1: a.x * width, y1: a.y * height, x2: b.x * width, y2: b.y * height };
     }).filter(Boolean), [userPose, width, height]);
 
   const userDots = useMemo(() =>
-    userPose.filter(lm => lm.score >= MIN_CONF)
+    userPose.filter(lm => (lm.score ?? lm.visibility ?? 1) >= MIN_CONF)
       .map(lm => ({ cx: lm.x * width, cy: lm.y * height })),
     [userPose, width, height]);
 

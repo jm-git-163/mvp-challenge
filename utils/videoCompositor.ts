@@ -320,6 +320,210 @@ function drawKpopScene(
   ctx.restore();
 }
 
+function drawFitnessScene(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  elapsed: number,
+  accentColor: string,
+): void {
+  // Animated energy bars on left & right
+  const barCount = 12;
+  const barW = 14;
+  const maxBarH = canvasH * 0.55;
+  const barSpacing = 6;
+
+  ctx.save();
+  for (let i = 0; i < barCount; i++) {
+    const phase = elapsed * 0.003 + i * 0.45;
+    const height = (0.4 + Math.abs(Math.sin(phase)) * 0.55) * maxBarH;
+    const alpha = 0.18 + Math.abs(Math.sin(phase * 0.8)) * 0.12;
+    const y = canvasH * 0.22 + (maxBarH - height) / 2;
+
+    // Left bars
+    ctx.fillStyle = `rgba(20,184,166,${alpha})`;
+    ctx.fillRect(i * (barW + barSpacing), y, barW, height);
+
+    // Right bars (mirrored)
+    ctx.fillRect(canvasW - (i + 1) * (barW + barSpacing), y, barW, height);
+  }
+  ctx.restore();
+
+  // Horizontal scan line (sweeping)
+  const scanY = ((elapsed * 0.1) % canvasH);
+  ctx.save();
+  const scanGrad = ctx.createLinearGradient(0, scanY - 3, 0, scanY + 3);
+  scanGrad.addColorStop(0, 'rgba(20,184,166,0)');
+  scanGrad.addColorStop(0.5, 'rgba(20,184,166,0.18)');
+  scanGrad.addColorStop(1, 'rgba(20,184,166,0)');
+  ctx.fillStyle = scanGrad;
+  ctx.fillRect(0, scanY - 3, canvasW, 6);
+  ctx.restore();
+
+  // Corner bracket accents
+  const bracketSize = 36;
+  const bracketGap = 8;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(20,184,166,0.5)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'square';
+  // Top-left
+  ctx.beginPath(); ctx.moveTo(bracketGap, bracketGap + bracketSize); ctx.lineTo(bracketGap, bracketGap); ctx.lineTo(bracketGap + bracketSize, bracketGap); ctx.stroke();
+  // Top-right
+  ctx.beginPath(); ctx.moveTo(canvasW - bracketGap - bracketSize, bracketGap); ctx.lineTo(canvasW - bracketGap, bracketGap); ctx.lineTo(canvasW - bracketGap, bracketGap + bracketSize); ctx.stroke();
+  // Bottom-left
+  ctx.beginPath(); ctx.moveTo(bracketGap, canvasH - bracketGap - bracketSize); ctx.lineTo(bracketGap, canvasH - bracketGap); ctx.lineTo(bracketGap + bracketSize, canvasH - bracketGap); ctx.stroke();
+  // Bottom-right
+  ctx.beginPath(); ctx.moveTo(canvasW - bracketGap - bracketSize, canvasH - bracketGap); ctx.lineTo(canvasW - bracketGap, canvasH - bracketGap); ctx.lineTo(canvasW - bracketGap, canvasH - bracketGap - bracketSize); ctx.stroke();
+  ctx.restore();
+
+  // Pulsing center circle (heartbeat vibe)
+  const pulse = 0.3 + Math.abs(Math.sin(elapsed * 0.004)) * 0.3;
+  ctx.save();
+  ctx.globalAlpha = pulse * 0.15;
+  ctx.strokeStyle = '#14b8a6';
+  ctx.lineWidth = 2;
+  for (let r = 60; r <= 180; r += 60) {
+    ctx.beginPath();
+    ctx.arc(canvasW / 2, canvasH / 2, r * (1 + pulse * 0.15), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawTravelScene(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  elapsed: number,
+  accentColor: string,
+): void {
+  // Dusk / sunrise gradient overlay
+  const sunY = canvasH * 0.75 + Math.sin(elapsed * 0.0005) * 20;
+  const sunGrad = ctx.createRadialGradient(canvasW / 2, sunY, 0, canvasW / 2, sunY, canvasH * 0.6);
+  sunGrad.addColorStop(0,   'rgba(249,115,22,0.25)');
+  sunGrad.addColorStop(0.4, 'rgba(234,88,12,0.10)');
+  sunGrad.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = sunGrad;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // Silhouette mountains
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.moveTo(0, canvasH);
+  ctx.lineTo(0, canvasH * 0.72);
+  ctx.lineTo(canvasW * 0.12, canvasH * 0.55);
+  ctx.lineTo(canvasW * 0.22, canvasH * 0.67);
+  ctx.lineTo(canvasW * 0.35, canvasH * 0.48);
+  ctx.lineTo(canvasW * 0.48, canvasH * 0.62);
+  ctx.lineTo(canvasW * 0.60, canvasH * 0.52);
+  ctx.lineTo(canvasW * 0.72, canvasH * 0.66);
+  ctx.lineTo(canvasW * 0.85, canvasH * 0.54);
+  ctx.lineTo(canvasW * 0.95, canvasH * 0.65);
+  ctx.lineTo(canvasW, canvasH * 0.70);
+  ctx.lineTo(canvasW, canvasH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Stars / floating lights
+  ctx.save();
+  for (let i = 0; i < 20; i++) {
+    const sx = ((i * 0.137 + 0.04) % 1) * canvasW;
+    const sy = ((i * 0.0731 + 0.02) % 0.45) * canvasH;
+    const twinkle = 0.3 + Math.abs(Math.sin(elapsed * 0.003 + i * 1.1)) * 0.6;
+    ctx.globalAlpha = twinkle;
+    ctx.fillStyle = '#fde68a';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.5 + (i % 3) * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Subtle latitude/longitude grid
+  ctx.save();
+  ctx.strokeStyle = 'rgba(249,115,22,0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 5; i++) {
+    ctx.beginPath(); ctx.moveTo(0, (i / 5) * canvasH); ctx.lineTo(canvasW, (i / 5) * canvasH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo((i / 5) * canvasW, 0); ctx.lineTo((i / 5) * canvasW, canvasH); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Floating airplane icon (emoji)
+  const planeX = ((elapsed * 0.04) % (canvasW + 60)) - 30;
+  const planeY = canvasH * 0.10 + Math.sin(elapsed * 0.001) * 8;
+  ctx.save();
+  ctx.font = '22px sans-serif';
+  ctx.globalAlpha = 0.7;
+  ctx.fillText('✈️', planeX, planeY);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawHiphopScene(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  elapsed: number,
+  accentColor: string,
+): void {
+  // Gold sound wave at center
+  const waveY = canvasH * 0.5;
+  const wavePoints = 80;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(247,183,49,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= wavePoints; i++) {
+    const x = (i / wavePoints) * canvasW;
+    const amplitude = 30 + Math.sin(elapsed * 0.003 + i * 0.3) * 20;
+    const y = waveY + Math.sin(i * 0.25 + elapsed * 0.005) * amplitude;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Vertical graffiti-style lines
+  ctx.save();
+  for (let i = 0; i < 6; i++) {
+    const x = (i / 5) * canvasW;
+    const alpha = 0.04 + Math.sin(elapsed * 0.002 + i) * 0.02;
+    ctx.strokeStyle = `rgba(247,183,49,${Math.max(0.02, alpha)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 40, canvasH);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Pulsing gold dot grid
+  ctx.save();
+  const dotAlpha = 0.07 + Math.sin(elapsed * 0.004) * 0.03;
+  ctx.fillStyle = `rgba(247,183,49,${dotAlpha})`;
+  for (let gx = 30; gx < canvasW; gx += 60) {
+    for (let gy = 80; gy < canvasH - 60; gy += 60) {
+      ctx.beginPath();
+      ctx.arc(gx, gy, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // Corner "tags" — urban graffiti feel
+  ctx.save();
+  ctx.font = 'bold 11px monospace';
+  ctx.fillStyle = 'rgba(247,183,49,0.25)';
+  ctx.textAlign = 'left';
+  ctx.fillText('CHALLENGE.STUDIO', 14, canvasH - 70);
+  ctx.fillText('HH_' + String(Math.floor(elapsed / 100)).padStart(4, '0'), 14, canvasH - 54);
+  ctx.restore();
+}
+
 function drawEnglishScene(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -710,6 +914,115 @@ function createSimpleBGM(
       // Sparkle hi-hat
       playNoiseBurst(beatStart, 0.03, 0.06);
       if (beatNum % 2 === 0) playNoiseBurst(beatStart + beatInterval * 0.75, 0.02, 0.05);
+
+    } else if (genre === 'fitness') {
+      // Trap/EDM: heavy 808 kick, trap hi-hats, minor pentatonic synth
+      const trapBass = [55, 55, 65, 55, 49, 55, 58, 55]; // A1, A1, C2, A1, G1, A1, Bb1 pattern
+      const trapLead = [220, 261, 294, 330, 261, 220, 196, 220]; // A3-arp
+      // 808 kick: very low pitched sine with fast decay
+      if (b === 0) {
+        playTone(90, beatStart, 0.35, 0.55, 'sine');
+        playTone(55, beatStart, 0.25, 0.40, 'sine');
+        playNoiseBurst(beatStart, 0.04, 0.30); // punch transient
+      }
+      // Ghost kick on "and-of-3" (beat 2.5 = halfway through beat index 2)
+      if (b === 2) {
+        playTone(85, beatStart, 0.28, 0.40, 'sine');
+        playTone(50, beatStart, 0.20, 0.30, 'sine');
+        playNoiseBurst(beatStart, 0.03, 0.25);
+        // Second ghost on e-of-4 (+ half beat)
+        playTone(75, beatStart + beatInterval * 0.5, 0.18, 0.25, 'sine');
+        playNoiseBurst(beatStart + beatInterval * 0.5, 0.025, 0.18);
+      }
+      // Clap/snare on 2 and 4
+      if (b === 1 || b === 3) {
+        playNoiseBurst(beatStart, 0.14, 0.40);
+        playNoiseBurst(beatStart + 0.01, 0.10, 0.25); // double clap
+      }
+      // Trap hi-hats: 16th notes with dynamic variation
+      [0, 0.25, 0.5, 0.75].forEach((sixteenth, si) => {
+        const vol = si % 2 === 0 ? 0.14 : 0.07; // loud on 8th notes
+        playNoiseBurst(beatStart + sixteenth * beatInterval, 0.025, vol);
+      });
+      // Open hi-hat on "and" of 4
+      if (b === 3) playNoiseBurst(beatStart + beatInterval * 0.5, 0.18, 0.16);
+      // Sub bass groove
+      const bassFreq = trapBass[beatNum % trapBass.length];
+      playTone(bassFreq, beatStart, beatInterval * 0.85, 0.32, 'sine');
+      // Synth lead: sawtooth + filter envelope feel (simulate with short burst)
+      if (beatNum % 2 === 0) {
+        const lead = trapLead[Math.floor(beatNum / 2) % trapLead.length];
+        playTone(lead, beatStart, beatInterval * 0.4, 0.14, 'sawtooth');
+        playTone(lead * 0.5, beatStart, beatInterval * 0.4, 0.08, 'square');
+      }
+
+    } else if (genre === 'travel') {
+      // Indie/upbeat pop: bright major tonality, melodic feel
+      const travelLead = [392, 440, 494, 523, 494, 440, 392, 349]; // G4-C5 major
+      const travelBass = [98, 98, 110, 98, 87, 98, 110, 87];       // G2 based
+      const travelChord = [[261, 329, 392], [294, 370, 440], [261, 329, 392], [220, 277, 330]];
+      // Light kick on 1 and 3
+      if (b === 0 || b === 2) {
+        playTone(75, beatStart, 0.18, 0.30, 'sine');
+        playNoiseBurst(beatStart, 0.025, 0.15);
+      }
+      // Snare on 2 and 4 (bright, not too heavy)
+      if (b === 1 || b === 3) playNoiseBurst(beatStart, 0.10, 0.28);
+      // 8th note hi-hats (bright, airy)
+      playNoiseBurst(beatStart, 0.025, 0.10);
+      playNoiseBurst(beatStart + beatInterval * 0.5, 0.025, 0.07);
+      // Tambourine accent on off-beats
+      if (b === 1 || b === 3) playNoiseBurst(beatStart + beatInterval * 0.5, 0.04, 0.09);
+      // Melodic lead: bright triangle (acoustic guitar/ukulele feel)
+      const lead = travelLead[beatNum % travelLead.length];
+      playTone(lead, beatStart, beatInterval * 0.55, 0.16, 'triangle');
+      playTone(lead * 2, beatStart, beatInterval * 0.20, 0.04, 'sine'); // octave shimmer
+      // Chord pad: every bar start
+      if (b === 0) {
+        const chord = travelChord[(beatNum / 4 | 0) % travelChord.length];
+        chord.forEach((f) => playTone(f, beatStart, beatInterval * 3.5, 0.07, 'triangle'));
+      }
+      // Bass: warm sine, smooth
+      const bassFreq = travelBass[beatNum % travelBass.length];
+      playTone(bassFreq, beatStart, beatInterval * 0.75, 0.22, 'sine');
+
+    } else if (genre === 'hiphop') {
+      // Boom-bap hip-hop: classic NY sound
+      const hhLead = [233, 220, 196, 175, 196, 220, 233, 262]; // Bb minor groove
+      const hhBass = [58, 58, 65, 55, 58, 49, 58, 55];          // Sub Bb bass
+      // HEAVY kick on 1 and "and-of-3" (boom-bap pattern)
+      if (b === 0) {
+        playTone(80, beatStart, 0.30, 0.65, 'sine');
+        playTone(50, beatStart, 0.22, 0.50, 'sine');
+        playNoiseBurst(beatStart, 0.04, 0.35);
+      }
+      if (b === 2) {
+        // Kick on "and-of-2" (half-beat shift) = the "boom" in boom-bap
+        const boomTime = beatStart + beatInterval * 0.5;
+        playTone(80, boomTime, 0.28, 0.55, 'sine');
+        playTone(50, boomTime, 0.20, 0.42, 'sine');
+        playNoiseBurst(boomTime, 0.035, 0.30);
+      }
+      // Crisp snare (bap) on 2 and 4
+      if (b === 1 || b === 3) {
+        playNoiseBurst(beatStart, 0.15, 0.50);
+        playTone(180, beatStart, 0.08, 0.12, 'sine'); // tonal body
+      }
+      // Hi-hat: 8th notes (simple, human feel — louder on downbeat)
+      const hhVol = b % 2 === 0 ? 0.13 : 0.08;
+      playNoiseBurst(beatStart, 0.03, hhVol);
+      playNoiseBurst(beatStart + beatInterval * 0.5, 0.03, hhVol * 0.7);
+      // Open hi-hat accent on beat 3 off-beat
+      if (b === 2) playNoiseBurst(beatStart + beatInterval * 0.75, 0.20, 0.11);
+      // Sub bass groove: deep sine, fat
+      const bassFreq = hhBass[beatNum % hhBass.length];
+      playTone(bassFreq, beatStart, beatInterval * 0.80, 0.42, 'sine');
+      playTone(bassFreq * 2, beatStart, beatInterval * 0.40, 0.12, 'square'); // body
+      // Sampler melody (triangle, choppy)
+      if (beatNum % 2 === 0) {
+        const mel = hhLead[Math.floor(beatNum / 2) % hhLead.length];
+        playTone(mel, beatStart, beatInterval * 0.35, 0.13, 'triangle');
+      }
     }
   }
 
@@ -735,6 +1048,262 @@ function createSimpleBGM(
       try { masterGain.disconnect(); } catch (_) {}
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// CLIP FRAME — genre-specific decorative overlay drawn ON TOP of user video
+// Makes the clip look like it's inside a professional template frame
+// ---------------------------------------------------------------------------
+
+function drawClipFrame(
+  ctx: CanvasRenderingContext2D,
+  bgStyle: string,
+  cx: number, cy: number, cw: number, ch: number,
+  borderRadius: number,
+  accentColor: string,
+  elapsed: number,
+): void {
+  const pulse = 0.5 + 0.5 * Math.sin(elapsed * 0.004);
+  const pulse2 = 0.5 + 0.5 * Math.sin(elapsed * 0.006 + 1);
+
+  ctx.save();
+
+  if (bgStyle === 'news') {
+    // ── TV broadcast frame: scanlines overlay + red LIVE badge ─────────────
+    // Scanlines
+    ctx.save();
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.clip();
+    ctx.globalAlpha = 0.06;
+    for (let sy = cy; sy < cy + ch; sy += 4) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(cx, sy, cw, 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Sharp corner marks (broadcast style)
+    const mk = 22; const mgap = 6;
+    ctx.strokeStyle = '#1565c0'; ctx.lineWidth = 3; ctx.lineCap = 'square';
+    [[cx + mgap, cy + mgap, 1, 1], [cx + cw - mgap, cy + mgap, -1, 1],
+     [cx + mgap, cy + ch - mgap, 1, -1], [cx + cw - mgap, cy + ch - mgap, -1, -1]].forEach(([x, y, dx, dy]) => {
+      ctx.beginPath();
+      ctx.moveTo(x as number, (y as number) + (dy as number) * mk);
+      ctx.lineTo(x as number, y as number); ctx.lineTo((x as number) + (dx as number) * mk, y as number);
+      ctx.stroke();
+    });
+    // LIVE badge top-left
+    const bx = cx + 10; const by = cy + 10;
+    ctx.save();
+    ctx.globalAlpha = 0.9 + pulse * 0.1;
+    ctx.fillStyle = '#c62828';
+    rrPath(ctx, bx, by, 62, 22, 3); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('● LIVE', bx + 7, by + 11);
+    ctx.restore();
+
+  } else if (bgStyle === 'kpop') {
+    // ── K-POP neon stage frame: rainbow gradient border + star sparks ──────
+    const grad = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+    grad.addColorStop(0,   '#e94560');
+    grad.addColorStop(0.33, '#fbbf24');
+    grad.addColorStop(0.66, '#7c3aed');
+    grad.addColorStop(1,   '#e94560');
+    rrPath(ctx, cx - 1, cy - 1, cw + 2, ch + 2, borderRadius + 1);
+    ctx.strokeStyle = grad; ctx.lineWidth = 3 + pulse * 2;
+    ctx.shadowColor = '#e94560'; ctx.shadowBlur = 16 + pulse * 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Star sparks at corners
+    const stars = [[cx, cy], [cx + cw, cy], [cx, cy + ch], [cx + cw, cy + ch]];
+    stars.forEach(([sx, sy], i) => {
+      const phase = elapsed * 0.005 + i * 1.57;
+      const sparkAlpha = 0.5 + 0.5 * Math.sin(phase);
+      ctx.save(); ctx.globalAlpha = sparkAlpha;
+      ctx.fillStyle = '#fbbf24'; ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('★', sx as number, sy as number);
+      ctx.restore();
+    });
+    // NOW PLAYING badge top-right
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    const npx = cx + cw - 100; const npy = cy + 8;
+    ctx.fillStyle = 'rgba(233,69,96,0.9)';
+    rrPath(ctx, npx, npy, 95, 22, 4); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('♪ NOW PLAYING', npx + 47, npy + 11);
+    ctx.restore();
+
+  } else if (bgStyle === 'fitness') {
+    // ── Fitness HUD: corner brackets + heartbeat line + energy readout ──────
+    const bk = 30; const bg = 5;
+    ctx.strokeStyle = accentColor; ctx.lineWidth = 3; ctx.lineCap = 'square';
+    // Corner brackets
+    [[cx + bg, cy + bg, 1, 1], [cx + cw - bg, cy + bg, -1, 1],
+     [cx + bg, cy + ch - bg, 1, -1], [cx + cw - bg, cy + ch - bg, -1, -1]].forEach(([x, y, dx, dy]) => {
+      ctx.beginPath();
+      ctx.moveTo(x as number, (y as number) + (dy as number) * bk);
+      ctx.lineTo(x as number, y as number); ctx.lineTo((x as number) + (dx as number) * bk, y as number);
+      ctx.stroke();
+    });
+    // Pulsing glow on border
+    ctx.save();
+    ctx.globalAlpha = 0.25 + pulse * 0.25;
+    ctx.shadowColor = accentColor; ctx.shadowBlur = 20;
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.strokeStyle = accentColor; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    // Heartbeat line at bottom of clip
+    const hbY = cy + ch - 18;
+    ctx.save(); ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = accentColor; ctx.lineWidth = 2;
+    ctx.beginPath();
+    const hbLen = cw * 0.6; const hbX = cx + cw * 0.2;
+    const t = (elapsed * 0.003) % (Math.PI * 2);
+    for (let i = 0; i <= 60; i++) {
+      const px = hbX + (i / 60) * hbLen;
+      const phase = t + i * 0.3;
+      // Heartbeat waveform: mostly flat with sharp spike every cycle
+      const spike = Math.max(0, 1 - Math.abs(((i / 60 * 3 + elapsed * 0.003) % 1) - 0.5) * 8) * 12;
+      const hy = hbY - spike;
+      i === 0 ? ctx.moveTo(px, hy) : ctx.lineTo(px, hy);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // REC indicator
+    ctx.save(); ctx.globalAlpha = 0.85 + pulse * 0.15;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(cx + cw - 20, cy + 18, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('REC', cx + cw - 28, cy + 18);
+    ctx.restore();
+
+  } else if (bgStyle === 'travel') {
+    // ── Travel: polaroid-style thick white bottom bar + location pin ─────────
+    // Polaroid-style bottom caption area
+    const polH = 36; const polY = cy + ch - polH;
+    ctx.save(); ctx.globalAlpha = 0.88;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(cx, polY, cw, polH);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Warm gradient border
+    const tGrad = ctx.createLinearGradient(cx, cy, cx, cy + ch);
+    tGrad.addColorStop(0, 'rgba(249,115,22,0.8)');
+    tGrad.addColorStop(0.5, 'rgba(234,88,12,0.3)');
+    tGrad.addColorStop(1, 'rgba(249,115,22,0.8)');
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.strokeStyle = tGrad; ctx.lineWidth = 3; ctx.stroke();
+    // Location pin top-left
+    ctx.save(); ctx.globalAlpha = 0.92;
+    const lpx = cx + 12; const lpy = cy + 10;
+    ctx.fillStyle = 'rgba(249,115,22,0.9)';
+    rrPath(ctx, lpx, lpy, 90, 22, 4); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('📍 CHALLENGE', lpx + 6, lpy + 11);
+    ctx.restore();
+    // Animated airplane watermark
+    const apx = cx + ((elapsed * 0.025) % (cw + 30)) - 15;
+    ctx.save(); ctx.globalAlpha = 0.15;
+    ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('✈', apx, cy + 28);
+    ctx.restore();
+
+  } else if (bgStyle === 'hiphop') {
+    // ── Hiphop: gold graffiti corner marks + VU meter dots ──────────────────
+    // Gold gradient border with glow
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = accentColor; ctx.shadowBlur = 12 + pulse2 * 8;
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.strokeStyle = accentColor; ctx.lineWidth = 3; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    // Angled corner decorations (graffiti slash marks)
+    const cs = 40;
+    [[cx + 8, cy + 8], [cx + cw - 8, cy + 8], [cx + 8, cy + ch - 8], [cx + cw - 8, cy + ch - 8]].forEach(([x, y], i) => {
+      ctx.save(); ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = accentColor; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      const dx = i % 2 === 0 ? 1 : -1;
+      const dy = i < 2 ? 1 : -1;
+      ctx.moveTo(x as number, y as number);
+      ctx.lineTo((x as number) + dx * cs, y as number);
+      ctx.moveTo(x as number, y as number);
+      ctx.lineTo(x as number, (y as number) + dy * cs);
+      ctx.moveTo((x as number) + dx * cs * 0.4, (y as number) + dy * cs * 0.6);
+      ctx.lineTo((x as number) + dx * cs * 0.7, (y as number) + dy * cs * 0.2);
+      ctx.stroke();
+      ctx.restore();
+    });
+    // VU meter dots along right edge
+    const dotCount = 12;
+    for (let di = 0; di < dotCount; di++) {
+      const dotY = cy + (di + 0.5) * (ch / dotCount);
+      const active = Math.sin(elapsed * 0.005 + di * 0.5) > 0;
+      ctx.save(); ctx.globalAlpha = active ? 0.85 : 0.2;
+      ctx.fillStyle = di < dotCount * 0.6 ? '#22c55e' : di < dotCount * 0.85 ? '#fbbf24' : '#ef4444';
+      ctx.beginPath(); ctx.arc(cx + cw - 8, dotY, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // CYPHER badge
+    ctx.save(); ctx.globalAlpha = 0.88;
+    const cpx = cx + 10; const cpy = cy + 10;
+    ctx.fillStyle = 'rgba(247,183,49,0.9)';
+    rrPath(ctx, cpx, cpy, 72, 20, 3); ctx.fill();
+    ctx.fillStyle = '#0a0a0a'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('🎧 CYPHER', cpx + 5, cpy + 10);
+    ctx.restore();
+
+  } else if (bgStyle === 'vlog') {
+    // ── Vlog: soft gradient border + REC dot + "DAILY VLOG" badge ───────────
+    const vGrad = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+    vGrad.addColorStop(0, 'rgba(155,89,182,0.8)');
+    vGrad.addColorStop(0.5, 'rgba(103,126,234,0.4)');
+    vGrad.addColorStop(1, 'rgba(155,89,182,0.8)');
+    ctx.save(); ctx.shadowColor = 'rgba(155,89,182,0.5)'; ctx.shadowBlur = 14 + pulse * 8;
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.strokeStyle = vGrad; ctx.lineWidth = 3; ctx.stroke();
+    ctx.shadowBlur = 0; ctx.restore();
+    // REC dot
+    ctx.save(); ctx.globalAlpha = 0.85 + pulse * 0.15;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(cx + cw - 20, cy + 18, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('REC', cx + cw - 28, cy + 18);
+    ctx.restore();
+
+  } else if (bgStyle === 'fairy') {
+    // ── Fairy: sparkle corner flowers + pastel glow border ──────────────────
+    const fGrad = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+    fGrad.addColorStop(0, 'rgba(255,128,171,0.9)');
+    fGrad.addColorStop(0.5, 'rgba(200,80,220,0.4)');
+    fGrad.addColorStop(1, 'rgba(255,128,171,0.9)');
+    ctx.save(); ctx.shadowColor = 'rgba(255,128,171,0.6)'; ctx.shadowBlur = 16 + pulse * 10;
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.strokeStyle = fGrad; ctx.lineWidth = 3; ctx.stroke();
+    ctx.shadowBlur = 0; ctx.restore();
+    // Sparkle emoji corners
+    const corners = [[cx + 4, cy + 4], [cx + cw - 12, cy + 4], [cx + 4, cy + ch - 16], [cx + cw - 12, cy + ch - 16]];
+    corners.forEach(([sx, sy], i) => {
+      const phase = elapsed * 0.004 + i * 0.8;
+      ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(phase);
+      ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('✨', sx as number, sy as number);
+      ctx.restore();
+    });
+
+  } else {
+    // ── english / default: clean accent gradient border ─────────────────────
+    const dGrad = ctx.createLinearGradient(cx, cy, cx, cy + ch);
+    dGrad.addColorStop(0, accentColor + 'cc');
+    dGrad.addColorStop(0.5, accentColor + '44');
+    dGrad.addColorStop(1, accentColor + 'cc');
+    rrPath(ctx, cx, cy, cw, ch, borderRadius);
+    ctx.strokeStyle = dGrad; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -1274,10 +1843,21 @@ export async function composeVideo(
       });
 
       // --- 1. Background gradient (all phases) ---
+      // Base linear gradient
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
       bgGrad.addColorStop(0, template.gradientColors[0]);
       bgGrad.addColorStop(1, template.gradientColors[1]);
       ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Secondary radial "spotlight" gradient for depth (shifts slowly)
+      const spotX = W * 0.5 + Math.sin(elapsed * 0.0004) * W * 0.15;
+      const spotY = H * 0.35 + Math.cos(elapsed * 0.0003) * H * 0.08;
+      const spotGrad = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, H * 0.55);
+      spotGrad.addColorStop(0, template.accentColor + '22');
+      spotGrad.addColorStop(0.5, template.accentColor + '09');
+      spotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = spotGrad;
       ctx.fillRect(0, 0, W, H);
 
       // --- 2. Scene-specific background (all phases) ---
@@ -1296,6 +1876,15 @@ export async function composeVideo(
           break;
         case 'fairy':
           drawFairyScene(ctx, W, H, elapsed, template.accentColor);
+          break;
+        case 'fitness':
+          drawFitnessScene(ctx, W, H, elapsed, template.accentColor);
+          break;
+        case 'travel':
+          drawTravelScene(ctx, W, H, elapsed, template.accentColor);
+          break;
+        case 'hiphop':
+          drawHiphopScene(ctx, W, H, elapsed, template.accentColor);
           break;
       }
 
@@ -1349,7 +1938,7 @@ export async function composeVideo(
         }
         ctx.restore();
 
-        // Border
+        // Border (base)
         if (ca.borderColor && ca.borderWidth) {
           ctx.save();
           rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
@@ -1358,6 +1947,9 @@ export async function composeVideo(
           ctx.stroke();
           ctx.restore();
         }
+
+        // Decorative clip frame overlay (genre-specific professional elements)
+        drawClipFrame(ctx, template.bgStyle, cx, cy, cw, ch, ca.borderRadius, template.accentColor, elapsed);
 
         // --- 5. Bottom zone ---
         if (template.bottomZone) {
@@ -1407,14 +1999,15 @@ export async function composeVideo(
         const canvasStream = canvas.captureStream(FPS);
         dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
 
-        // MediaRecorder codec preference
+        // MediaRecorder codec preference — try MP4 first (Safari/iOS), then WebM (Chrome)
         const mimeTypes = [
+          'video/mp4;codecs=h264,aac',
+          'video/mp4',
           'video/webm;codecs=vp9,opus',
           'video/webm;codecs=vp8,opus',
           'video/webm;codecs=vp9',
           'video/webm;codecs=vp8',
           'video/webm',
-          'video/mp4',
         ];
         let chosenMime = '';
         for (const mt of mimeTypes) {

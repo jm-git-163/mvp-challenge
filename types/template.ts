@@ -43,6 +43,44 @@ export interface SubtitleCue {
   highlight_color?: string;
 }
 
+// ─── New: Intro / Outro / Layer system ───────────────────────────────────────
+
+export interface TemplateIntro {
+  duration_ms: number;        // e.g. 4000
+  title: string;              // big dramatic text shown
+  subtitle?: string;          // secondary line
+  bgColor: string;            // gradient start color
+  bgColor2: string;           // gradient end color
+  animation: 'zoom_in' | 'slide_up' | 'particle_burst' | 'glitch';
+  soundEffect?: 'whoosh' | 'impact' | 'fanfare';
+  accentColor?: string;       // neon accent / glow color
+}
+
+export interface TemplateOutro {
+  duration_ms: number;        // e.g. 3000
+  title: string;              // celebration title
+  subtitle?: string;
+  animation: 'score_explosion' | 'confetti' | 'crown';
+  accentColor?: string;
+}
+
+export type TemplateLayerType =
+  | 'spotlight'     // sweeping stage spotlight beam
+  | 'ticker'        // scrolling news ticker
+  | 'lower_third'   // TV lower-third name bar
+  | 'vignette'      // dark edge vignette
+  | 'scanlines'     // CRT scanline effect
+  | 'star_rain'     // star particles falling
+  | 'beat_flash';   // color flash on beat
+
+export interface TemplateLayer {
+  type: TemplateLayerType;
+  color?: string;
+  opacity?: number;
+  text?: string;    // for ticker / lower_third
+  speed?: number;   // animation speed multiplier
+}
+
 export interface Template {
   id: string;
   name: string;
@@ -65,4 +103,11 @@ export interface Template {
     video_frame_css: string;   // CSS for video frame in result screen
   };
   created_at: string;
+
+  // ── Rich production fields (optional, backward-compatible) ──────────────
+  intro?: TemplateIntro;
+  outro?: TemplateOutro;
+  layers?: TemplateLayer[];   // always-on visual layers during recording
+  ticker?: string;            // news ticker scrolling text (shorthand)
+  spotlights?: boolean;       // kpop stage spotlights
 }
