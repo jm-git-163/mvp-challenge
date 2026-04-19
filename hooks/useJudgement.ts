@@ -63,9 +63,13 @@ export function useJudgement(): {
       if (mission?.seq !== lastMissionSeqRef.current) {
         lastMissionSeqRef.current = mission?.seq ?? null;
 
-        // Stop previous recognition session
+        // 이전 recognition 완전 중단
         if (stopVoiceRef.current) { stopVoiceRef.current(); stopVoiceRef.current = null; }
-        if (voiceActiveRef.current) { speechRef.current.stop(); voiceActiveRef.current = false; }
+        speechRef.current.stop();
+        voiceActiveRef.current = false;
+
+        // SpeechRecognizer 인스턴스 교체 — _listening stuck 완전 방지
+        speechRef.current = new SpeechRecognizer();
 
         // Reset voice score for new mission
         voiceScoreRef.current      = 0.62;
@@ -157,6 +161,8 @@ export function useJudgement(): {
   const resetVoice = useCallback(() => {
     if (stopVoiceRef.current) { stopVoiceRef.current(); stopVoiceRef.current = null; }
     speechRef.current.stop();
+    // 새 인스턴스로 교체 — 챌린지 전환 시 _listening 상태 완전 초기화
+    speechRef.current           = new SpeechRecognizer();
     voiceActiveRef.current      = false;
     lastMissionSeqRef.current   = null;
     voiceScoreRef.current       = 0.62;

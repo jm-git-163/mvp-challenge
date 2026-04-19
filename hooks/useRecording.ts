@@ -46,8 +46,8 @@ export function useRecording(): UseRecordingReturn {
     if (!template) return;
 
     setState('recording');
-    useSessionStore.getState().stopSession();
-    useSessionStore.getState().startSession(template);
+    // markRecordingStarted: frameTags 리셋 + isRecording=true (activeTemplate/sessionKey 변경 없음)
+    useSessionStore.getState().markRecordingStarted();
 
     elapsedRef.current = 0;
     setElapsed(0);

@@ -511,7 +511,6 @@ export default function HomeScreen() {
 
   // ✅ BUG FIX: separate selectors prevent object-reference infinite loop (#185)
   const startSession = useSessionStore(s => s.startSession);
-  const reset        = useSessionStore(s => s.reset);
 
   const { templates, loading, error, refetch } = useTemplates(
     selectedGenre !== 'all' ? { genre: selectedGenre as Template['genre'] } : undefined,
@@ -522,11 +521,10 @@ export default function HomeScreen() {
 
   const handleSelect = useCallback(
     (t: Template) => {
-      reset();
-      startSession(t);
+      startSession(t);   // sessionKey++ 내부에서 자동 처리, reset() 불필요
       router.push('/(main)/record');
     },
-    [reset, startSession, router],
+    [startSession, router],
   );
 
   const renderCard = useCallback(

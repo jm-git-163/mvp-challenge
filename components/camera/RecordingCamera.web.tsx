@@ -14,7 +14,7 @@ import type { RecordingCameraHandle } from './RecordingCamera';
 let _streamCache: { stream: MediaStream; facing: 'front' | 'back' } | null = null;
 
 async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
-  // Reuse cached stream if all tracks are live and facing matches
+  // 1. 이미 캐시된 스트림 재사용 (챌린지 간 권한 팝업 방지)
   if (_streamCache) {
     const allLive = _streamCache.stream
       .getTracks()
@@ -22,11 +22,22 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
     if (allLive && _streamCache.facing === facing) {
       return _streamCache.stream;
     }
-    // Stop stale or wrong-facing stream before acquiring a new one
+    // 만료되거나 방향이 다른 스트림: 정리 후 재취득
     _streamCache.stream.getTracks().forEach((t) => t.stop());
     _streamCache = null;
   }
 
+  // 2. _layout.tsx에서 사이트 최초 진입 시 미리 취득한 스트림 재사용
+  //    → 두 번째 권한 팝업 완전 차단
+  if (typeof window !== 'undefined') {
+    const preStream = (window as any).__permissionStream as MediaStream | undefined;
+    if (preStream && preStream.getTracks().every((t) => t.readyState === 'live')) {
+      _streamCache = { stream: preStream, facing };
+      return preStream;
+    }
+  }
+
+  // 3. 폴백: 직접 getUserMedia 요청
   const facingMode = facing === 'front' ? 'user' : 'environment';
   const stream = await navigator.mediaDevices.getUserMedia({
     video: {

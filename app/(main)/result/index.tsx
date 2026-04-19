@@ -301,6 +301,7 @@ export default function ResultScreen() {
   const activeTemplate = useSessionStore(s => s.activeTemplate);
   const setLastSession = useSessionStore(s => s.setLastSession);
   const reset          = useSessionStore(s => s.reset);
+  const startSession   = useSessionStore(s => s.startSession);
   const { userId }     = useUserStore();
 
   // Composed video
@@ -445,9 +446,12 @@ export default function ResultScreen() {
 
   const doRetake = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
-    reset();
+    // reset() 대신 startSession() → activeTemplate 유지 + sessionKey 증가
+    // → record 화면 useEffect가 sessionKey 감지해서 자동 리셋 (idle 상태로 돌아감)
+    // reset()을 호출하면 activeTemplate=null → record 화면이 router.back() 실행되어 빈 화면이 됨
+    if (activeTemplate) startSession(activeTemplate);
     router.replace('/(main)/record');
-  }, [reset, composedUri]);
+  }, [activeTemplate, startSession, composedUri, router]);
 
   const scoreNum   = Math.round(stats.avgScore * 100);
   const isHighScore = stats.avgScore >= 0.8;

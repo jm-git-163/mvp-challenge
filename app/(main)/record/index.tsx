@@ -563,6 +563,7 @@ export default function RecordScreen() {
   const { width } = useWindowDimensions();
 
   const activeTemplate = useSessionStore(s => s.activeTemplate);
+  const sessionKey     = useSessionStore(s => s.sessionKey);
   const defaultFacing = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
   const [facing, setFacing] = useState<'front' | 'back'>(defaultFacing);
 
@@ -596,13 +597,14 @@ export default function RecordScreen() {
 
   const maxW = Math.min(width - 32, 500);
 
-  // ── activeTemplate.id 변경 감지 → 새 챌린지 선택 시 리셋 ──────────────────
+  // ── sessionKey 변경 감지 → 새 챌린지 선택 시 항상 리셋 ──────────────────
+  // sessionKey는 홈에서 챌린지 선택할 때마다 증가 (같은 챌린지 재선택도 감지)
   // Tabs 레이아웃에서 화면이 영구 마운트되므로 useFocusEffect 대신 data-driven 리셋 사용
-  const prevTemplateIdRef = useRef<string | null>(null);
+  const prevSessionKeyRef = useRef<number>(-1);
   useEffect(() => {
     if (!activeTemplate) return;
-    if (activeTemplate.id === prevTemplateIdRef.current) return;
-    prevTemplateIdRef.current = activeTemplate.id;
+    if (sessionKey === prevSessionKeyRef.current) return;
+    prevSessionKeyRef.current = sessionKey;
 
     // 마이크 권한 한 번에 미리 확보 (SpeechRecognition 별도 팝업 방지)
     prewarmMic();
@@ -620,7 +622,7 @@ export default function RecordScreen() {
     setParticles([]);
     setBurstVisible(false);
     hudOpacity.setValue(0);
-  }, [activeTemplate?.id]); // eslint-disable-line
+  }, [sessionKey]); // eslint-disable-line
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
   useEffect(() => () => { resetVoice(); }, [resetVoice]);

@@ -41,18 +41,27 @@ export function textSimilarity(target: string, spoken: string): number {
 }
 
 // ── 전역 권한 pre-request ─────────────────────────────────────────────────────
-// 카메라 스트림 허용 후 SpeechRecognition이 다시 마이크 팝업을 띄우는 것을 방지하기 위해
-// 처음 한 번만 getUserMedia({ audio: true })를 호출해 권한을 캐시합니다.
+// 카메라 스트림 허용 후 SpeechRecognition이 다시 마이크 팝업을 띄우는 것을 방지.
+// _layout.tsx의 __permissionStream 또는 직접 getUserMedia로 마이크 권한을 확보합니다.
 let _micGranted = false;
 export async function prewarmMic(): Promise<void> {
   if (_micGranted || typeof window === 'undefined') return;
+
+  // 방법 1: _layout.tsx에서 이미 카메라+마이크 스트림을 취득했다면 마이크 트랙 존재 확인
+  const pre = (window as any).__permissionStream as MediaStream | undefined;
+  if (pre && pre.getAudioTracks().length > 0 && pre.getAudioTracks()[0].readyState === 'live') {
+    _micGranted = true;
+    return;
+  }
+
+  // 방법 2: 직접 오디오 전용 getUserMedia
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // 바로 정지 - 권한만 얻으면 됨
-    stream.getTracks().forEach(t => t.stop());
+    // 스트림은 바로 정지하지 않고 __permissionStream에 보관 (SpeechRecognition 재사용)
+    (window as any).__micStream = stream;
     _micGranted = true;
   } catch {
-    // 거부되도 무시 (SpeechRecognition도 같이 실패하게 됨)
+    // 거부돼도 앱 동작 — SpeechRecognition에서 not-allowed 에러 처리됨
   }
 }
 
@@ -121,10 +130,16 @@ export class SpeechRecognizer {
     };
 
     this.rec.onerror = (e: any) => {
-      // 'no-speech'는 그냥 무시, 계속 듣기
-      if (e.error === 'no-speech') return;
+      // no-speech: 말 없음 → 계속 듣기
+      // aborted: stop() 수동 호출로 인한 종료 → 이미 onFinal 예약됨, 무시
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      // not-allowed: 마이크 권한 거부 → 인식 포기, 타임 기반 점수 유지
+      if (e.error === 'not-allowed') {
+        this._listening = false;
+        return; // onFinal 호출 안 함 → voiceScoreRef.current 그대로 유지
+      }
       this._listening = false;
-      onFinal(this._finalText || '');
+      onFinal(this._finalText || accumulated.trim());
     };
 
     this.rec.onend = () => {
