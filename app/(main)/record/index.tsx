@@ -879,7 +879,7 @@ export default function RecordScreen() {
     prewarmMic();
 
     // 피트니스 장르: 스쿼트 목 포즈 시뮬레이션 활성화 (TF.js 없어도 카운터 데모)
-    setSquatMockMode(activeTemplate?.genre === 'fitness');
+    try { setSquatMockMode(activeTemplate?.genre === 'fitness'); } catch { /* ignore */ }
 
     resetRecording();
     resetVoice(); // also resets squat counter inside
@@ -1028,9 +1028,13 @@ export default function RecordScreen() {
         promotion: 'news',
       };
       const bgmGenre = genreBGM[activeTemplate?.genre ?? ''] ?? 'lofi';
-      const audioCtx = initAudio();
-      if (bgmStopRef.current) bgmStopRef.current();
-      bgmStopRef.current = createGameBGM(audioCtx, { genre: bgmGenre, bpm: 120, volume: 0.35 }, audioCtx.destination);
+      try {
+        const audioCtx = initAudio();
+        if (bgmStopRef.current) bgmStopRef.current();
+        bgmStopRef.current = createGameBGM(audioCtx, { genre: bgmGenre, bpm: 120, volume: 0.35 }, audioCtx.destination);
+      } catch (e) {
+        console.warn('[BGM] AudioContext 초기화 실패:', e);
+      }
     } else {
       // 녹화 종료 시 BGM 정지
       if (bgmStopRef.current) {
