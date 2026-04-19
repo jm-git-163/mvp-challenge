@@ -1608,10 +1608,8 @@ export default function RecordScreen() {
 
 const r = StyleSheet.create({
   root:    { flex:1, backgroundColor:'#000' },
-  safe:    { flex:1, alignItems:'center' },
-  camWrap: { flex:1, width:'100%', maxWidth:450,
-    // @ts-ignore web
-    aspectRatio:'9/16' },
+  safe:    { flex:1 },
+  camWrap: { flex:1 },
   particle:{ position:'absolute', top:'10%', fontSize:30, zIndex:50,
     // @ts-ignore web
     animation:'float 1.6s ease-out forwards' },

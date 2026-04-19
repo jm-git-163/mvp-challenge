@@ -78,19 +78,18 @@ export function useJudgement(): {
         ? getCurrentMission(template.missions, elapsedMs)
         : null;
 
-      // ── Mission changed: restart voice recognition ──────────────────────────
+      // ── Mission changed: 음성 리셋 (인스턴스 재사용 — 마이크 팝업 방지) ─────
       if (mission?.seq !== lastMissionSeqRef.current) {
         lastMissionSeqRef.current = mission?.seq ?? null;
 
-        // 이전 recognition 완전 중단
+        // 이전 listen() 중단
         if (stopVoiceRef.current) { stopVoiceRef.current(); stopVoiceRef.current = null; }
-        speechRef.current.stop();
+        // ⚠️ new SpeechRecognizer() 생성 금지! Chrome이 매번 마이크 권한 팝업을 표시함
+        // 인스턴스는 전체 녹화 세션 동안 재사용, 누적 텍스트만 리셋
+        speechRef.current.resetForNextMission();
         voiceActiveRef.current = false;
 
-        // SpeechRecognizer 인스턴스 교체 — _listening stuck 완전 방지
-        speechRef.current = new SpeechRecognizer();
-
-        // Reset voice score — 음성 지원 시 0에서 시작 (실제로 말해야 점수 올라감)
+        // 새 미션 점수 리셋 (실제로 말해야 올라감)
         voiceScoreRef.current      = 0.10;
         voiceAccuracyRef.current   = 0;
         voiceTranscriptRef.current = '';
@@ -251,9 +250,9 @@ export function useJudgement(): {
 
   const resetVoice = useCallback(() => {
     if (stopVoiceRef.current) { stopVoiceRef.current(); stopVoiceRef.current = null; }
+    // stop()으로 완전 중단 — new SpeechRecognizer() 금지 (마이크 팝업 재발생)
     speechRef.current.stop();
-    // 새 인스턴스로 교체 — 챌린지 전환 시 _listening 상태 완전 초기화
-    speechRef.current           = new SpeechRecognizer();
+    speechRef.current.resetForNextMission();
     voiceActiveRef.current      = false;
     lastMissionSeqRef.current   = null;
     voiceScoreRef.current       = 0.62;
