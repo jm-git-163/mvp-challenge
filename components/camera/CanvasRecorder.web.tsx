@@ -1,18 +1,11 @@
 /**
- * RecordingCamera.web.tsx  (웹 전용)
- * Canvas 합성 녹화 컴포넌트로 완전 교체.
+ * CanvasRecorder.web.tsx
+ * Canvas 합성 녹화 컴포넌트 (웹 전용)
  *
- * - 카메라를 숨긴 <video>로 수신
- * - 표시용 <canvas>(720×1280, 9:16)에 매 프레임마다 합성
- *   · center-crop → 세로형 변환
- *   · 헤더 / 자막 / 장르 효과 / 미션 카드 / 스켈레톤
+ * - 숨긴 <video>로 카메라 피드 수신
+ * - 표시용 <canvas>(720×1280, 9:16) 에 매 프레임마다 합성
  * - canvas.captureStream(30) + 카메라 오디오 → MediaRecorder 녹화
  * - stopRecording() → Blob URL 반환
- *
- * 인터페이스(RecordingCameraHandle)는 기존과 동일:
- *   startRecording(): Promise<string>
- *   stopRecording():  void
- *   isRecording():    boolean
  */
 
 import React, {
@@ -24,7 +17,6 @@ import React, {
 } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
-import type { NormalizedLandmark } from '../../utils/poseUtils';
 
 // ---------------------------------------------------------------------------
 // Canvas dimensions (9:16 portrait)
@@ -33,25 +25,27 @@ const CW = 720;
 const CH = 1280;
 
 // ---------------------------------------------------------------------------
-// Stream cache singleton — persists across navigations
+// Stream cache (singleton) — same pattern as RecordingCamera.web.tsx
 // ---------------------------------------------------------------------------
-let _streamCache: { stream: MediaStream; facing: 'front' | 'back' } | null = null;
+let _canvasStreamCache: { stream: MediaStream; facing: 'front' | 'back' } | null = null;
 
 async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
-  if (_streamCache) {
-    const allLive = _streamCache.stream
+  if (_canvasStreamCache) {
+    const allLive = _canvasStreamCache.stream
       .getTracks()
       .every((t) => t.readyState === 'live');
-    if (allLive && _streamCache.facing === facing) return _streamCache.stream;
-    _streamCache.stream.getTracks().forEach((t) => t.stop());
-    _streamCache = null;
+    if (allLive && _canvasStreamCache.facing === facing) {
+      return _canvasStreamCache.stream;
+    }
+    _canvasStreamCache.stream.getTracks().forEach((t) => t.stop());
+    _canvasStreamCache = null;
   }
 
   if (typeof window !== 'undefined') {
-    const pre = (window as any).__permissionStream as MediaStream | undefined;
-    if (pre && pre.getTracks().every((t) => t.readyState === 'live')) {
-      _streamCache = { stream: pre, facing };
-      return pre;
+    const preStream = (window as any).__permissionStream as MediaStream | undefined;
+    if (preStream && preStream.getTracks().every((t) => t.readyState === 'live')) {
+      _canvasStreamCache = { stream: preStream, facing };
+      return preStream;
     }
   }
 
@@ -62,14 +56,18 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
       width:  { ideal: 1280 },
       height: { ideal: 720 },
     },
-    audio: { echoCancellation: true, noiseSuppression: true },
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+    },
   });
-  _streamCache = { stream, facing };
+
+  _canvasStreamCache = { stream, facing };
   return stream;
 }
 
 // ---------------------------------------------------------------------------
-// Genre color map
+// Genre colors
 // ---------------------------------------------------------------------------
 const GENRE_COLORS: Record<string, string> = {
   kpop:      '#e94560',
@@ -83,7 +81,9 @@ const GENRE_COLORS: Record<string, string> = {
   challenge: '#7c3aed',
   promotion: '#e91e63',
 };
-const genreColor = (g: string) => GENRE_COLORS[g] ?? '#7c3aed';
+function getGenreColor(genre: string): string {
+  return GENRE_COLORS[genre] ?? '#7c3aed';
+}
 
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
@@ -93,13 +93,13 @@ function drawCamera(
   video: HTMLVideoElement,
   facing: 'front' | 'back',
 ) {
-  if (video.readyState < 2) return;
+  if (video.readyState < 2) return; // HAVE_CURRENT_DATA
   const vw = video.videoWidth;
   const vh = video.videoHeight;
-  if (!vw || !vh) return;
+  if (vw === 0 || vh === 0) return;
 
   const videoAR  = vw / vh;
-  const canvasAR = CW / CH;
+  const canvasAR = CW / CH; // 9/16
 
   if (facing === 'front') {
     ctx.save();
@@ -108,23 +108,77 @@ function drawCamera(
   }
 
   if (videoAR > canvasAR) {
+    // Video wider than canvas → crop left/right
     const srcH = vh;
     const srcW = srcH * canvasAR;
     const srcX = (vw - srcW) / 2;
     ctx.drawImage(video, srcX, 0, srcW, srcH, 0, 0, CW, CH);
   } else {
+    // Video taller than canvas → crop top/bottom
     const srcW = vw;
     const srcH = srcW / canvasAR;
     const srcY = (vh - srcH) / 2;
     ctx.drawImage(video, 0, srcY, srcW, srcH, 0, 0, CW, CH);
   }
 
-  if (facing === 'front') ctx.restore();
+  if (facing === 'front') {
+    ctx.restore();
+  }
 }
 
-function rrect(
+function drawHeader(
   ctx: CanvasRenderingContext2D,
-  x: number, y: number, w: number, h: number, r: number,
+  template: any,
+  elapsed: number,
+  isRec: boolean,
+) {
+  const color = getGenreColor(template?.genre ?? '');
+
+  // Dark background bar
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(0, 0, CW, 90);
+
+  // Accent line at bottom of bar
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 88, CW, 2);
+
+  // Template name (center)
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  const name = template ? `${template.theme_emoji ?? ''}  ${template.name ?? ''}` : '';
+  ctx.fillText(name, CW / 2, 56);
+
+  if (isRec) {
+    // Remaining time (top-right)
+    const durationSec = template?.duration_sec ?? 0;
+    const remainSec = Math.max(0, durationSec - Math.floor(elapsed / 1000));
+    const mm = String(Math.floor(remainSec / 60)).padStart(2, '0');
+    const ss = String(remainSec % 60).padStart(2, '0');
+    ctx.font = 'bold 28px monospace';
+    ctx.fillStyle = '#ffd700';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${mm}:${ss}`, CW - 20, 56);
+
+    // REC dot (top-left)
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(36, 44, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText('REC', 54, 52);
+  }
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  w: number, h: number,
+  r: number,
 ) {
   if (typeof (ctx as any).roundRect === 'function') {
     (ctx as any).roundRect(x, y, w, h, r);
@@ -143,77 +197,36 @@ function rrect(
   }
 }
 
-function drawHeader(
-  ctx: CanvasRenderingContext2D,
-  template: any,
-  elapsed: number,
-  isRec: boolean,
-) {
-  const color = genreColor(template?.genre ?? '');
-
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, 0, CW, 90);
-
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 88, CW, 2);
-
-  ctx.font = 'bold 34px sans-serif';
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-  ctx.fillText(
-    template ? `${template.theme_emoji ?? ''}  ${template.name ?? ''}` : '',
-    CW / 2, 56,
-  );
-
-  if (isRec) {
-    const remain = Math.max(0, (template?.duration_sec ?? 0) - Math.floor(elapsed / 1000));
-    const mm = String(Math.floor(remain / 60)).padStart(2, '0');
-    const ss = String(remain % 60).padStart(2, '0');
-    ctx.font = 'bold 28px monospace';
-    ctx.fillStyle = '#ffd700';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${mm}:${ss}`, CW - 20, 56);
-
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.arc(36, 44, 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.font = 'bold 24px sans-serif';
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
-    ctx.fillText('REC', 54, 52);
-  }
-}
-
-function hexRgb(hex: string): string {
-  const c = hex.replace('#', '');
-  return [0, 2, 4].map((i) => parseInt(c.substring(i, i + 2), 16)).join(',');
-}
-
 function drawSubtitle(
   ctx: CanvasRenderingContext2D,
   text: string,
   style: string | undefined,
-  gc: string,
+  genreColor: string,
 ) {
   if (!text) return;
   const y = 1150;
+
   ctx.font = 'bold 40px sans-serif';
   ctx.textAlign = 'center';
-  const boxW = Math.min(ctx.measureText(text).width + 60, 680);
+  const metrics = ctx.measureText(text);
+  const boxW = Math.min(metrics.width + 60, 680);
   const boxH = 70;
   const x = (CW - boxW) / 2;
 
-  ctx.fillStyle = style === 'highlight' ? `rgba(${hexRgb(gc)},0.88)` : 'rgba(0,0,0,0.78)';
+  ctx.fillStyle =
+    style === 'highlight'
+      ? `rgba(${hexToRgb(genreColor)},0.88)`
+      : 'rgba(0,0,0,0.78)';
   ctx.beginPath();
-  rrect(ctx, x, y - boxH + 10, boxW, boxH, 12);
+  roundRect(ctx, x, y - boxH + 10, boxW, boxH, 12);
   ctx.fill();
 
-  ctx.fillStyle = '#fff';
-  ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 6;
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 6;
   ctx.fillText(text, CW / 2, y);
-  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
 }
 
 function drawMissionCard(
@@ -222,24 +235,36 @@ function drawMissionCard(
   score: number,
 ) {
   if (!mission) return;
-  const cardW = 660; const cardH = 110;
-  const x = (CW - cardW) / 2; const y = 900;
+  const y = 900;
+  const cardW = 660;
+  const cardH = 110;
+  const x = (CW - cardW) / 2;
+
   ctx.fillStyle = 'rgba(0,0,0,0.80)';
-  ctx.beginPath(); rrect(ctx, x, y, cardW, cardH, 16); ctx.fill();
+  ctx.beginPath();
+  roundRect(ctx, x, y, cardW, cardH, 16);
+  ctx.fill();
 
-  const barColor = score >= 0.8 ? '#22c55e' : score >= 0.55 ? '#f59e0b' : '#ef4444';
+  // Score bar
+  const barColor =
+    score >= 0.8 ? '#22c55e' : score >= 0.55 ? '#f59e0b' : '#ef4444';
   ctx.fillStyle = barColor;
-  ctx.beginPath(); rrect(ctx, x, y + cardH - 6, cardW * score, 6, 3); ctx.fill();
+  ctx.beginPath();
+  roundRect(ctx, x, y + cardH - 6, cardW * score, 6, 3);
+  ctx.fill();
 
+  // Mission text
   ctx.font = 'bold 32px sans-serif';
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-  ctx.fillText(
-    ((mission.guide_text ?? mission.read_text ?? '') as string).slice(0, 22),
-    CW / 2, y + 52,
-  );
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  const label: string =
+    mission.guide_text ?? mission.read_text ?? '';
+  ctx.fillText(label.slice(0, 22), CW / 2, y + 52);
 
+  // Score number
   ctx.font = 'bold 28px sans-serif';
-  ctx.fillStyle = barColor; ctx.textAlign = 'right';
+  ctx.fillStyle = barColor;
+  ctx.textAlign = 'right';
   ctx.fillText(`${Math.round(score * 100)}점`, x + cardW - 16, y + 88);
 }
 
@@ -259,7 +284,8 @@ function drawGenreEffect(
     ctx.fillStyle = 'rgba(13,28,53,0.85)';
     ctx.fillRect(0, CH - 74, CW, 74);
     ctx.font = 'bold 26px sans-serif';
-    ctx.fillStyle = '#e3f2fd'; ctx.textAlign = 'left';
+    ctx.fillStyle = '#e3f2fd';
+    ctx.textAlign = 'left';
     ctx.fillText('LIVE NEWS', 20, CH - 28);
   } else if (genre === 'fitness') {
     const pct = Math.sin(elapsed * 0.001) * 0.5 + 0.5;
@@ -270,111 +296,145 @@ function drawGenreEffect(
   }
 }
 
-// ---------------------------------------------------------------------------
-// MediaPipe 33-point connections
-// ---------------------------------------------------------------------------
-const POSE_CONNECTIONS: [number, number][] = [
-  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
-  [9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],
-  [17,19],[12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
-  [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
-  [27,29],[28,30],[29,31],[30,32],[27,31],[28,32],
-];
-
-function lmColor(i: number) {
-  return i <= 10 ? '#fbbf24' : i <= 22 ? '#00ff88' : '#00aaff';
-}
-
 function drawSkeleton(
   ctx: CanvasRenderingContext2D,
-  landmarks: NormalizedLandmark[],
+  landmarks: any[],
   mirrored: boolean,
 ) {
-  if (!landmarks?.length) return;
-  const conf = (lm: NormalizedLandmark) => lm.visibility ?? (lm as any).score ?? 1;
-  const toX  = (lm: NormalizedLandmark) => { const x = lm.x * CW; return mirrored ? CW - x : x; };
-  const toY  = (lm: NormalizedLandmark) => lm.y * CH;
+  if (!landmarks || landmarks.length < 17) return;
 
-  for (const [a, b] of POSE_CONNECTIONS) {
-    const lmA = landmarks[a]; const lmB = landmarks[b];
-    if (!lmA || !lmB || conf(lmA) < 0.3 || conf(lmB) < 0.3) continue;
+  const CONNECTIONS: [number, number][] = [
+    [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
+    [9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],
+    [17,19],[12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+    [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
+    [27,29],[28,30],[29,31],[30,32],[27,31],[28,32],
+  ];
+
+  const conf = (lm: any) => lm.visibility ?? lm.score ?? 1;
+  const toX  = (lm: any) => {
+    const x = lm.x * CW;
+    return mirrored ? CW - x : x;
+  };
+  const toY = (lm: any) => lm.y * CH;
+
+  const lmColor = (i: number) =>
+    i <= 10 ? '#fbbf24' : i <= 22 ? '#00ff88' : '#00aaff';
+
+  // Connections
+  for (const [a, b] of CONNECTIONS) {
+    const lmA = landmarks[a];
+    const lmB = landmarks[b];
+    if (!lmA || !lmB) continue;
+    if (conf(lmA) < 0.3 || conf(lmB) < 0.3) continue;
     ctx.save();
-    ctx.strokeStyle = lmColor(a); ctx.lineWidth = 2.5;
-    ctx.shadowColor = lmColor(a); ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.moveTo(toX(lmA), toY(lmA)); ctx.lineTo(toX(lmB), toY(lmB)); ctx.stroke();
+    ctx.strokeStyle = lmColor(a);
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = lmColor(a);
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(toX(lmA), toY(lmA));
+    ctx.lineTo(toX(lmB), toY(lmB));
+    ctx.stroke();
     ctx.restore();
   }
 
+  // Dots
   for (let i = 0; i < landmarks.length; i++) {
     const lm = landmarks[i];
     if (!lm || conf(lm) < 0.3) continue;
-    const color = lmColor(i); const r = i <= 10 ? 4 : 5;
+    const color  = lmColor(i);
+    const radius = i <= 10 ? 4 : 5;
     ctx.save();
-    ctx.fillStyle = '#fff'; ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.arc(toX(lm), toY(lm), r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(toX(lm), toY(lm), radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.restore();
   }
 }
 
 // ---------------------------------------------------------------------------
-// Props
+// Hex color helper (for rgba)
 // ---------------------------------------------------------------------------
-export interface RecordingCameraWebProps {
+function hexToRgb(hex: string): string {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return `${r},${g},${b}`;
+}
+
+// ---------------------------------------------------------------------------
+// Props / Handle types
+// ---------------------------------------------------------------------------
+export interface CanvasRecorderProps {
   facing?:             'front' | 'back';
-  onFrame?:            (video: HTMLVideoElement) => void;
+  template:            any;
+  elapsed:             number;
+  currentMission:      any | null;
+  missionScore:        number;
+  isRecording:         boolean;
+  landmarks?:          any[];
+  onReady?:            () => void;
   onPermissionDenied?: () => void;
   children?:           React.ReactNode;
+  // Legacy props forwarded from RecordingCamera usage
+  onFrame?:            (video: HTMLVideoElement) => void;
   paused?:             boolean;
-  landmarks?:          NormalizedLandmark[];
-  // Canvas compositing props (used when rendered from record/index.tsx)
-  template?:           any;
-  elapsed?:            number;
-  currentMission?:     any | null;
-  missionScore?:       number;
-  isRecording?:        boolean;
+}
+
+export interface CanvasRecorderHandle {
+  startRecording: () => Promise<string>;
+  stopRecording:  () => void;
+  isRecording:    () => boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebProps>(
+const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
   (
     {
       facing = 'front',
-      onFrame,
+      template,
+      elapsed,
+      currentMission,
+      missionScore,
+      isRecording,
+      landmarks,
+      onReady,
       onPermissionDenied,
       children,
+      onFrame,
       paused = false,
-      landmarks,
-      template,
-      elapsed       = 0,
-      currentMission = null,
-      missionScore   = 0,
-      isRecording    = false,
     },
     ref,
   ) => {
-    const videoRef  = useRef<HTMLVideoElement | null>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    const rafRef    = useRef<number | null>(null);
+    const videoRef   = useRef<HTMLVideoElement | null>(null);
+    const canvasRef  = useRef<HTMLCanvasElement | null>(null);
+    const streamRef  = useRef<MediaStream | null>(null);
+    const rafRef     = useRef<number | null>(null);
+    const recRef     = useRef<MediaRecorder | null>(null);
+    const chunksRef  = useRef<Blob[]>([]);
     const frameRafRef = useRef<number | null>(null);
-    const recRef    = useRef<MediaRecorder | null>(null);
-    const chunksRef = useRef<Blob[]>([]);
-    const recStateRef = useRef(false);
 
-    const mountedFacingRef = useRef(facing);
-
-    // Stable refs for rAF loop closure
-    const elapsedRef        = useRef(elapsed);
-    const isRecordingRef    = useRef(isRecording);
+    // Stable refs for closure access in rAF loop
+    const elapsedRef       = useRef(elapsed);
+    const isRecordingRef   = useRef(isRecording);
     const currentMissionRef = useRef(currentMission);
-    const missionScoreRef   = useRef(missionScore);
-    const landmarksRef      = useRef(landmarks);
-    const templateRef       = useRef(template);
-    const facingRef         = useRef(facing);
+    const missionScoreRef  = useRef(missionScore);
+    const landmarksRef     = useRef(landmarks);
+    const templateRef      = useRef(template);
+    const facingRef        = useRef(facing);
+    const recStateRef      = useRef(false); // true while MediaRecorder running
 
+    // Sync refs
     elapsedRef.current        = elapsed;
     isRecordingRef.current     = isRecording;
     currentMissionRef.current  = currentMission;
@@ -386,23 +446,26 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const [denied, setDenied] = useState(false);
     const [ready, setReady]   = useState(false);
 
-    // ------------------------------------------------------------------
-    // Stream acquisition
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // Stream setup
+    // ----------------------------------------------------------------
     useEffect(() => {
       let cancelled = false;
 
       const setup = async () => {
-        if (mountedFacingRef.current !== facing && _streamCache) {
-          _streamCache.stream.getTracks().forEach((t) => t.stop());
-          _streamCache = null;
+        if (
+          _canvasStreamCache &&
+          _canvasStreamCache.facing !== facing
+        ) {
+          _canvasStreamCache.stream.getTracks().forEach((t) => t.stop());
+          _canvasStreamCache = null;
         }
-        mountedFacingRef.current = facing;
 
         try {
           const stream = await acquireStream(facing);
           if (cancelled) return;
           streamRef.current = stream;
+
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.play().catch(() => {});
@@ -410,9 +473,10 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           }
           setDenied(false);
           setReady(true);
+          onReady?.();
         } catch (err) {
           if (cancelled) return;
-          console.warn('[RecordingCamera] getUserMedia failed:', err);
+          console.warn('[CanvasRecorder] getUserMedia failed:', err);
           setDenied(true);
           setReady(false);
           onPermissionDenied?.();
@@ -423,39 +487,52 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
       return () => {
         cancelled = true;
-        if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-        if (frameRafRef.current !== null) { cancelAnimationFrame(frameRafRef.current); frameRafRef.current = null; }
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [facing]);
 
-    // ------------------------------------------------------------------
-    // onFrame callback loop (for pose detection)
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // onFrame callback loop (for pose detection compatibility)
+    // ----------------------------------------------------------------
     useEffect(() => {
       if (!ready || !onFrame || paused) return;
+
       const loop = () => {
         if (videoRef.current) onFrame(videoRef.current);
         frameRafRef.current = requestAnimationFrame(loop);
       };
       frameRafRef.current = requestAnimationFrame(loop);
+
       return () => {
-        if (frameRafRef.current !== null) { cancelAnimationFrame(frameRafRef.current); frameRafRef.current = null; }
+        if (frameRafRef.current !== null) {
+          cancelAnimationFrame(frameRafRef.current);
+          frameRafRef.current = null;
+        }
       };
     }, [ready, onFrame, paused]);
 
-    // ------------------------------------------------------------------
-    // rAF canvas draw loop
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // rAF draw loop
+    // ----------------------------------------------------------------
     useEffect(() => {
       if (!ready) return;
 
       const drawFrame = () => {
         const canvas = canvasRef.current;
         const video  = videoRef.current;
-        if (!canvas || !video) { rafRef.current = requestAnimationFrame(drawFrame); return; }
+        if (!canvas || !video) {
+          rafRef.current = requestAnimationFrame(drawFrame);
+          return;
+        }
         const ctx = canvas.getContext('2d');
-        if (!ctx) { rafRef.current = requestAnimationFrame(drawFrame); return; }
+        if (!ctx) {
+          rafRef.current = requestAnimationFrame(drawFrame);
+          return;
+        }
 
         const tmpl    = templateRef.current;
         const elap    = elapsedRef.current;
@@ -465,57 +542,71 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         const lms     = landmarksRef.current;
         const face    = facingRef.current;
 
-        // 1. Camera
+        // 1. Camera (center-cropped, 9:16)
         drawCamera(ctx, video, face);
 
-        // 2. Genre effect
+        // 2. Genre effect (border glow / news bar / fitness bar)
         if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap);
 
-        // 3. Header
+        // 3. Header bar
         if (tmpl) drawHeader(ctx, tmpl, elap, isRec);
 
         // 4. Subtitle
         if (tmpl) {
-          const timeline: { start_ms: number; end_ms: number; text: string; style?: string }[] =
+          const timeline: Array<{ start_ms: number; end_ms: number; text: string; style?: string }> =
             tmpl.subtitle_timeline ?? [];
-          const sub = timeline.find((s) => elap >= s.start_ms && elap < s.end_ms);
-          if (sub) drawSubtitle(ctx, sub.text, sub.style, genreColor(tmpl.genre ?? ''));
+          const sub = timeline.find(
+            (s) => elap >= s.start_ms && elap < s.end_ms,
+          );
+          if (sub) {
+            drawSubtitle(ctx, sub.text, sub.style, getGenreColor(tmpl.genre ?? ''));
+          }
         }
 
-        // 5. Mission card
-        if (isRec && mission) drawMissionCard(ctx, mission, score);
+        // 5. Mission card (only while recording)
+        if (isRec && mission) {
+          drawMissionCard(ctx, mission, score);
+        }
 
         // 6. Skeleton
-        if (lms && lms.length > 0) drawSkeleton(ctx, lms as NormalizedLandmark[], face === 'front');
+        if (lms && lms.length > 0) {
+          drawSkeleton(ctx, lms, face === 'front');
+        }
 
         rafRef.current = requestAnimationFrame(drawFrame);
       };
 
       rafRef.current = requestAnimationFrame(drawFrame);
+
       return () => {
-        if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
       };
     }, [ready]);
 
-    // ------------------------------------------------------------------
-    // Imperative handle — same interface as RecordingCameraHandle
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // Imperative handle (same interface as RecordingCameraHandle)
+    // ----------------------------------------------------------------
     useImperativeHandle(ref, () => ({
       startRecording: () =>
         new Promise<string>((resolve, reject) => {
           const canvas = canvasRef.current;
           const stream = streamRef.current;
           if (!canvas || !stream) {
-            reject(new Error('[RecordingCameraWeb] canvas or stream not ready'));
+            reject(new Error('[CanvasRecorder] canvas or stream not ready'));
             return;
           }
 
           chunksRef.current = [];
 
+          // Canvas stream at 30 fps
           const canvasStream: MediaStream = (canvas as any).captureStream
             ? (canvas as any).captureStream(30)
             : (canvas as any).mozCaptureStream(30);
 
+          // Add audio tracks from camera stream
           stream.getAudioTracks().forEach((t) => {
             try { canvasStream.addTrack(t); } catch { /* ignore */ }
           });
@@ -532,20 +623,27 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               ? { mimeType, videoBitsPerSecond: 2_500_000 }
               : { videoBitsPerSecond: 2_500_000 },
           );
-          recRef.current = recorder;
+          recRef.current  = recorder;
           recStateRef.current = true;
 
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
           };
+
           recorder.onstop = () => {
             recStateRef.current = false;
-            const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
+            const blob = new Blob(chunksRef.current, {
+              type: mimeType || 'video/webm',
+            });
             resolve(URL.createObjectURL(blob));
           };
-          recorder.onerror = (e) => { recStateRef.current = false; reject(e); };
 
-          recorder.start(100);
+          recorder.onerror = (e) => {
+            recStateRef.current = false;
+            reject(e);
+          };
+
+          recorder.start(100); // collect in 100 ms chunks
         }),
 
       stopRecording: () => {
@@ -558,19 +656,19 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       isRecording: () => recStateRef.current,
     }));
 
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
     // Permission-denied UI
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
     if (denied) {
       return (
-        <View style={st.denied}>
-          <Text style={st.deniedIcon}>📷</Text>
-          <Text style={st.deniedTitle}>카메라 접근 거부됨</Text>
-          <Text style={st.deniedBody}>
+        <View style={s.denied}>
+          <Text style={s.deniedIcon}>📷</Text>
+          <Text style={s.deniedTitle}>카메라 접근 거부됨</Text>
+          <Text style={s.deniedBody}>
             브라우저 설정에서 카메라 및 마이크 권한을 허용해 주세요.
           </Text>
           <TouchableOpacity
-            style={st.deniedBtn}
+            style={s.deniedBtn}
             onPress={() => {
               setDenied(false);
               acquireStream(facing)
@@ -581,21 +679,26 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
                     videoRef.current.play().catch(() => {});
                   }
                   setReady(true);
+                  onReady?.();
                 })
-                .catch(() => { setDenied(true); onPermissionDenied?.(); });
+                .catch(() => {
+                  setDenied(true);
+                  onPermissionDenied?.();
+                });
             }}
           >
-            <Text style={st.deniedBtnText}>다시 시도</Text>
+            <Text style={s.deniedBtnText}>다시 시도</Text>
           </TouchableOpacity>
         </View>
       );
     }
 
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
     // Render
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
     return (
-      <View style={st.container}>
+      <View style={s.container}>
+        {/* Hidden video element — camera feed source */}
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video
           ref={videoRef}
@@ -605,20 +708,22 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           muted
         />
 
+        {/* Canvas — composited output (displayed + recorded) */}
         <canvas
           ref={canvasRef}
           width={CW}
           height={CH}
           style={{
-            width: '100%',
-            height: '100%',
+            width:    '100%',
+            height:   '100%',
             objectFit: 'cover',
-            display: 'block',
+            display:  'block',
           }}
         />
 
+        {/* React children — HUD overlay (countdown, buttons, etc.) */}
         {children && (
-          <View style={st.children} pointerEvents="box-none">
+          <View style={s.children} pointerEvents="box-none">
             {children}
           </View>
         )}
@@ -627,19 +732,27 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
   },
 );
 
-RecordingCameraWeb.displayName = 'RecordingCameraWeb';
-export default RecordingCameraWeb;
+CanvasRecorder.displayName = 'CanvasRecorder';
+export default CanvasRecorder;
 
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
-const st = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
-    flex: 1, backgroundColor: '#000',
-    position: 'relative' as any, overflow: 'hidden' as any,
+    flex: 1,
+    backgroundColor: '#000',
+    position: 'relative' as any,
+    overflow: 'hidden' as any,
   },
-  children: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  denied:   { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  children: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+  },
+  denied: {
+    flex: 1, backgroundColor: '#111',
+    alignItems: 'center', justifyContent: 'center', padding: 32,
+  },
   deniedIcon:    { fontSize: 48, marginBottom: 16 },
   deniedTitle:   { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
   deniedBody:    { color: '#aaa', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 32 },

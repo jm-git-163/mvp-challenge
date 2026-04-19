@@ -13,7 +13,6 @@ import { useRouter } from 'expo-router';
 
 import RecordingCamera, { type RecordingCameraHandle } from '../../../components/camera/RecordingCamera';
 import TimingBar              from '../../../components/ui/TimingBar';
-import VirtualBackgroundFrame from '../../../components/ui/VirtualBackgroundFrame';
 import JudgementBurst         from '../../../components/mission/JudgementBurst';
 
 import { usePoseDetection }          from '../../../hooks/usePoseDetection';
@@ -1476,7 +1475,6 @@ export default function RecordScreen() {
   const isCountdown = state === 'countdown';
   const isRecording = state === 'recording';
   const isIdle      = state === 'idle';
-  const virtualBg   = activeTemplate.virtual_bg;
   const missionProg = currentMission
     ? Math.min(1, Math.max(0, (elapsed-currentMission.start_ms)/Math.max(1,currentMission.end_ms-currentMission.start_ms)))
     : 0;
@@ -1490,11 +1488,17 @@ export default function RecordScreen() {
     <View style={r.root}>
       <SafeAreaView style={r.safe} edges={['top','bottom']}>
         <View style={r.camWrap}>
-          <VirtualBackgroundFrame bg={virtualBg}>
+          {/* VirtualBackgroundFrame removed — canvas handles all background compositing on web */}
             <RecordingCamera
               ref={cameraRef} facing={facing} onFrame={handleFrame}
               paused={isIdle || state==='processing'}
               onPermissionDenied={() => { Alert.alert('카메라 권한 필요','브라우저에서 카메라를 허용해주세요.'); router.back(); }}
+              template={activeTemplate}
+              elapsed={elapsed}
+              currentMission={currentMission}
+              missionScore={currentScore}
+              isRecording={isRecording}
+              landmarks={landmarks}
             >
               {particles.map(p => <Text key={p.id} style={[r.particle, { left:p.left as any }]}>{p.emoji}</Text>)}
 
@@ -1589,7 +1593,6 @@ export default function RecordScreen() {
                 </View>
               )}
             </RecordingCamera>
-          </VirtualBackgroundFrame>
 
           {showIntro && activeTemplate.intro && (
             <IntroOverlay intro={activeTemplate.intro} genre={activeTemplate.genre} onDone={() => setShowIntro(false)} />

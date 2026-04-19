@@ -32,6 +32,12 @@ interface Props {
   children?:           React.ReactNode;
   paused?:             boolean;
   landmarks?:          NormalizedLandmark[];  // used only on web; ignored on native
+  // Canvas compositing props — web only, ignored on native
+  template?:           any;
+  elapsed?:            number;
+  currentMission?:     any | null;
+  missionScore?:       number;
+  isRecording?:        boolean;
 }
 
 const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
