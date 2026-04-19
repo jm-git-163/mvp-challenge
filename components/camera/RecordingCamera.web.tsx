@@ -38,13 +38,14 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
     }
   }
 
-  // 3. 폴백: 직접 getUserMedia 요청
+  // 3. 폴백: 직접 getUserMedia 요청 — 세로형 쇼츠(9:16) 포맷
   const facingMode = facing === 'front' ? 'user' : 'environment';
   const stream = await navigator.mediaDevices.getUserMedia({
     video: {
       facingMode,
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
+      width:  { ideal: 720 },
+      height: { ideal: 1280 },
+      aspectRatio: { ideal: 9 / 16 },
     },
     audio: {
       echoCancellation: true,

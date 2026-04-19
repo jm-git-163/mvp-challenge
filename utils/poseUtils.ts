@@ -103,11 +103,15 @@ export function detectGesture(
     case 'thumbs_up': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const le = g('left_elbow'), re = g('right_elbow');
-      if (!lw || !rw) return 0.3;
-      // 손목이 팔꿈치보다 위에 있으면 thumbs up
-      const lUp = le ? clamp((le.y - lw.y) * 5 + 0.4) : 0.3;
-      const rUp = re ? clamp((re.y - rw.y) * 5 + 0.4) : 0.3;
-      return Math.max(lUp, rUp);
+      const ls = g('left_shoulder'), rs = g('right_shoulder');
+      if (!lw && !rw) return 0.15;
+      // 엄지척: 손목이 팔꿈치보다 확실히 위 (y값 작음) — 가중치 10으로 강화
+      const lUp = (lw && le) ? clamp((le.y - lw.y) * 10 + 0.2) : 0.15;
+      const rUp = (rw && re) ? clamp((re.y - rw.y) * 10 + 0.2) : 0.15;
+      // 어깨보다 위도 허용 (팔 들어올린 엄지척)
+      const lHigh = (lw && ls) ? clamp((ls.y - lw.y) * 6 + 0.3) : 0.15;
+      const rHigh = (rw && rs) ? clamp((rs.y - rw.y) * 6 + 0.3) : 0.15;
+      return Math.max(lUp, rUp, lHigh, rHigh);
     }
     case 'wave': {
       const lw = g('left_wrist'), rw = g('right_wrist');

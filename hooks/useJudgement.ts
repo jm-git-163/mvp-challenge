@@ -90,8 +90,8 @@ export function useJudgement(): {
         // SpeechRecognizer 인스턴스 교체 — _listening stuck 완전 방지
         speechRef.current = new SpeechRecognizer();
 
-        // Reset voice score for new mission
-        voiceScoreRef.current      = 0.62;
+        // Reset voice score — 음성 지원 시 0에서 시작 (실제로 말해야 점수 올라감)
+        voiceScoreRef.current      = 0.10;
         voiceAccuracyRef.current   = 0;
         voiceTranscriptRef.current = '';
         setVoiceTranscript('');
@@ -135,13 +135,14 @@ export function useJudgement(): {
 
         switch (mission.type) {
           case 'gesture': {
+            // score > 0.3 으로 관대하게 — 상한 제거 (0.99 제거), MediaPipe score는 0~1 정규화
             const hasRealLandmarks = landmarks.length > 0 &&
-              landmarks.some(l => l.score !== undefined && l.score > 0.5 && l.score < 0.99);
+              landmarks.some(l => (l.score ?? l.visibility ?? 1) > 0.3);
             if (hasRealLandmarks && mission.gesture_id) {
               score = detectGesture(landmarks, mission.gesture_id);
             } else {
-              // Smooth progressive: 0.58 → 0.88 over mission duration
-              score = Math.min(0.88, 0.58 + missionProg * 0.5);
+              // 카메라/포즈 감지 없을 때 낮은 점수 유지 (모션 유도)
+              score = Math.min(0.55, 0.3 + missionProg * 0.25);
             }
             break;
           }
@@ -205,15 +206,16 @@ export function useJudgement(): {
           case 'timing':
           case 'expression':
           default: {
-            // Fitness 장르: 스쿼트 활동 기반 점수 (squat depth → higher score)
-            if (template && template.genre === 'fitness' && kneeAngleOut < 180) {
+            // Fitness 장르: 실제 스쿼트 감지 시에만 고점수 (kneeAngle < 130 = 진짜 스쿼트)
+            if (template && template.genre === 'fitness' && kneeAngleOut < 130) {
               const sqScore =
                 kneeAngleOut < 90  ? 1.00 :
-                kneeAngleOut < 120 ? 0.88 :
-                kneeAngleOut < 150 ? 0.70 : 0.62;
-              score = Math.max(sqScore, 0.62 + missionProg * 0.3);
+                kneeAngleOut < 110 ? 0.88 :
+                kneeAngleOut < 130 ? 0.72 : 0.50;
+              score = sqScore;
             } else {
-              score = Math.min(0.88, 0.62 + missionProg * 0.36);
+              // 스쿼트 없으면 낮은 점수 — 동작 유도
+              score = Math.min(0.55, 0.3 + missionProg * 0.20);
             }
             break;
           }
