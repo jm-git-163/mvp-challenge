@@ -1,14 +1,6 @@
 /**
  * home/index.tsx — 챌린지 스튜디오 메인 홈
- *
- * ✅ Bug fix: Zustand selector infinite loop (#185)
- *    useSessionStore(s => ({ a, b })) → separate selectors
- *
- * 🎨 UI: 최신 게임/캡컷/캔바 수준
- *    - 애니메이션 히어로 배너
- *    - 피처드 챌린지 섹션 (horizontal scroll)
- *    - 고퀄리티 카드 (glow, gradient, badge)
- *    - 반응형 그리드
+ * Premium TikTok / CapCut level redesign
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -33,217 +25,482 @@ import { useSessionStore } from '../../../store/sessionStore';
 import { VIDEO_TEMPLATES, getTemplateByMissionId } from '../../../utils/videoTemplates';
 import type { Template, MissionType } from '../../../types/template';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const GENRES = [
-  { label: '전체',    value: 'all',       emoji: '✨' },
-  { label: '일상',    value: 'daily',     emoji: '📱' },
-  { label: '뉴스',    value: 'news',      emoji: '📺' },
-  { label: 'K-POP',  value: 'kpop',      emoji: '🎤' },
-  { label: '영어',    value: 'english',   emoji: '🌍' },
-  { label: '동화',    value: 'kids',      emoji: '📖' },
-  { label: '여행',    value: 'travel',    emoji: '✈️' },
-  { label: '피트니스', value: 'fitness',  emoji: '💪' },
-  { label: '챌린지',  value: 'challenge', emoji: '🔥' },
+  { label: '전체',    value: 'all',     emoji: '✨' },
+  { label: 'K-POP',  value: 'kpop',    emoji: '🎤' },
+  { label: '피트니스', value: 'fitness', emoji: '💪' },
+  { label: '뉴스',    value: 'news',    emoji: '📺' },
+  { label: '일상',    value: 'daily',   emoji: '📱' },
+  { label: '여행',    value: 'travel',  emoji: '✈️' },
+  { label: '동화',    value: 'kids',    emoji: '🌈' },
+  { label: '힙합',    value: 'hiphop',  emoji: '🎧' },
+  { label: '영어',    value: 'english', emoji: '🌍' },
 ];
 
 const GENRE_GRADIENTS: Record<string, [string, string]> = {
-  daily:     ['#667eea', '#764ba2'],
-  news:      ['#1565c0', '#0d47a1'],
   kpop:      ['#e94560', '#c2185b'],
-  travel:    ['#00acc1', '#0097a7'],
-  english:   ['#2563eb', '#1e3a8a'],
+  fitness:   ['#14b8a6', '#0d9488'],
+  news:      ['#1565c0', '#0d47a1'],
+  daily:     ['#7c3aed', '#5b21b6'],
+  travel:    ['#f59e0b', '#d97706'],
   kids:      ['#a855f7', '#ec4899'],
+  hiphop:    ['#374151', '#111827'],
+  english:   ['#2563eb', '#1e3a8a'],
   challenge: ['#ef4444', '#dc2626'],
   promotion: ['#9c27b0', '#6a1b9a'],
-  fitness:   ['#14b8a6', '#0d9488'],
-  hiphop:    ['#374151', '#111827'],
 };
 
 const MISSION_STYLES: Record<MissionType, { bg: string; text: string; label: string }> = {
-  gesture:    { bg: '#ede9fe', text: '#7c3aed', label: '🤲 제스처' },
-  voice_read: { bg: '#fce7f3', text: '#db2777', label: '🎤 따라읽기' },
-  timing:     { bg: '#e0f2fe', text: '#0891b2', label: '⏱ 유지' },
-  expression: { bg: '#fef3c7', text: '#d97706', label: '😊 표정' },
+  gesture:    { bg: 'rgba(124,58,237,0.12)', text: '#a78bfa', label: '🤲 제스처' },
+  voice_read: { bg: 'rgba(236,72,153,0.12)', text: '#f472b6', label: '🎤 따라읽기' },
+  timing:     { bg: 'rgba(14,165,233,0.12)', text: '#38bdf8', label: '⏱ 유지' },
+  expression: { bg: 'rgba(245,158,11,0.12)', text: '#fbbf24', label: '😊 표정' },
 };
 
 const DIFF_COLORS = ['', '#22c55e', '#f59e0b', '#ef4444'];
 const DIFF_LABELS = ['', '입문', '보통', '어려움'];
 
-// ─── Animated Hero Section ────────────────────────────────────────────────────
+// ─── Hero Banner ──────────────────────────────────────────────────────────────
 
 function HeroBanner() {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const shimAnim  = useRef(new Animated.Value(0)).current;
+  const floatAnim  = useRef(new Animated.Value(0)).current;
+  const pulseAnim  = useRef(new Animated.Value(1)).current;
+  const orb1Anim   = useRef(new Animated.Value(0)).current;
+  const orb2Anim   = useRef(new Animated.Value(0)).current;
+  const shimAnim   = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(floatAnim, { toValue: -10, duration: 1800, useNativeDriver: true }),
-        Animated.timing(floatAnim, { toValue: 0,   duration: 1800, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: -12, duration: 2200, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0,   duration: 2200, useNativeDriver: true }),
       ])
     ).start();
+
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1,    duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 1400, useNativeDriver: true }),
       ])
     ).start();
+
     Animated.loop(
-      Animated.timing(shimAnim, { toValue: 1, duration: 3000, useNativeDriver: false })
+      Animated.sequence([
+        Animated.timing(orb1Anim, { toValue: 1, duration: 5000, useNativeDriver: true }),
+        Animated.timing(orb1Anim, { toValue: 0, duration: 5000, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orb2Anim, { toValue: 1, duration: 6500, useNativeDriver: true }),
+        Animated.timing(orb2Anim, { toValue: 0, duration: 6500, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(shimAnim, { toValue: 1, duration: 3000, useNativeDriver: true })
     ).start();
   }, []);
 
+  const FEATURE_PILLS = [
+    '📹 AI 판정',
+    '🎵 실시간 BGM',
+    '🏆 랭킹',
+    '📤 SNS 공유',
+  ];
+
   return (
     <View style={hero.wrap}>
-      {/* Gradient background */}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          {
-            // @ts-ignore web only
-            background: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
-            backgroundColor: '#302b63',
-          },
-        ]}
-      />
-      {/* Stars / particles */}
-      {['10%','28%','52%','72%','90%'].map((left, i) => (
+      {/* Dark base */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0a0a0f' }]} />
+
+      {/* Web gradient overlay */}
+      <View style={[StyleSheet.absoluteFill, {
+        // @ts-ignore web only
+        background: 'linear-gradient(135deg, #0f0a1e 0%, #160d2e 40%, #0a1628 70%, #0a0a0f 100%)',
+      }]} />
+
+      {/* Orb 1 — purple blob */}
+      <Animated.View style={[hero.orb1, {
+        opacity: orb1Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.45, 0.7, 0.45] }),
+        transform: [{
+          translateX: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }),
+        }, {
+          translateY: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -15] }),
+        }],
+      }]} />
+
+      {/* Orb 2 — blue blob */}
+      <Animated.View style={[hero.orb2, {
+        opacity: orb2Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.35, 0.6, 0.35] }),
+        transform: [{
+          translateX: orb2Anim.interpolate({ inputRange: [0, 1], outputRange: [10, -25] }),
+        }, {
+          translateY: orb2Anim.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }),
+        }],
+      }]} />
+
+      {/* Orb 3 — pink blob */}
+      <Animated.View style={[hero.orb3, {
+        opacity: orb1Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 0.5, 0.3] }),
+      }]} />
+
+      {/* Particle stars */}
+      {['8%', '22%', '55%', '75%', '92%'].map((left, i) => (
         <Animated.Text
           key={i}
           style={[
             hero.star,
             {
               left: left as any,
-              top: `${10 + (i * 17) % 60}%` as any,
-              opacity: shimAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 1, 0.3] }),
+              top: `${12 + (i * 19) % 55}%` as any,
+              opacity: shimAnim.interpolate({
+                inputRange: [0, (i + 1) / 6, (i + 2) / 6, 1],
+                outputRange: [0.15, 0.9, 0.15, 0.15],
+                extrapolate: 'clamp',
+              }),
             },
           ]}
         >
-          {['✨','⭐','💫','🌟','✦'][i]}
+          {['✦', '✧', '✦', '✧', '✦'][i]}
         </Animated.Text>
       ))}
+
       {/* Main content */}
       <View style={hero.inner}>
-        <Animated.Text style={[hero.emoji, { transform: [{ translateY: floatAnim }] }]}>
-          🎬
-        </Animated.Text>
+        {/* Floating emoji with glow */}
+        <Animated.View style={[hero.emojiWrap, { transform: [{ translateY: floatAnim }, { scale: pulseAnim }] }]}>
+          <View style={hero.emojiGlow} />
+          <Text style={hero.emoji}>🎬</Text>
+        </Animated.View>
+
         <Text style={hero.title}>챌린지 스튜디오</Text>
-        <Text style={hero.sub}>미션 완수 → 캡컷 스타일 영상 자동 완성</Text>
-        <View style={hero.tags}>
-          {['📹 카메라','🎯 미션','🎵 BGM','📤 SNS공유'].map((t) => (
-            <View key={t} style={hero.tag}>
-              <Text style={hero.tagText}>{t}</Text>
+
+        <Text style={hero.sub}>
+          미션 완수 → AI 판정 → 영상 자동 완성
+        </Text>
+
+        {/* Feature pills */}
+        <View style={hero.pills}>
+          {FEATURE_PILLS.map((pill) => (
+            <View key={pill} style={hero.pill}>
+              <Text style={hero.pillText}>{pill}</Text>
             </View>
           ))}
         </View>
       </View>
-      {/* Bottom wave */}
-      <View style={hero.wave} />
+
+      {/* Bottom fade */}
+      <View style={hero.bottomFade} />
     </View>
   );
 }
 
 const hero = StyleSheet.create({
   wrap: {
-    height: 200,
+    height: 240,
     overflow: 'hidden',
     position: 'relative',
-    marginHorizontal: 0,
+  },
+  orb1: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#7c3aed',
+    top: -60,
+    left: -40,
+    // @ts-ignore web
+    filter: 'blur(80px)',
+  },
+  orb2: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#2563eb',
+    top: 20,
+    right: -30,
+    // @ts-ignore web
+    filter: 'blur(70px)',
+  },
+  orb3: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#ec4899',
+    bottom: -20,
+    left: '40%',
+    // @ts-ignore web
+    filter: 'blur(60px)',
   },
   star: {
     position: 'absolute',
-    fontSize: 14,
+    fontSize: 10,
+    color: '#fff',
     zIndex: 1,
   },
   inner: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: 24,
+    paddingTop: 8,
     zIndex: 2,
-    gap: 6,
+    gap: 8,
   },
-  emoji: { fontSize: 42, marginBottom: 2 },
+  emojiWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  emojiGlow: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#7c3aed',
+    // @ts-ignore web
+    filter: 'blur(20px)',
+    opacity: 0.7,
+  },
+  emoji: {
+    fontSize: 48,
+    zIndex: 1,
+    // @ts-ignore web
+    filter: 'drop-shadow(0 0 16px rgba(124,58,237,0.9))',
+  },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -0.5,
-    // @ts-ignore
-    textShadow: '0 2px 12px rgba(124,58,237,0.8)',
+    color: '#ffffff',
+    letterSpacing: 1.5,
+    // @ts-ignore web
+    textShadow: '0 0 30px rgba(124,58,237,0.8), 0 2px 4px rgba(0,0,0,0.5)',
   },
   sub: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '500',
+    color: 'rgba(255,255,255,0.55)',
+    fontWeight: '600',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
-  tags: {
+  pills: {
     flexDirection: 'row',
-    gap: 6,
     flexWrap: 'wrap',
+    gap: 6,
     justifyContent: 'center',
     marginTop: 4,
   },
-  tag: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  pill: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  tagText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  wave: {
+  pillText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  bottomFade: {
     position: 'absolute',
-    bottom: -1,
+    bottom: 0,
     left: 0,
     right: 0,
-    height: 24,
-    backgroundColor: '#F4F5F9',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    height: 40,
+    // @ts-ignore web
+    background: 'linear-gradient(to bottom, transparent, #0d0d14)',
+    backgroundColor: 'transparent',
   },
 });
 
-// ─── Featured Section ─────────────────────────────────────────────────────────
+// ─── Stats Pills ──────────────────────────────────────────────────────────────
+
+function StatsPills({ total }: { total: number }) {
+  const items = [
+    { icon: '🎯', label: `챌린지 ${total}개` },
+    { icon: '🤖', label: 'AI 판정' },
+    { icon: '⚡', label: '실시간' },
+  ];
+  return (
+    <View style={sp.wrap}>
+      {items.map((item, i) => (
+        <View key={i} style={sp.pill}>
+          <Text style={sp.icon}>{item.icon}</Text>
+          <Text style={sp.label}>{item.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const sp = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    justifyContent: 'center',
+    backgroundColor: '#0d0d14',
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  icon:  { fontSize: 13 },
+  label: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '600' },
+});
+
+// ─── Genre Filter ─────────────────────────────────────────────────────────────
+
+interface GenreFilterProps {
+  selected: string;
+  onSelect: (v: string) => void;
+}
+
+function GenreFilter({ selected, onSelect }: GenreFilterProps) {
+  const scaleAnims = useRef(
+    GENRES.reduce<Record<string, Animated.Value>>((acc, g) => {
+      acc[g.value] = new Animated.Value(1);
+      return acc;
+    }, {})
+  ).current;
+
+  const handlePress = (value: string) => {
+    const anim = scaleAnims[value];
+    Animated.sequence([
+      Animated.spring(anim, { toValue: 0.92, useNativeDriver: true, tension: 200, friction: 10 }),
+      Animated.spring(anim, { toValue: 1.0,  useNativeDriver: true, tension: 200, friction: 10 }),
+    ]).start();
+    onSelect(value);
+  };
+
+  return (
+    <View style={gf.wrap}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={gf.scroll}
+      >
+        {GENRES.map((g) => {
+          const isActive = selected === g.value;
+          const colors = GENRE_GRADIENTS[g.value] ?? ['#7c3aed', '#5b21b6'];
+          return (
+            <Animated.View key={g.value} style={{ transform: [{ scale: scaleAnims[g.value] }] }}>
+              <TouchableOpacity
+                onPress={() => handlePress(g.value)}
+                activeOpacity={0.85}
+                style={[
+                  gf.chip,
+                  isActive
+                    ? {
+                        // @ts-ignore web
+                        background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
+                        backgroundColor: colors[0],
+                        borderColor: 'transparent',
+                      }
+                    : {
+                        backgroundColor: 'rgba(255,255,255,0.06)',
+                        borderColor: 'rgba(255,255,255,0.1)',
+                      },
+                ]}
+              >
+                <Text style={gf.emoji}>{g.emoji}</Text>
+                <Text style={[gf.label, isActive ? gf.labelActive : gf.labelInactive]}>
+                  {g.label}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const gf = StyleSheet.create({
+  wrap: {
+    backgroundColor: '#0d0d14',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  scroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    minHeight: 38,
+  },
+  emoji:        { fontSize: 14 },
+  label:        { fontSize: 13, fontWeight: '700' },
+  labelActive:  { color: '#ffffff' },
+  labelInactive:{ color: 'rgba(255,255,255,0.45)' },
+});
+
+// ─── Featured Row ("지금 인기") ───────────────────────────────────────────────
 
 function FeaturedRow({ templates, onSelect }: { templates: Template[]; onSelect: (t: Template) => void }) {
   if (!templates.length) return null;
   const featured = templates.slice(0, 5);
 
   return (
-    <View style={feat.wrap}>
-      <View style={feat.header}>
-        <Text style={feat.title}>🔥 지금 인기</Text>
-        <Text style={feat.sub}>실시간 TOP 챌린지</Text>
+    <View style={fr.wrap}>
+      <View style={fr.header}>
+        <Text style={fr.title}>🔥 지금 인기</Text>
+        <Text style={fr.sub}>실시간 TOP 챌린지</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={feat.scroll}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={fr.scroll}>
         {featured.map((t, i) => {
-          const colors = GENRE_GRADIENTS[t.genre] ?? ['#667eea', '#764ba2'];
-          const vt = getTemplateByMissionId(t.genre);
+          const colors = GENRE_GRADIENTS[t.genre] ?? ['#7c3aed', '#5b21b6'];
+          const isGold = i === 0;
           return (
-            <TouchableOpacity key={t.id} style={feat.card} onPress={() => onSelect(t)} activeOpacity={0.88}>
-              <View
-                style={[
-                  feat.cardBg,
-                  {
-                    // @ts-ignore web
-                    background: `linear-gradient(145deg, ${colors[0]}, ${colors[1]})`,
-                    backgroundColor: colors[0],
-                  },
-                ]}
-              >
-                <Text style={feat.rank}>#{i + 1}</Text>
-                {vt && <View style={feat.vtBadge}><Text style={feat.vtBadgeText}>🎬 템플릿</Text></View>}
+            <TouchableOpacity key={t.id} style={[fr.card, isGold && fr.cardGold]} onPress={() => onSelect(t)} activeOpacity={0.85}>
+              {/* Gradient background */}
+              <View style={[fr.cardBg, {
+                // @ts-ignore web
+                background: `linear-gradient(145deg, ${colors[0]}, ${colors[1]})`,
+                backgroundColor: colors[0],
+              }]}>
+                {/* Gold glow for #1 */}
+                {isGold && <View style={fr.goldGlow} />}
+
+                {/* Rank number — huge transparent overlay */}
+                <Text style={fr.rankNum}>#{i + 1}</Text>
+
+                {/* Emoji */}
+                <Text style={fr.cardEmoji}>{t.theme_emoji}</Text>
               </View>
-              <View style={feat.cardBody}>
-                <Text style={feat.cardEmoji}>{t.theme_emoji}</Text>
-                <Text style={feat.cardName} numberOfLines={1}>{t.name}</Text>
-                <Text style={feat.cardMeta}>⏱ {t.duration_sec}초 · 🎯 {t.missions.length}미션</Text>
+
+              {/* Card info */}
+              <View style={fr.cardBody}>
+                <Text style={fr.cardName} numberOfLines={1}>{t.name}</Text>
+                <Text style={fr.cardMeta}>⏱ {t.duration_sec}s · {t.missions.length}미션</Text>
               </View>
             </TouchableOpacity>
           );
@@ -253,47 +510,87 @@ function FeaturedRow({ templates, onSelect }: { templates: Template[]; onSelect:
   );
 }
 
-const feat = StyleSheet.create({
-  wrap: { backgroundColor: '#fff', paddingTop: 16, paddingBottom: 8 },
-  header: {
-    flexDirection: 'row', alignItems: 'baseline',
-    gap: 8, paddingHorizontal: 20, marginBottom: 10,
+const fr = StyleSheet.create({
+  wrap: {
+    backgroundColor: '#0d0d14',
+    paddingTop: 4,
+    paddingBottom: 4,
   },
-  title: { fontSize: 17, fontWeight: '800', color: '#1a1a2e' },
-  sub:   { fontSize: 12, color: '#999', fontWeight: '500' },
-  scroll: { paddingHorizontal: 16, gap: 10, paddingBottom: 4 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  title: { fontSize: 17, fontWeight: '800', color: '#ffffff' },
+  sub:   { fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: '500' },
+  scroll: { paddingHorizontal: 16, gap: 12, paddingBottom: 8 },
   card: {
-    width: 130,
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    width: 150,
+    borderRadius: 20,
     overflow: 'hidden',
+    backgroundColor: '#1a1a2e',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  cardGold: {
+    shadowColor: '#f59e0b',
+    shadowOpacity: 0.4,
+    // @ts-ignore web
+    boxShadow: '0 0 20px rgba(245,158,11,0.35)',
   },
   cardBg: {
-    height: 80, position: 'relative',
-    alignItems: 'flex-end', justifyContent: 'space-between',
-    padding: 8, flexDirection: 'row',
+    height: 120,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  rank: {
-    position: 'absolute', left: 8, top: 8,
-    color: 'rgba(255,255,255,0.9)', fontSize: 18, fontWeight: '900',
-    // @ts-ignore
-    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+  goldGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f59e0b',
+    opacity: 0.2,
+    // @ts-ignore web
+    filter: 'blur(30px)',
   },
-  vtBadge: {
-    position: 'absolute', right: 6, top: 6,
-    backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 8,
-    paddingHorizontal: 6, paddingVertical: 2,
+  rankNum: {
+    position: 'absolute',
+    left: 6,
+    top: 4,
+    color: 'rgba(255,255,255,0.2)',
+    fontSize: 52,
+    fontWeight: '900',
+    lineHeight: 58,
+    letterSpacing: -2,
   },
-  vtBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  cardBody: { padding: 10, alignItems: 'center', gap: 2 },
-  cardEmoji: { fontSize: 24 },
-  cardName: { fontSize: 12, fontWeight: '700', color: '#1a1a2e', textAlign: 'center' },
-  cardMeta: { fontSize: 10, color: '#999' },
+  cardEmoji: {
+    fontSize: 40,
+    zIndex: 1,
+    // @ts-ignore web
+    filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))',
+  },
+  cardBody: {
+    padding: 10,
+    gap: 3,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  cardName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  cardMeta: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500',
+  },
 });
 
 // ─── Challenge Card ───────────────────────────────────────────────────────────
@@ -306,222 +603,272 @@ interface CardProps {
 
 function ChallengeCard({ item: t, cardWidth, onPress }: CardProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const colors = GENRE_GRADIENTS[t.genre] ?? ['#667eea', '#764ba2'];
+  const colors = GENRE_GRADIENTS[t.genre] ?? ['#7c3aed', '#5b21b6'];
   const vt = getTemplateByMissionId(t.genre);
   const missionTypes = [...new Set(t.missions.map(m => m.type))] as MissionType[];
   const diffColor = DIFF_COLORS[t.difficulty] ?? '#888';
   const diffLabel = DIFF_LABELS[t.difficulty] ?? '';
 
-  const onPressIn  = () => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start();
-  const onPressOut = () => Animated.spring(scaleAnim, { toValue: 1.0,  useNativeDriver: true }).start();
+  const onPressIn  = () =>
+    Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, tension: 200, friction: 10 }).start();
+  const onPressOut = () =>
+    Animated.spring(scaleAnim, { toValue: 1.0,  useNativeDriver: true, tension: 200, friction: 10 }).start();
+
+  const genreLabel = GENRES.find(g => g.value === t.genre)?.label ?? t.genre.toUpperCase();
 
   return (
-    <Animated.View style={[card.wrap, { width: cardWidth, transform: [{ scale: scaleAnim }] }]}>
+    <Animated.View style={[cc.wrap, { width: cardWidth, transform: [{ scale: scaleAnim }] }]}>
       <Pressable
         onPress={() => onPress(t)}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        style={card.pressable}
+        style={cc.pressable}
       >
-        {/* Top gradient band */}
-        <View
-          style={[
-            card.band,
-            {
-              // @ts-ignore web only
-              background: `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 100%)`,
-              backgroundColor: colors[0],
-            },
-          ]}
-        >
-          <Text style={card.bandEmoji}>{t.theme_emoji}</Text>
-          {/* Difficulty badge */}
-          <View style={[card.diffBadge, { backgroundColor: diffColor + 'ee' }]}>
-            <Text style={card.diffText}>{diffLabel}</Text>
+        {/* ── Top gradient section ── */}
+        <View style={[cc.band, {
+          // @ts-ignore web only
+          background: `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1]} 100%)`,
+          backgroundColor: colors[0],
+        }]}>
+          {/* Decorative circles */}
+          <View style={cc.deco1} />
+          <View style={cc.deco2} />
+
+          {/* Top-left: genre + difficulty badges */}
+          <View style={cc.bandTopLeft}>
+            <View style={cc.genreBadge}>
+              <Text style={cc.genreBadgeText}>{genreLabel}</Text>
+            </View>
+            {diffLabel ? (
+              <View style={[cc.diffBadge, { backgroundColor: diffColor + 'dd' }]}>
+                <Text style={cc.diffText}>{diffLabel}</Text>
+              </View>
+            ) : null}
           </View>
-          {/* Video template badge */}
+
+          {/* Top-right: video template badge */}
           {vt && (
-            <View style={card.vtBadge}>
-              <Text style={card.vtText}>🎬 영상 템플릿</Text>
+            <View style={cc.vtBadge}>
+              <Text style={cc.vtText}>🎬 템플릿</Text>
             </View>
           )}
-          {/* Decorative circles */}
-          <View style={[card.deco1, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
-          <View style={[card.deco2, { backgroundColor: 'rgba(255,255,255,0.07)' }]} />
+
+          {/* Center emoji with glow */}
+          <View style={cc.emojiWrap}>
+            <View style={[cc.emojiGlow, { backgroundColor: colors[0] }]} />
+            <Text style={cc.bandEmoji}>{t.theme_emoji}</Text>
+          </View>
         </View>
 
-        {/* Body */}
-        <View style={card.body}>
-          <Text style={card.title} numberOfLines={1}>{t.name}</Text>
-          {t.scene ? (
-            <Text style={card.desc} numberOfLines={2}>{t.scene}</Text>
-          ) : null}
-
-          {/* Stats row */}
-          <View style={card.statsRow}>
-            <View style={card.statChip}>
-              <Text style={card.statText}>⏱ {t.duration_sec}s</Text>
-            </View>
-            <View style={card.statChip}>
-              <Text style={card.statText}>🎯 {t.missions.length}미션</Text>
-            </View>
-            <View style={card.statChip}>
-              <Text style={card.statText}>{'★'.repeat(t.difficulty)}{'☆'.repeat(3 - t.difficulty)}</Text>
-            </View>
-          </View>
+        {/* ── Body ── */}
+        <View style={cc.body}>
+          <Text style={cc.title} numberOfLines={1}>{t.name}</Text>
+          <Text style={cc.subtitle} numberOfLines={1}>
+            AI 포즈판정 · 음성인식 · {t.duration_sec}s
+          </Text>
 
           {/* Mission type pills */}
           {missionTypes.length > 0 && (
-            <View style={card.pillRow}>
+            <View style={cc.pillRow}>
               {missionTypes.map((type) => {
                 const s = MISSION_STYLES[type];
                 return (
-                  <View key={type} style={[card.pill, { backgroundColor: s.bg }]}>
-                    <Text style={[card.pillText, { color: s.text }]}>{s.label}</Text>
+                  <View key={type} style={[cc.pill, { backgroundColor: s.bg }]}>
+                    <Text style={[cc.pillText, { color: s.text }]}>{s.label}</Text>
                   </View>
                 );
               })}
             </View>
           )}
+
+          {/* Accent divider */}
+          <View style={[cc.divider, { backgroundColor: colors[0] + '33' }]} />
         </View>
 
-        {/* CTA button */}
-        <View
-          style={[
-            card.cta,
-            {
-              // @ts-ignore web only
-              background: `linear-gradient(90deg, ${colors[0]}, ${colors[1]})`,
-              backgroundColor: colors[0],
-            },
-          ]}
-        >
-          <Text style={card.ctaText}>▶  챌린지 시작</Text>
+        {/* ── CTA Button ── */}
+        <View style={[cc.cta, {
+          // @ts-ignore web only
+          background: `linear-gradient(90deg, ${colors[0]}, ${colors[1]})`,
+          backgroundColor: colors[0],
+        }]}>
+          <Text style={cc.ctaText}>▶  챌린지 시작</Text>
         </View>
       </Pressable>
     </Animated.View>
   );
 }
 
-const card = StyleSheet.create({
+const cc = StyleSheet.create({
   wrap: {
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: '#16161f',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
+    // @ts-ignore web
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
   },
   pressable: { flex: 1 },
+
+  // Top gradient band
   band: {
-    height: 100,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     overflow: 'hidden',
   },
-  bandEmoji: { fontSize: 52 },
+  deco1: {
+    position: 'absolute',
+    right: -30,
+    top: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  deco2: {
+    position: 'absolute',
+    left: -20,
+    bottom: -40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  bandTopLeft: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    gap: 5,
+  },
+  genreBadge: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  genreBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
   diffBadge: {
-    position: 'absolute', top: 10, left: 10,
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   diffText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   vtBadge: {
-    position: 'absolute', bottom: 8, right: 8,
-    backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   vtText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  deco1: {
-    position: 'absolute', right: -20, top: -20,
-    width: 80, height: 80, borderRadius: 40,
+  emojiWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  deco2: {
-    position: 'absolute', left: -10, bottom: -30,
-    width: 80, height: 80, borderRadius: 40,
+  emojiGlow: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    opacity: 0.3,
+    // @ts-ignore web
+    filter: 'blur(20px)',
   },
-  body: { padding: 14, gap: 8 },
-  title: { fontSize: 16, fontWeight: '800', color: '#1a1a2e', lineHeight: 21 },
-  desc: { fontSize: 12, color: '#6b7280', lineHeight: 17 },
-  statsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  statChip: {
-    backgroundColor: '#F5F5F8', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 4,
+  bandEmoji: {
+    fontSize: 52,
+    zIndex: 1,
+    // @ts-ignore web
+    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
   },
-  statText: { fontSize: 11, color: '#888', fontWeight: '600' },
-  pillRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-  pill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  pillText: { fontSize: 11, fontWeight: '700' },
+
+  // Body
+  body: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+    gap: 8,
+    backgroundColor: '#16161f',
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    lineHeight: 21,
+    letterSpacing: -0.2,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500',
+  },
+  pillRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  pill: {
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    borderRadius: 1,
+    marginTop: 4,
+  },
+
+  // CTA
   cta: {
-    height: 50,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ctaText: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+  ctaText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    // @ts-ignore web
+    textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+  },
 });
 
-// ─── Stats Bar ────────────────────────────────────────────────────────────────
-
-function StatsBar({ total }: { total: number }) {
-  return (
-    <View style={stats.wrap}>
-      {[
-        { label: '챌린지 수', value: String(total), icon: '🎯' },
-        { label: '영상 템플릿', value: String(VIDEO_TEMPLATES.length), icon: '🎬' },
-        { label: '미션 종류', value: '4', icon: '⚡' },
-      ].map((s) => (
-        <View key={s.label} style={stats.item}>
-          <Text style={stats.icon}>{s.icon}</Text>
-          <Text style={stats.value}>{s.value}</Text>
-          <Text style={stats.label}>{s.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const stats = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EBEBEB',
-  },
-  item: {
-    flex: 1, alignItems: 'center', gap: 2,
-    borderRightWidth: 1, borderRightColor: '#EBEBEB',
-  },
-  icon: { fontSize: 18 },
-  value: { fontSize: 18, fontWeight: '900', color: '#7c3aed' },
-  label: { fontSize: 10, color: '#999', fontWeight: '500' },
-});
-
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
 
-  // ✅ BUG FIX: separate selectors prevent object-reference infinite loop (#185)
   const startSession = useSessionStore(s => s.startSession);
 
   const { templates, loading, error, refetch } = useTemplates(
     selectedGenre !== 'all' ? { genre: selectedGenre as Template['genre'] } : undefined,
   );
 
-  const numCols  = width >= 700 ? 2 : 1;
-  const cardWidth = numCols === 2 ? (width - 48) / 2 : width - 32;
+  const numCols   = width >= 700 ? 2 : 1;
+  const cardWidth = numCols === 2 ? (width - 56) / 2 : width - 32;
 
   const handleSelect = useCallback(
     (t: Template) => {
-      startSession(t);   // sessionKey++ 내부에서 자동 처리, reset() 불필요
+      startSession(t);
       router.push('/(main)/record');
     },
     [startSession, router],
@@ -536,16 +883,18 @@ export default function HomeScreen() {
 
   const keyExtractor = useCallback((t: Template) => t.id, []);
 
+  const currentGenre = GENRES.find(g => g.value === selectedGenre);
+
   return (
     <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#302b63" />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0f" />
 
       {/* Sticky header */}
       <SafeAreaView edges={['top']} style={s.safeTop}>
         <View style={s.header}>
           <View style={s.headerLeft}>
             <Text style={s.headerLogo}>챌린지 스튜디오</Text>
-            <Text style={s.headerSub}>최고의 챌린지를 경험하세요</Text>
+            <Text style={s.headerSub}>AI 챌린지 플랫폼</Text>
           </View>
           <TouchableOpacity
             style={s.profileBtn}
@@ -571,54 +920,40 @@ export default function HomeScreen() {
             {/* Hero */}
             <HeroBanner />
 
-            {/* Stats bar */}
-            {!loading && !error && <StatsBar total={templates.length} />}
+            {/* Stats Pills */}
+            {!loading && !error && <StatsPills total={templates.length} />}
 
-            {/* Genre filter chips */}
-            <View style={s.filterWrap}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.filterContent}
-              >
-                {GENRES.map((g) => (
-                  <TouchableOpacity
-                    key={g.value}
-                    style={[s.chip, selectedGenre === g.value && s.chipActive]}
-                    onPress={() => setSelectedGenre(g.value)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={s.chipEmoji}>{g.emoji}</Text>
-                    <Text style={[s.chipLabel, selectedGenre === g.value && s.chipLabelActive]}>
-                      {g.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+            {/* Genre filter */}
+            <GenreFilter selected={selectedGenre} onSelect={setSelectedGenre} />
 
             {/* Featured row */}
             {!loading && !error && templates.length > 0 && (
-              <FeaturedRow templates={templates} onSelect={handleSelect} />
+              <View style={s.featuredWrap}>
+                <FeaturedRow templates={templates} onSelect={handleSelect} />
+              </View>
             )}
 
             {/* Section header */}
             {!loading && !error && (
               <View style={s.sectionHeader}>
                 <Text style={s.sectionTitle}>
-                  {selectedGenre === 'all' ? '🎬 전체 챌린지' : `${GENRES.find(g => g.value === selectedGenre)?.emoji} ${GENRES.find(g => g.value === selectedGenre)?.label} 챌린지`}
+                  {currentGenre
+                    ? `${currentGenre.emoji} ${currentGenre.label} 챌린지`
+                    : '🎬 전체 챌린지'}
                 </Text>
-                <Text style={s.sectionCount}>{templates.length}개</Text>
+                <View style={s.sectionCountPill}>
+                  <Text style={s.sectionCount}>{templates.length}개</Text>
+                </View>
               </View>
             )}
 
-            {/* Loading skeleton */}
+            {/* Loading state */}
             {loading && (
-              <View style={s.skeletonWrap}>
+              <View style={s.loadingWrap}>
                 {[0, 1, 2].map((i) => (
-                  <View key={i} style={[s.skeleton, { opacity: 1 - i * 0.25 }]} />
+                  <View key={i} style={[s.skeleton, { opacity: 1 - i * 0.3 }]} />
                 ))}
-                <ActivityIndicator size="large" color="#7c3aed" style={{ marginTop: 8 }} />
+                <ActivityIndicator size="large" color="#7c3aed" style={{ marginTop: 16 }} />
                 <Text style={s.loadingText}>챌린지를 불러오는 중...</Text>
               </View>
             )}
@@ -633,6 +968,9 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Spacer before card list */}
+            {!loading && !error && templates.length > 0 && <View style={{ height: 4 }} />}
           </>
         }
         ListEmptyComponent={
@@ -652,8 +990,8 @@ export default function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F5F9' },
-  safeTop: { backgroundColor: '#302b63' },
+  root: { flex: 1, backgroundColor: '#0d0d14' },
+  safeTop: { backgroundColor: '#0a0a0f' },
 
   header: {
     flexDirection: 'row',
@@ -661,91 +999,97 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#302b63',
+    backgroundColor: '#0a0a0f',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
-  headerLeft: { gap: 1 },
+  headerLeft: { gap: 2 },
   headerLogo: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -0.3,
+    color: '#ffffff',
+    letterSpacing: 0.5,
+    // @ts-ignore web
+    textShadow: '0 0 20px rgba(124,58,237,0.6)',
   },
   headerSub: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
+    color: 'rgba(255,255,255,0.35)',
     fontWeight: '500',
+    letterSpacing: 0.3,
   },
   profileBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(124,58,237,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.35)',
   },
-  profileBtnText: { fontSize: 20 },
+  profileBtnText: { fontSize: 18 },
 
-  filterWrap: {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EBEBEB',
+  featuredWrap: {
+    backgroundColor: '#0d0d14',
+    paddingTop: 20,
+    paddingBottom: 4,
   },
-  filterContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F0F0F5',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    minHeight: 36,
-  },
-  chipActive: {
-    backgroundColor: '#EDE9FF',
-    borderColor: '#7c3aed',
-  },
-  chipEmoji: { fontSize: 13 },
-  chipLabel: { color: '#555', fontSize: 13, fontWeight: '600' },
-  chipLabelActive: { color: '#7c3aed', fontWeight: '700' },
 
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 6,
+    paddingTop: 20,
+    paddingBottom: 12,
+    backgroundColor: '#0d0d14',
   },
-  sectionTitle: { fontSize: 17, fontWeight: '800', color: '#1a1a2e' },
-  sectionCount: { fontSize: 13, color: '#999', fontWeight: '600' },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -0.2,
+  },
+  sectionCountPill: {
+    backgroundColor: 'rgba(124,58,237,0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.35)',
+  },
+  sectionCount: {
+    fontSize: 12,
+    color: '#a78bfa',
+    fontWeight: '700',
+  },
 
-  listContent: { paddingBottom: 80 },
+  listContent: { paddingBottom: 80, backgroundColor: '#0d0d14' },
   colWrap: { paddingHorizontal: 16, gap: 16, marginBottom: 16 },
 
   // Loading
-  skeletonWrap: { padding: 16, gap: 12, alignItems: 'center' },
-  skeleton: { width: '100%', height: 200, backgroundColor: '#E8E8EC', borderRadius: 20 },
-  loadingText: { color: '#999', fontSize: 13, marginTop: 4 },
+  loadingWrap: { padding: 20, gap: 12, alignItems: 'center' },
+  skeleton: {
+    width: '100%',
+    height: 220,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 24,
+  },
+  loadingText: { color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 4 },
 
   // Error / Empty
   center: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   errorText: { color: '#ef4444', fontSize: 14, textAlign: 'center' },
   retryBtn: {
-    backgroundColor: '#7c3aed', paddingHorizontal: 32, paddingVertical: 14,
-    borderRadius: 14, minHeight: 50, justifyContent: 'center',
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+    minHeight: 50,
+    justifyContent: 'center',
   },
   retryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#333' },
-  emptyDesc:  { fontSize: 13, color: '#999' },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff' },
+  emptyDesc:  { fontSize: 13, color: 'rgba(255,255,255,0.35)' },
 });

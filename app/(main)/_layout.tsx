@@ -4,16 +4,31 @@ export default function MainLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: '#1a1a2e', borderTopColor: '#333' },
-        tabBarActiveTintColor: '#e94560',
-        tabBarInactiveTintColor: '#888',
-        headerStyle: { backgroundColor: '#0f0e17' },
-        headerTintColor: '#fff',
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#0d0d14',
+          borderTopColor: 'rgba(255,255,255,0.06)',
+          borderTopWidth: 1,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 4,
+        },
+        tabBarActiveTintColor: '#7c3aed',
+        tabBarInactiveTintColor: 'rgba(255,255,255,0.35)',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          letterSpacing: 0.3,
+        },
       }}
     >
       <Tabs.Screen
         name="home"
-        options={{ title: '홈', tabBarLabel: '홈' }}
+        options={{
+          title: '홈',
+          tabBarLabel: '홈',
+          tabBarIcon: ({ color, focused }) => null,
+        }}
       />
       <Tabs.Screen
         name="record"
@@ -25,7 +40,11 @@ export default function MainLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: '프로필', tabBarLabel: '프로필' }}
+        options={{
+          title: '프로필',
+          tabBarLabel: '프로필',
+          tabBarIcon: ({ color, focused }) => null,
+        }}
       />
     </Tabs>
   );

@@ -49,7 +49,18 @@
       "Bash(node /tmp/write_camera.js)",
       "Bash(node /c/tmp/write_camera.js)",
       "Bash(node /c/tmp/write_sound.js)",
-      "Bash(npx vercel *)"
+      "Bash(npx vercel *)",
+      "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\dist\\\\_expo\\\\static\\\\js\\\\web\\\\\" /T:W 2>&1 | head -5)",
+      "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\dist\\\\_expo\\\\static\\\\js\\\\web\")",
+      "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\dist\")",
+      "Bash(grep -o \".fitness.\\\\{0,200\\\\}\" /c/Users/user/Desktop/mvp/dist/_expo/static/js/web/entry-d1026e25c3a3e46dbd80b2c95a8463c5.js)",
+      "Bash(grep -o \".\\\\{100\\\\}q\\(.\\\\{0,5\\\\}genre\\\\|prewarmMic.\\\\{200\\\\}\" /c/Users/user/Desktop/mvp/dist/_expo/static/js/web/entry-d1026e25c3a3e46dbd80b2c95a8463c5.js)",
+      "Bash(grep -o \"q\\(.\\\\{0,50\\\\}\" /c/Users/user/Desktop/mvp/dist/_expo/static/js/web/entry-d1026e25c3a3e46dbd80b2c95a8463c5.js)",
+      "Bash(grep -o \".\\\\{300\\\\}useRouter.\\\\{0,5\\\\}\\(\\),.\\\\{300\\\\}\" /c/Users/user/Desktop/mvp/dist/_expo/static/js/web/entry-f396235b2a94756d3b46540fbac413e5.js)",
+      "Bash(grep -o \"q[=,\\(].\\\\{30\\\\}\")",
+      "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\dist\\\\_expo\\\\static\\\\js\\\\web\\\\\" /b)",
+      "Bash(npm run *)",
+      "Bash(node scripts/patch-dist.js)"
     ]
   }
 }
