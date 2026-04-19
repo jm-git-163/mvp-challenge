@@ -48,7 +48,8 @@
       "Bash(node -e \"const fs=require\\('fs'\\); fs.writeFileSync\\('/tmp/gen.js', Buffer.from\\('const fs=require\\(\\\\\"fs\\\\\"\\);const c=[];const a=s=>c.push\\(s\\);', 'utf8'\\)\\); console.log\\('ok'\\)\")",
       "Bash(node /tmp/write_camera.js)",
       "Bash(node /c/tmp/write_camera.js)",
-      "Bash(node /c/tmp/write_sound.js)"
+      "Bash(node /c/tmp/write_sound.js)",
+      "Bash(npx vercel *)"
     ]
   }
 }

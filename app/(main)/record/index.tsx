@@ -30,7 +30,7 @@ import { usePoseDetection }          from '../../../hooks/usePoseDetection';
 import { useJudgement }              from '../../../hooks/useJudgement';
 import { useRecording }              from '../../../hooks/useRecording';
 import { useSessionStore }           from '../../../store/sessionStore';
-import { playSound, initAudio, speakJudgement } from '../../../utils/soundUtils';
+import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../../utils/soundUtils';
 import { prewarmMic } from '../../../utils/speechUtils';
 import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
 import type { JudgementTag }         from '../../../types/session';
@@ -102,45 +102,112 @@ const ns = StyleSheet.create({
 // ─── Countdown overlay ────────────────────────────────────────────────────────
 
 function CountdownOverlay({ count, templateName, emoji }: { count: number; templateName: string; emoji: string }) {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const opacAnim  = useRef(new Animated.Value(0)).current;
+  const scaleAnim  = useRef(new Animated.Value(2)).current;
+  const opacAnim   = useRef(new Animated.Value(0)).current;
+  const ringAnim   = useRef(new Animated.Value(0)).current;
+  const shakeAnim  = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    scaleAnim.setValue(2);
+    scaleAnim.setValue(2.5);
     opacAnim.setValue(0);
+    ringAnim.setValue(0);
     Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 6, useNativeDriver: true }),
-      Animated.timing(opacAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 100, friction: 5, useNativeDriver: true }),
+      Animated.timing(opacAnim,  { toValue: 1, duration: 120, useNativeDriver: true }),
+      Animated.timing(ringAnim,  { toValue: 1, duration: 900, useNativeDriver: true }),
     ]).start();
+    // Shake on GO!
+    if (count === 0) {
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: 12,  duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -12, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 8,   duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 0,   duration: 40, useNativeDriver: true }),
+      ]).start();
+    }
   }, [count]);
 
   const numColor =
-    count === 3 ? '#ef4444' :
-    count === 2 ? '#f59e0b' :
-    count === 1 ? '#22c55e' : '#fff';
+    count === 3 ? '#ff4757' :
+    count === 2 ? '#ffa502' :
+    count === 1 ? '#2ed573' : '#fff';
+
+  const ringColor =
+    count === 3 ? 'rgba(255,71,87,0.4)' :
+    count === 2 ? 'rgba(255,165,2,0.4)' :
+    count === 1 ? 'rgba(46,213,115,0.4)' : 'rgba(124,58,237,0.4)';
 
   return (
     <View style={cd.overlay}>
-      {/* Blurred backdrop */}
       <View style={[StyleSheet.absoluteFill, cd.backdrop]} />
-      {/* Center content */}
+
+      {/* 방사형 링 애니메이션 */}
+      <Animated.View style={[
+        cd.ring,
+        {
+          borderColor: ringColor,
+          transform: [{ scale: ringAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2.5] }) }],
+          opacity: ringAnim.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.5, 0] }),
+        },
+      ]} />
+      <Animated.View style={[
+        cd.ring, cd.ring2,
+        {
+          borderColor: ringColor,
+          transform: [{ scale: ringAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.8] }) }],
+          opacity: ringAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.7, 0.3, 0] }),
+        },
+      ]} />
+
       <View style={cd.center}>
-        <Text style={cd.label}>{emoji} {templateName}</Text>
+        {/* 템플릿 배지 */}
+        <View style={cd.badge}>
+          <Text style={cd.badgeText}>{emoji}  {templateName}</Text>
+        </View>
+
         {count > 0 ? (
           <Animated.Text
             style={[
               cd.num,
-              { color: numColor, opacity: opacAnim, transform: [{ scale: scaleAnim }] },
+              {
+                color: numColor,
+                opacity: opacAnim,
+                transform: [{ scale: scaleAnim }, { translateX: shakeAnim }],
+                // @ts-ignore web
+                textShadow: `0 0 60px ${numColor}, 0 0 120px ${numColor}`,
+              },
             ]}
           >
             {count}
           </Animated.Text>
         ) : (
-          <Animated.View style={[cd.goWrap, { opacity: opacAnim, transform: [{ scale: scaleAnim }] }]}>
+          <Animated.View style={[
+            cd.goWrap,
+            {
+              opacity: opacAnim,
+              transform: [{ scale: scaleAnim }, { translateX: shakeAnim }],
+            },
+          ]}>
             <Text style={cd.go}>GO!</Text>
           </Animated.View>
         )}
-        <Text style={cd.ready}>{count > 0 ? '준비하세요...' : '챌린지 시작! 🎬'}</Text>
+
+        <Text style={cd.ready}>
+          {count === 3 ? '🔴 준비...' : count === 2 ? '🟡 거의...' : count === 1 ? '🟢 시작!' : '🎬 챌린지 시작!'}
+        </Text>
+
+        {/* 하단 진행 도트 */}
+        <View style={cd.dots}>
+          {[3, 2, 1, 0].map(n => (
+            <View
+              key={n}
+              style={[
+                cd.dot,
+                count <= n ? { backgroundColor: numColor } : { backgroundColor: 'rgba(255,255,255,0.2)' },
+              ]}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -154,33 +221,45 @@ const cd = StyleSheet.create({
     zIndex: 40,
   },
   backdrop: {
-    backgroundColor: 'rgba(0,0,0,0.72)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
     // @ts-ignore web only
-    backdropFilter: 'blur(8px)',
+    backdropFilter: 'blur(12px)',
   },
-  center: { alignItems: 'center', gap: 12, zIndex: 1 },
-  label: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 18, fontWeight: '700',
-    letterSpacing: 1,
+  ring: {
+    position: 'absolute',
+    width: 280, height: 280,
+    borderRadius: 140,
+    borderWidth: 3,
+    zIndex: 0,
   },
+  ring2: { width: 200, height: 200, borderRadius: 100 },
+  center: { alignItems: 'center', gap: 14, zIndex: 1 },
+  badge: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 24, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 20, paddingVertical: 8,
+  },
+  badgeText: { color: 'rgba(255,255,255,0.9)', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
   num: {
-    fontSize: 120,
+    fontSize: 140,
     fontWeight: '900',
-    lineHeight: 130,
-    // @ts-ignore web
-    textShadow: '0 0 40px currentColor, 0 0 80px currentColor',
+    lineHeight: 150,
   },
   goWrap: {
     // @ts-ignore web
-    background: 'linear-gradient(135deg, #7c3aed, #ec4899)',
+    background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 50%, #f59e0b 100%)',
     backgroundColor: '#7c3aed',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 24,
+    paddingHorizontal: 52,
+    paddingVertical: 20,
+    borderRadius: 32,
+    // @ts-ignore web
+    boxShadow: '0 0 40px rgba(124,58,237,0.8), 0 0 80px rgba(236,72,153,0.4)',
   },
-  go: { fontSize: 72, fontWeight: '900', color: '#fff' },
-  ready: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' },
+  go: { fontSize: 80, fontWeight: '900', color: '#fff', letterSpacing: 4 },
+  ready: { color: 'rgba(255,255,255,0.8)', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  dots: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
 });
 
 // ─── Mission Card ─────────────────────────────────────────────────────────────
@@ -594,6 +673,7 @@ export default function RecordScreen() {
   const comboRef          = useRef(0);
   const burstTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevMissionSeqRef = useRef<number | null>(null);
+  const bgmStopRef        = useRef<(() => void) | null>(null);
 
   const maxW = Math.min(width - 32, 500);
 
@@ -625,7 +705,10 @@ export default function RecordScreen() {
   }, [sessionKey]); // eslint-disable-line
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
-  useEffect(() => () => { resetVoice(); }, [resetVoice]);
+  useEffect(() => () => {
+    resetVoice();
+    if (bgmStopRef.current) { bgmStopRef.current(); bgmStopRef.current = null; }
+  }, [resetVoice]);
 
   // HUD fade in when recording starts
   useEffect(() => {
@@ -724,7 +807,7 @@ export default function RecordScreen() {
     }
   }, [state, countdown]);
 
-  // Recording start reset
+  // Recording start reset + BGM 시작
   useEffect(() => {
     if (state === 'recording') {
       playSound('start');
@@ -732,6 +815,30 @@ export default function RecordScreen() {
       comboRef.current = 0;
       setCombo(0);
       prevMissionSeqRef.current = null;
+
+      // 장르별 BGM 매핑
+      const genreBGM: Record<string, BGMSpec['genre']> = {
+        kpop:      'kpop',
+        hiphop:    'kpop',
+        news:      'news',
+        english:   'bright',
+        kids:      'fairy',
+        daily:     'lofi',
+        travel:    'bright',
+        fitness:   'kpop',
+        challenge: 'kpop',
+        promotion: 'news',
+      };
+      const bgmGenre = genreBGM[activeTemplate?.genre ?? ''] ?? 'lofi';
+      const audioCtx = initAudio();
+      if (bgmStopRef.current) bgmStopRef.current();
+      bgmStopRef.current = createGameBGM(audioCtx, { genre: bgmGenre, bpm: 120, volume: 0.35 }, audioCtx.destination);
+    } else {
+      // 녹화 종료 시 BGM 정지
+      if (bgmStopRef.current) {
+        bgmStopRef.current();
+        bgmStopRef.current = null;
+      }
     }
   }, [state]);
 
