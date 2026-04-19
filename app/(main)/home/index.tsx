@@ -43,6 +43,7 @@ const GENRES = [
   { label: '영어',    value: 'english',   emoji: '🌍' },
   { label: '동화',    value: 'kids',      emoji: '📖' },
   { label: '여행',    value: 'travel',    emoji: '✈️' },
+  { label: '피트니스', value: 'fitness',  emoji: '💪' },
   { label: '챌린지',  value: 'challenge', emoji: '🔥' },
 ];
 
