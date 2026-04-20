@@ -1484,19 +1484,31 @@ function drawIntroFrame(
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // 상단 배지: "챌린지 시작"
+  // 상단 배지: "CHALLENGE STUDIO · 시작" (Claude 톤)
   const badgeAlpha = Math.min(1, elapsed / 600);
   const badgeY = canvasH * 0.15;
   ctx.save();
   ctx.globalAlpha = badgeAlpha;
-  ctx.fillStyle = template.accentColor;
-  rrPath(ctx, centerX - 110, badgeY - 22, 220, 44, 22);
+  // 배지 바디 (잉크)
+  ctx.fillStyle = '#1F1B16';
+  rrPath(ctx, centerX - 120, badgeY - 20, 240, 40, 20);
   ctx.fill();
-  ctx.font = '800 20px sans-serif';
-  ctx.fillStyle = '#fff';
+  // 앰버 테두리
+  ctx.strokeStyle = '#CC785C';
+  ctx.lineWidth = 1.5;
+  rrPath(ctx, centerX - 120, badgeY - 20, 240, 40, 20);
+  ctx.stroke();
+  // 브랜드 도트
+  ctx.fillStyle = '#CC785C';
+  ctx.beginPath();
+  ctx.arc(centerX - 96, badgeY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  // 텍스트
+  ctx.font = '800 13px sans-serif';
+  ctx.fillStyle = '#F7F3EB';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('🎬 CHALLENGE START', centerX, badgeY);
+  ctx.fillText('CHALLENGE  STUDIO · 시작', centerX + 10, badgeY);
   ctx.globalAlpha = 1;
   ctx.restore();
 
@@ -1511,22 +1523,27 @@ function drawIntroFrame(
     ctx.textAlign = 'center';
     ctx.fillText(template.mascotEmoji, centerX, nameY - 20);
   }
-  ctx.font        = '900 38px sans-serif';
+  // 제목: 세리프 (프리미엄 매거진 느낌)
+  ctx.font        = '700 42px Georgia, "Times New Roman", serif';
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'top';
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-  ctx.lineWidth = 5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.78)';
+  ctx.lineWidth = 6;
   ctx.strokeText(template.name, centerX, nameY + 20);
   ctx.shadowColor = template.accentColor;
-  ctx.shadowBlur  = 14;
+  ctx.shadowBlur  = 16;
   ctx.fillStyle   = '#fff';
   ctx.fillText(template.name, centerX, nameY + 20);
   ctx.shadowBlur  = 0;
-  // 메타 정보
-  ctx.font = '600 18px sans-serif';
+  // 앰버 언더라인
+  const underW = Math.min(canvasW * 0.5, 300);
+  ctx.fillStyle = '#CC785C';
+  ctx.fillRect(centerX - underW / 2, nameY + 72, underW, 2);
+  // 메타 정보 (small caps)
+  ctx.font = '800 14px sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  const metaLine = `${template.duration_ms / 1000}초 챌린지`;
-  ctx.fillText(metaLine, centerX, nameY + 70);
+  const metaLine = `${template.duration_ms / 1000} SECOND CHALLENGE`;
+  ctx.fillText(metaLine, centerX, nameY + 85);
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -1636,10 +1653,10 @@ function drawOutroFrame(
     ctx.translate(centerX, centerY + 120);
     ctx.scale(titleScale, titleScale);
     ctx.globalAlpha = titleAlpha;
-    ctx.font         = '900 56px sans-serif';
+    ctx.font         = '700 60px Georgia, "Times New Roman", serif';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.strokeStyle  = 'rgba(0,0,0,0.8)';
+    ctx.strokeStyle  = 'rgba(0,0,0,0.85)';
     ctx.lineWidth    = 8;
     ctx.strokeText('챌린지 완료!', 0, 0);
     const titleGrad = ctx.createLinearGradient(0, -40, 0, 40);

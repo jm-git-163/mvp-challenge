@@ -68,7 +68,9 @@
       "Bash(curl -s -o /dev/null -w \"home=%{http_code}\\\\n\" https://mvp-ivory-kappa.vercel.app/)",
       "Bash(git commit -m 'feat\\(profile+result\\): migrate to Claude design tokens *)",
       "Bash(git commit -m 'fix\\(judgement+speech\\): forgiving voice score + kill double-start mic popup *)",
-      "Bash(git commit -m 'style\\(record\\): swap purple-gradient overlays to Claude ink+amber system *)"
+      "Bash(git commit -m 'style\\(record\\): swap purple-gradient overlays to Claude ink+amber system *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://mvp-ivory-kappa.vercel.app/)",
+      "Bash(git commit -m 'polish\\(compositor\\): serif intro/outro titles + Claude ink brand chip *)"
     ]
   }
 }
