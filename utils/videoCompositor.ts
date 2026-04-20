@@ -1694,16 +1694,20 @@ function drawOutroFrame(
   // 해시태그 + CTA
   if (progress > 0.55) {
     const hashAlpha = (progress - 0.55) / 0.45;
-    const tags = template.hashtags.slice(0, 4).map(h => '#' + h).join('  ');
+    const tags = template.hashtags.slice(0, 4).map(h => '#' + h).join('   ');
     ctx.save();
     ctx.globalAlpha    = hashAlpha;
-    ctx.font           = '600 19px sans-serif';
-    ctx.fillStyle      = '#fff';
+    // 얇은 디바이더 라인 (amber)
+    ctx.fillStyle = 'rgba(204,120,92,0.7)';
+    ctx.fillRect(centerX - 60, canvasH * 0.70, 120, 1);
+    // 태그 라인 — 앰버 톤
+    ctx.font           = '700 16px sans-serif';
+    ctx.fillStyle      = '#F7E4D9';
     ctx.textAlign      = 'center';
     ctx.textBaseline   = 'top';
-    ctx.shadowColor    = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur     = 6;
-    ctx.fillText(tags, canvasW / 2, canvasH * 0.72);
+    ctx.shadowColor    = 'rgba(0,0,0,0.65)';
+    ctx.shadowBlur     = 4;
+    ctx.fillText(tags, canvasW / 2, canvasH * 0.715);
     ctx.shadowBlur     = 0;
 
     // 펄싱 CTA — Claude ink + amber edge pill
