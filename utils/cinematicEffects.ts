@@ -169,6 +169,29 @@ export function drawChromaticAberration(
   } catch { /* CORS-tainted canvas — skip */ }
 }
 
+// ─── 5b. Teal-orange color grade (Hollywood film look) ──────────────────────
+// Push shadows toward teal and highlights toward orange — classic blockbuster LUT.
+// Implemented as dual radial overlays at low alpha, NOT getImageData (frame-rate safe).
+
+export function drawTealOrangeGrade(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  strength = 0.12,
+): void {
+  ctx.save();
+  // Teal wash over dark areas (multiply-ish via 'overlay' at low alpha)
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.globalAlpha = strength;
+  ctx.fillStyle = '#123F55';
+  ctx.fillRect(0, 0, w, h);
+  // Orange warm pop on mid-tones via soft-light
+  ctx.globalCompositeOperation = 'soft-light';
+  ctx.globalAlpha = strength * 1.1;
+  ctx.fillStyle = '#FFA15A';
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
 // ─── 6. Ken burns (slow zoom + pan) ──────────────────────────────────────────
 // Apply as ctx transform BEFORE drawing a layer, restore after.
 

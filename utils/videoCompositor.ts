@@ -16,6 +16,7 @@ import {
   drawLetterbox,
   computeKineticReveal,
   drawKineticText,
+  drawTealOrangeGrade,
 } from './cinematicEffects';
 
 // ---------------------------------------------------------------------------
@@ -2404,8 +2405,12 @@ export async function composeVideo(
       }
 
       // ── Cinematic post-processing (CapCut/Reels-grade) ───────────────────
-      // Layer order: leak → grain → beat flash → letterbox → vignette
+      // Layer order: color grade → leak → grain → beat flash → letterbox → vignette
       const bpm = template.bgm?.bpm ?? 0;
+      // Subtle teal-orange grade only during main phase (not intro/outro to preserve title color integrity)
+      if (elapsed >= mainStart && elapsed < mainEnd) {
+        drawTealOrangeGrade(ctx, W, H, 0.10);
+      }
       drawLightLeak(ctx, W, H, elapsed, template.accentColor);
       drawFilmGrain(ctx, W, H, elapsed, 0.09);
       if (bpm > 0 && elapsed >= mainStart && elapsed < mainEnd) {
