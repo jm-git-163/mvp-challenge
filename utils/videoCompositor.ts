@@ -1809,22 +1809,22 @@ function drawBottomZone(
   ctx.textBaseline = 'middle';
 
   if (zone.scrolling) {
-    // Measure full text width
+    // Measure full text width (with spacer for seamless loop)
     const textW = ctx.measureText(zone.text).width;
-    const key = `bottom_${templateId}`;
-    let offset = scrollOffsets.get(key) ?? 0;
-    // Scroll 60px/sec
-    offset = (offset + (elapsed * 0.001 * 60) % (textW + canvasW)) % (textW + canvasW);
-    scrollOffsets.set(key, offset);
+    const loopW = textW + 60;
+    // Phase-based scroll (deterministic, not frame-rate dependent): 80 px/sec
+    const SPEED = 80;
+    const offset = ((elapsed * SPEED) / 1000) % loopW;
 
     ctx.save();
+    ctx.beginPath();
     ctx.rect(0, zoneY, canvasW, zoneH);
     ctx.clip();
     ctx.textAlign = 'left';
     const drawX = canvasW - offset;
     ctx.fillText(zone.text, drawX, zoneY + zoneH / 2);
-    // Repeat for seamless loop
-    ctx.fillText(zone.text, drawX + textW + 40, zoneY + zoneH / 2);
+    ctx.fillText(zone.text, drawX + loopW, zoneY + zoneH / 2);
+    ctx.fillText(zone.text, drawX - loopW, zoneY + zoneH / 2);
     ctx.restore();
   } else {
     ctx.textAlign = 'center';
