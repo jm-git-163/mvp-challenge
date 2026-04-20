@@ -18,6 +18,14 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit A-6-b: challengeTemplateMap 인프라 (2026-04-20)
+- `services/challengeTemplateMap.ts` 신규: 10개 공식 챌린지 slug (daily-vlog·news-anchor·english-speaking·storybook-reading·travel-checkin·unboxing-promo·kpop-dance·food-review·motivation-speech·social-viral) + 장르 키워드 → 3개 레퍼런스 layered Template(neon-arena / news-anchor / emoji-explosion) 매핑. 케이스/공백 관용 resolve + null-safe fallback.
+- `services/challengeTemplateMap.test.ts`: 8 테스트 — 10개 slug 전수 커버리지, 3개 카테고리 매핑, 대소문자, legacy fallback.
+- `vitest.config.ts` include 에 `services/**/*.test.ts` 추가.
+- `app/result/index.tsx` `layeredTemplate` useMemo 신규: `activeTemplate.genre || videoTemplateId` → layered Template. **후속 A-1 commit 에서 composeVideo 오버로드 시 이 값이 렌더 경로에 주입**.
+- Vitest **550/550 green**.
+- **BLOCKER 인정**: A-1~A-5(composeVideo 레이어드 렌더), A-6-a(neon-arena 23→26+, news-anchor 18→24+, emoji-explosion 33 props 정교화), A-7(SFX 5종 + 장식 SVG) 는 엔진 수준 신규 모듈 15+ 파일 범위 → 본 세션 토큰 예산 초과. 다음 세션 작업 대상.
+
 ### Focused Commit B-1/2/3: 크로스브라우저 인식 안정화 (2026-04-20)
 - **B-1** `components/camera/RecordingCamera.web.tsx`: fire-and-forget `play()` 제거. `await play()` + 실패 시 pointerdown/touchstart once 이벤트로 재시도 스케줄. `__poseVideoEl` 은 `readyState>=2 && videoWidth>0` 폴링(100ms × 30회 = 3초)에서 확보된 뒤에만 세팅 → pose 감지가 빈 프레임으로 돌아 zero-landmark 를 생성하던 현상 차단.
 - **B-2** `app/_layout.tsx`: `isAppleTouchDevice()` (UA iPhone|iPad|iPod + iPadOS MacIntel+touch) 감지. iOS/iPadOS 는 preflight `getUserMedia` 를 건너뜀 — user-gesture 없는 호출이 영구 락을 유발하던 iOS Safari 이슈 회피. 안드로이드·데스크톱은 기존대로 미리 획득.

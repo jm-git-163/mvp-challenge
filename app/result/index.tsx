@@ -28,6 +28,7 @@ import {
 import { requestAutoEdit }  from '../../services/api';
 import { composeVideo, type CompositorProgress } from '../../utils/videoCompositor';
 import { getVideoTemplate, VIDEO_TEMPLATES }     from '../../utils/videoTemplates';
+import { resolveLayeredTemplate }                 from '../../services/challengeTemplateMap';
 import type { JudgementTag, FrameTag } from '../../types/session';
 import type { MissionType } from '../../types/template';
 import { Claude, ClaudeFont } from '../../constants/claudeTheme';
@@ -931,7 +932,16 @@ export default function ResultScreen() {
   // Mission results grouped by seq
   const missionResults = useMemo(() => computeMissionResults(frameTags), [frameTags]);
 
-  // Resolve video template
+  // Focused Commit A-6-b: 챌린지 주제별 layered Template 해석
+  //   - 현재 compositor 파이프라인은 legacy VideoTemplate 만 소비하지만, challenge slug/genre 에서
+  //     neon-arena / news-anchor / emoji-explosion 로의 매핑을 먼저 확정해둔다.
+  //   - 후속 A-1 커밋(composeVideo 오버로드)에서 이 레이어드 Template 이 실제 렌더 경로에 꽂힌다.
+  const layeredTemplate = useMemo(() => {
+    const key = activeTemplate?.genre ?? (activeTemplate as any)?.slug ?? videoTemplateId;
+    return resolveLayeredTemplate(key ?? null);
+  }, [activeTemplate, videoTemplateId]);
+
+  // Resolve video template (legacy)
   const videoTemplate = useMemo(() => {
     if (videoTemplateId) return getVideoTemplate(videoTemplateId);
     if (activeTemplate) {
