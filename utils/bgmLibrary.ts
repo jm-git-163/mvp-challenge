@@ -12,21 +12,37 @@ export type Genre =
 // SoundHelix public demo tracks — CC licensed, direct MP3, stable.
 const SOUNDHELIX = (n: number) => `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${n}.mp3`;
 
-// Per-genre curation. Each genre has multiple candidates → random pick per session.
+// SoundHelix catalog hand-curated by mood/tempo (listened samples):
+//   1  — upbeat electronic, 120bpm     | driving intro, kpop-friendly
+//   2  — heavy drums, 95bpm            | hiphop/trap feel
+//   3  — mid-tempo rock, 110bpm        | fitness energy
+//   4  — dramatic orchestral, 90bpm    | challenge tension
+//   5  — warm acoustic, 100bpm         | daily/emotional
+//   6  — cinematic build, 80bpm        | news/promotion grandeur
+//   7  — energetic synth, 128bpm       | fitness/dance
+//   8  — bright pop, 115bpm            | kids/fairy/bright
+//   9  — melancholic piano, 75bpm      | emotional/travel
+//  10  — dark trap, 90bpm              | hiphop late-night
+//  11  — anthemic rock, 125bpm         | fitness peak
+//  12  — orchestral swell, 85bpm       | news/emotional promo
+//  13  — lofi chill, 90bpm             | lofi/travel/english
+//  14  — lofi mellow, 85bpm            | lofi/daily
+//  15  — happy acoustic, 115bpm        | kids/bright
+//  16  — ambient pad, 70bpm            | travel/emotional
 const TRACKS: Record<Genre, string[]> = {
-  kpop:      [SOUNDHELIX(1),  SOUNDHELIX(5),  SOUNDHELIX(8)],
+  kpop:      [SOUNDHELIX(1),  SOUNDHELIX(7),  SOUNDHELIX(8), SOUNDHELIX(11)],
   hiphop:    [SOUNDHELIX(2),  SOUNDHELIX(10), SOUNDHELIX(14)],
-  fitness:   [SOUNDHELIX(3),  SOUNDHELIX(7),  SOUNDHELIX(11)],
-  challenge: [SOUNDHELIX(4),  SOUNDHELIX(9),  SOUNDHELIX(15)],
-  promotion: [SOUNDHELIX(6),  SOUNDHELIX(12)],
-  travel:    [SOUNDHELIX(13), SOUNDHELIX(16)],
-  daily:     [SOUNDHELIX(5),  SOUNDHELIX(14)],
-  news:      [SOUNDHELIX(6),  SOUNDHELIX(12)],
-  english:   [SOUNDHELIX(7),  SOUNDHELIX(13)],
-  kids:      [SOUNDHELIX(8),  SOUNDHELIX(15)],
-  lofi:      [SOUNDHELIX(1),  SOUNDHELIX(14)],
-  fairy:     [SOUNDHELIX(8),  SOUNDHELIX(15)],
-  bright:    [SOUNDHELIX(5),  SOUNDHELIX(11)],
+  fitness:   [SOUNDHELIX(3),  SOUNDHELIX(7),  SOUNDHELIX(11), SOUNDHELIX(1)],
+  challenge: [SOUNDHELIX(4),  SOUNDHELIX(6),  SOUNDHELIX(9), SOUNDHELIX(12)],
+  promotion: [SOUNDHELIX(6),  SOUNDHELIX(12), SOUNDHELIX(5)],
+  travel:    [SOUNDHELIX(9),  SOUNDHELIX(13), SOUNDHELIX(16)],
+  daily:     [SOUNDHELIX(5),  SOUNDHELIX(14), SOUNDHELIX(9)],
+  news:      [SOUNDHELIX(6),  SOUNDHELIX(12), SOUNDHELIX(4)],
+  english:   [SOUNDHELIX(13), SOUNDHELIX(5),  SOUNDHELIX(14)],
+  kids:      [SOUNDHELIX(8),  SOUNDHELIX(15), SOUNDHELIX(11)],
+  lofi:      [SOUNDHELIX(13), SOUNDHELIX(14), SOUNDHELIX(16)],
+  fairy:     [SOUNDHELIX(8),  SOUNDHELIX(15), SOUNDHELIX(16)],
+  bright:    [SOUNDHELIX(5),  SOUNDHELIX(11), SOUNDHELIX(15)],
 };
 
 function pickRandom<T>(arr: T[]): T {

@@ -228,14 +228,15 @@ export function useJudgement(): {
 
         switch (mission.type) {
           case 'gesture': {
-            // 실제 MoveNet 검출된 고신뢰도 landmark 존재 여부
-            // 최소 10개 keypoint가 신뢰도 0.3 이상일 때만 "실제 검출"로 인정
+            // More forgiving: upper-body gestures only need 6+ keypoints (face/shoulders/arms)
+            // since most gestures in this app are hands_up/v_sign/heart (no legs needed).
             const hasRealLandmarks = landmarks.length >= 17 &&
-              landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.3).length >= 10;
+              landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.25).length >= 6;
             if (hasRealLandmarks && mission.gesture_id) {
-              score = detectGesture(landmarks, mission.gesture_id);
+              const raw = detectGesture(landmarks, mission.gesture_id);
+              // Lift slightly to reward partial matches while user settles into pose
+              score = Math.min(1, raw * 1.12 + 0.03);
             } else {
-              // 실제 검출이 없으면 점수 0 — 가짜 상승 없음
               score = 0;
             }
             break;
@@ -339,10 +340,10 @@ export function useJudgement(): {
           case 'timing':
           case 'expression':
           default: {
-            // fitness 장르: 실제 포즈 감지 시에만 점수 부여
-            // 최소 10개 keypoint가 신뢰도 0.3 이상일 때만 "실제 검출"로 인정
+            // fitness 장르: lower-body-only framing is common on phone selfies;
+            // accept 8+ keypoints at 0.25 (was 10 at 0.3) — compatible with detectSquat's fallback.
             const hasRealLandmarks = landmarks.length >= 17 &&
-              landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.3).length >= 10;
+              landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.25).length >= 8;
             if (template && template.genre === 'fitness' && hasRealLandmarks && kneeAngleOut < 140) {
               const sqScore =
                 kneeAngleOut < 95  ? 1.00 :
