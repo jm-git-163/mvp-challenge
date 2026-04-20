@@ -4,6 +4,16 @@
 
 ---
 
+## WORK_ORDER Phase 1 — 긴급 버그 수정 (feat/phase-1-bugfix)
+
+### P1-A 라우트 선언 정합화 (2026-04-20)
+- `app/_layout.tsx` 71~73라인 패치: `(auth)` 제거(빈 디렉터리), `record/index`→`record`, `result/index`→`result`.
+- `scripts/lint-routes.js` 신규: `<Stack.Screen name>` 추출 → app/ 트리와 대조, 그룹/중첩/`/index` 접미사 검증.
+- `package.json` `pretest` 훅으로 자동 실행. `vitest.config.ts` include 에 `scripts/**/*.test.{ts,js}` 추가.
+- Vitest: lint-routes 유닛 10/10 + 기존 517 유지 → **527/527 green**.
+
+---
+
 ## Phase 5f — Canvas 2D PostProcess 폴백 (2026-04-20)
 
 ### 5f-fallback `engine/effects/postProcess2d.ts`

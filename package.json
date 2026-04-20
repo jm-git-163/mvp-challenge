@@ -9,6 +9,8 @@
     "web": "expo start --web",
     "build:web": "npx expo export --platform web && node scripts/patch-dist.js",
     "postexport": "node scripts/patch-dist.js",
+    "lint:routes": "node scripts/lint-routes.js",
+    "pretest": "node scripts/lint-routes.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
