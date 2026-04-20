@@ -77,7 +77,8 @@
       "mcp__Claude_in_Chrome__read_console_messages",
       "mcp__Claude_in_Chrome__javascript_tool",
       "mcp__Claude_in_Chrome__resize_window",
-      "mcp__Claude_in_Chrome__find"
+      "mcp__Claude_in_Chrome__find",
+      "Bash(git commit *)"
     ]
   }
 }
