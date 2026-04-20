@@ -70,6 +70,15 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.4 `engine/recognition/poseTypes.ts` + `engine/missions/squatCounter.ts` (2026-04-20)
+- MediaPipe Pose 33-포인트 인덱스 상수 + `dist2D`/`angleDeg`/`mean` 순수 유틸.
+- `SquatCounter` 4-phase 상태머신 (up → descending → down → ascending → up).
+- Hysteresis: downAngle=100° / upAngle=160° / ±5° 전이 마진.
+- Jitter 방지: `downHoldMs=150` 미만 유지는 descending 복귀.
+- CLAUDE.md §5 Squat 점수 공식 구현: `achievement * 50 + depth * 30 + tempo * 20`.
+- 깊이(60°↓=1.0, 100°=0), 템포(rep 간격 CV ≤0.1=1.0, ≥0.5=0).
+- Vitest: **poseTypes 7/7** + **squatCounter 12/12** pass.
+
 ### 1.3 `engine/recognition/speechRecognizer.ts` (2026-04-20)
 - webkitSpeechRecognition/SpeechRecognition 래퍼. 기본 `lang='ko-KR'`, continuous+interim.
 - docs/COMPATIBILITY §5 iOS 세션 끊김 대응: `isIOS=true`면 `onend`에서 `setTimeout(100)` 후 재시작.
