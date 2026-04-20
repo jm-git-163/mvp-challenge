@@ -60,7 +60,8 @@
       "Bash(grep -o \"q[=,\\(].\\\\{30\\\\}\")",
       "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\dist\\\\_expo\\\\static\\\\js\\\\web\\\\\" /b)",
       "Bash(npm run *)",
-      "Bash(node scripts/patch-dist.js)"
+      "Bash(node scripts/patch-dist.js)",
+      "Bash(tee /tmp/vercel-deploy.log)"
     ]
   }
 }

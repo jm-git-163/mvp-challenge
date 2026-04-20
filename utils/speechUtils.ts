@@ -146,6 +146,19 @@ export async function prewarmMic(): Promise<void> {
   }
 }
 
+// ── 모듈 레벨 SpeechRecognizer 싱글톤 ─────────────────────────────────────────
+// 화면 이동(remount)해도 동일 인스턴스 재사용 → Chrome 권한 팝업 1회만 표시
+let _globalRecognizer: SpeechRecognizer | null = null;
+
+export function getGlobalSpeechRecognizer(): SpeechRecognizer {
+  if (!_globalRecognizer && typeof window !== 'undefined') {
+    _globalRecognizer = new SpeechRecognizer();
+  }
+  // SSR 환경 대비 fallback
+  if (!_globalRecognizer) _globalRecognizer = new SpeechRecognizer();
+  return _globalRecognizer;
+}
+
 // ── SpeechRecognition 래퍼 ────────────────────────────────────────────────────
 // 핵심: 인스턴스 1개를 전체 세션 동안 재사용
 //       new SpeechRecognition() 생성 = Chrome 마이크 팝업 재표시
@@ -184,6 +197,14 @@ export class SpeechRecognizer {
   resetForNextMission(): void {
     this._finalText  = '';
     this._targetText = '';
+  }
+
+  /**
+   * 인식 중 목표 텍스트만 교체 (새 미션 텍스트 반영)
+   * listen() 재호출 없이 실시간 유사도 비교 대상만 변경
+   */
+  setTargetText(text: string): void {
+    this._targetText = text;
   }
 
   /**

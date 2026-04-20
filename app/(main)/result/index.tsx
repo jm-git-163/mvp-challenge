@@ -161,11 +161,19 @@ function computeMissionResults(frameTags: FrameTag[]): MissionResult[] {
 
 function doDownload(uri: string, name: string, mimeType?: string): void {
   if (typeof window === 'undefined' || !uri) return;
-  const ext = mimeType?.includes('mp4') ? 'mp4' : 'mp4';
-  const safeName = (name || 'challenge').replace(/[^\w가-힣\s]/g, '').trim();
+  const ext =
+    mimeType?.includes('mp4') ? 'mp4' :
+    mimeType?.includes('webm') ? 'webm' :
+    uri.toLowerCase().endsWith('.webm') ? 'webm' : 'mp4';
+  const safeName = (name || 'challenge')
+    .replace(/[^\w가-힣\s-]/g, '')   // strip emoji + symbols, keep Korean
+    .trim()
+    .replace(/\s+/g, '_')            // spaces → underscores (filesystem-friendly)
+    .slice(0, 40);                   // limit filename length
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const a = document.createElement('a');
   a.href = uri;
-  a.download = `${safeName}_챌린지.${ext}`;
+  a.download = `${safeName || 'challenge'}_${stamp}.${ext}`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -299,8 +307,12 @@ function MissionResultCard({ result, missionType, index }: {
           <Text style={[mrc.pct, { color }]}>{pct}%</Text>
         </View>
       </View>
-      <View style={[mrc.badge, { backgroundColor: success ? '#dcfce7' : '#fef3c7' }]}>
-        <Text style={[mrc.badgeText, { color: success ? '#15803d' : '#92400e' }]}>
+      <View style={[mrc.badge, {
+        backgroundColor: success ? 'rgba(34,197,94,0.18)' : 'rgba(245,158,11,0.18)',
+        borderWidth: 1,
+        borderColor: success ? 'rgba(34,197,94,0.45)' : 'rgba(245,158,11,0.45)',
+      }]}>
+        <Text style={[mrc.badgeText, { color: success ? '#86efac' : '#fcd34d' }]}>
           {success ? '✅ 성공' : '⚠️ 아쉬움'}
         </Text>
       </View>
@@ -311,17 +323,19 @@ function MissionResultCard({ result, missionType, index }: {
 const mrc = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#f8fafc', borderRadius: 14,
-    padding: 12, borderWidth: 1, borderColor: '#e2e8f0',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   icon:     { fontSize: 22 },
   center:   { flex: 1, gap: 6 },
-  typeLabel: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pct:   { fontSize: 13, fontWeight: '800', width: 40, textAlign: 'right' },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
+  typeLabel: { fontSize: 14, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.2 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pct:   { fontSize: 13, fontWeight: '900', width: 44, textAlign: 'right', fontVariant: ['tabular-nums'] as any },
+  badge: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999 },
+  badgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
 });
 
 /** 달성 뱃지 아이템 (spring pop-in 애니메이션) */
@@ -356,7 +370,7 @@ function BadgeItem({ badge, unlocked, index }: {
       ]}
     >
       <Text style={bdg.emoji}>{badge.emoji}</Text>
-      <Text style={[bdg.label, { color: unlocked ? badge.color : '#9ca3af' }]} numberOfLines={1}>
+      <Text style={[bdg.label, { color: unlocked ? badge.color : 'rgba(255,255,255,0.35)' }]} numberOfLines={1}>
         {badge.label}
       </Text>
       {unlocked && (
@@ -368,23 +382,47 @@ function BadgeItem({ badge, unlocked, index }: {
 
 const bdg = StyleSheet.create({
   wrap: {
-    width: 72, alignItems: 'center', gap: 4,
-    paddingVertical: 10, paddingHorizontal: 6,
-    borderRadius: 16, borderWidth: 1.5, borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    width: 76, alignItems: 'center', gap: 5,
+    paddingVertical: 12, paddingHorizontal: 6,
+    borderRadius: 18, borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  locked: { borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
-  emoji: { fontSize: 26 },
-  label: { fontSize: 10, fontWeight: '700', textAlign: 'center', lineHeight: 13 },
+  locked: {
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  emoji: { fontSize: 28 },
+  label: { fontSize: 10, fontWeight: '800', textAlign: 'center', lineHeight: 13, letterSpacing: 0.2 },
   dot:   { width: 6, height: 6, borderRadius: 3, marginTop: 2 },
 });
 
 /** Confetti overlay */
-function Confetti({ show }: { show: boolean }) {
-  const items = useMemo(() =>
-    ['🎉','🎊','⭐','✨','🌟','💫','🎈','🎁','🔥','💥'].map((e, i) => ({
-      emoji: e, left: `${5 + i * 9}%`, delay: i * 120,
-    })), []);
+function Confetti({ show, tier = 'normal' }: { show: boolean; tier?: 'mini' | 'normal' | 'epic' }) {
+  const items = useMemo(() => {
+    const pools: Record<typeof tier, string[]> = {
+      mini:   ['✨','⭐','💫','🌟'],
+      normal: ['🎉','🎊','⭐','✨','🌟','💫','🎈','🔥','💥','🏆'],
+      epic:   ['🎉','🎊','🏆','👑','⭐','✨','🌟','💫','🎈','🎁','🔥','💥','💎','🥇','🌈','🪩','💖','🎆'],
+    };
+    const pool = pools[tier];
+    const count = tier === 'epic' ? 36 : tier === 'normal' ? 18 : 10;
+    const dur   = tier === 'epic' ? 2.8 : 2.2;
+    return Array.from({ length: count }, (_, i) => {
+      // deterministic sin-hash for SSR-safe stable positions
+      const h1 = Math.abs(Math.sin((i + 1) * 97.13));
+      const h2 = Math.abs(Math.sin((i + 1) * 53.31));
+      const h3 = Math.abs(Math.sin((i + 1) * 17.71));
+      return {
+        emoji: pool[i % pool.length],
+        left: `${2 + (h1 * 96)}%`,
+        delay: Math.floor(h2 * 800),
+        size: tier === 'epic' ? 26 + h3 * 18 : 22 + h3 * 14,
+        duration: dur + h1 * 0.8,
+        drift: (h2 - 0.5) * 60, // horizontal wobble
+      };
+    });
+  }, [tier]);
 
   if (!show) return null;
   return (
@@ -392,8 +430,14 @@ function Confetti({ show }: { show: boolean }) {
       {items.map((item, i) => (
         <Text
           key={i}
-          // @ts-ignore web — left is a string percentage, animationDelay is web-only
-          style={[cft.item, { left: item.left, animationDelay: `${item.delay}ms` }]}
+          // @ts-ignore web — left is a string %, animation* and CSS vars are web-only
+          style={[cft.item, {
+            left: item.left as any,
+            fontSize: item.size,
+            animationDelay: `${item.delay}ms`,
+            animationDuration: `${item.duration}s`,
+            ['--drift' as any]: `${item.drift}px`,
+          } as any]}
         >
           {item.emoji}
         </Text>
@@ -404,9 +448,13 @@ function Confetti({ show }: { show: boolean }) {
 
 const cft = StyleSheet.create({
   item: {
-    position: 'absolute', top: -20, fontSize: 28, zIndex: 100,
+    position: 'absolute', top: -24, zIndex: 100,
     // @ts-ignore web
-    animation: 'confettiFall 2.2s ease-in forwards',
+    animation: 'confettiFall 2.4s cubic-bezier(.32,.72,.44,1) forwards',
+    // @ts-ignore web
+    textShadow: '0 2px 8px rgba(0,0,0,0.35)',
+    // @ts-ignore web
+    willChange: 'transform, opacity',
   },
 });
 
@@ -569,18 +617,23 @@ const sm = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    backgroundColor: '#0f1020',
+    // @ts-ignore web
+    backgroundImage: 'radial-gradient(120% 100% at 50% 0%, #1e1b4b 0%, #0f1020 60%, #0a0b18 100%)',
+    borderTopLeftRadius: 32, borderTopRightRadius: 32,
     paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12,
-    gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12, shadowRadius: 20, elevation: 24,
+    gap: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.45, shadowRadius: 28, elevation: 24,
   },
   handle: {
-    width: 40, height: 4, backgroundColor: '#e5e7eb',
-    borderRadius: 2, alignSelf: 'center', marginBottom: 8,
+    width: 44, height: 4, backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2, alignSelf: 'center', marginBottom: 10,
   },
-  title: { fontSize: 20, fontWeight: '900', color: '#1a1a2e', textAlign: 'center' },
-  subtitle: { fontSize: 13, color: '#6b7280', textAlign: 'center' },
-  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
+  title: { fontSize: 20, fontWeight: '900', color: '#ffffff', textAlign: 'center', letterSpacing: 0.3 },
+  subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.55)', textAlign: 'center' },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 4 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     paddingVertical: 14, paddingHorizontal: 18, borderRadius: 16,
@@ -591,9 +644,10 @@ const sm = StyleSheet.create({
   rowArrow: { fontSize: 22, fontWeight: '300' },
   cancelBtn: {
     alignItems: 'center', paddingVertical: 16, borderRadius: 16,
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
-  cancelText: { fontSize: 15, fontWeight: '700', color: '#6b7280' },
+  cancelText: { fontSize: 15, fontWeight: '700', color: 'rgba(255,255,255,0.75)' },
   toast: {
     position: 'absolute', bottom: 120, left: 20, right: 20,
     backgroundColor: 'rgba(30,30,46,0.92)', borderRadius: 14,
@@ -605,28 +659,73 @@ const sm = StyleSheet.create({
 // ─── Compositing progress bar ─────────────────────────────────────────────────
 
 function ComposeProgress({ progress }: { progress: CompositorProgress | null }) {
+  const pct = Math.round(progress?.percent ?? 0);
+  const phaseText = progress?.phase ?? '준비 중...';
+  // Phase emoji hint
+  const phaseEmoji =
+    pct < 10 ? '📦' :
+    pct < 30 ? '🎞️' :
+    pct < 60 ? '🎨' :
+    pct < 90 ? '🎧' :
+    pct < 100 ? '📼' : '✅';
   return (
     <View style={cp.wrap}>
-      <ActivityIndicator size="large" color="#7c3aed" />
-      <Text style={cp.title}>🎬 영상 합성 중...</Text>
-      <Text style={cp.phase}>{progress?.phase ?? '준비 중...'}</Text>
+      {typeof window !== 'undefined' && (
+        // @ts-ignore web
+        <style>{`
+          @keyframes barShimmer {
+            0%   { transform: translateX(-120%); }
+            100% { transform: translateX(220%); }
+          }
+        `}</style>
+      )}
+      <Text style={cp.emoji}>{phaseEmoji}</Text>
+      <Text style={cp.title}>🎬 영상 합성 중</Text>
+      <Text style={cp.phase}>{phaseText}</Text>
       <View style={cp.barBg}>
-        <View style={[cp.barFill, { width: `${progress?.percent ?? 0}%` as any }]} />
+        <View style={[cp.barFill, { width: `${pct}%` as any }]} />
+        <View style={cp.barShimmer} pointerEvents="none" />
       </View>
-      <Text style={cp.pct}>{Math.round(progress?.percent ?? 0)}%</Text>
+      <Text style={cp.pct}>{pct}%</Text>
       <Text style={cp.note}>실시간 처리 — 영상 길이만큼 소요됩니다</Text>
     </View>
   );
 }
 
 const cp = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: 10, paddingVertical: 12 },
-  title: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
-  phase: { color: '#7c3aed', fontSize: 13, fontWeight: '600' },
-  barBg: { width: '100%', height: 8, backgroundColor: '#ede9ff', borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: '#7c3aed', borderRadius: 4 },
-  pct:  { color: '#7c3aed', fontSize: 13, fontWeight: '700' },
-  note: { color: '#9ca3af', fontSize: 11, textAlign: 'center', lineHeight: 16 },
+  wrap: {
+    alignItems: 'center', gap: 12, paddingVertical: 18, paddingHorizontal: 16,
+    backgroundColor: 'rgba(124,58,237,0.08)',
+    borderRadius: 18,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.25)',
+  },
+  title: { fontSize: 16, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.3 },
+  phase: { color: '#c4b5fd', fontSize: 13, fontWeight: '600' },
+  emoji: { fontSize: 36, marginTop: -4 },
+  barBg: {
+    width: '100%', height: 12, backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 6, overflow: 'hidden', position: 'relative',
+  },
+  barFill: {
+    height: '100%', backgroundColor: '#a78bfa', borderRadius: 6,
+    // @ts-ignore web
+    backgroundImage: 'linear-gradient(90deg, #7c3aed, #ec4899, #f59e0b)',
+    // @ts-ignore web
+    backgroundSize: '200% 100%',
+    // @ts-ignore web
+    boxShadow: '0 0 14px rgba(167,139,250,0.65)',
+    // @ts-ignore web
+    transition: 'width 0.35s cubic-bezier(.4,0,.2,1)',
+  },
+  barShimmer: {
+    position: 'absolute', top: 0, bottom: 0, left: 0, width: '40%',
+    // @ts-ignore web
+    backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)',
+    // @ts-ignore web
+    animation: 'barShimmer 1.6s linear infinite',
+  },
+  pct:  { color: '#c4b5fd', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] as any },
+  note: { color: 'rgba(255,255,255,0.45)', fontSize: 11, textAlign: 'center', lineHeight: 16 },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -718,15 +817,43 @@ export default function ResultScreen() {
     return VIDEO_TEMPLATES[0];
   }, [videoTemplateId, activeTemplate]);
 
-  // Share text for modal
+  // Share text for modal — score-aware caption with badge shoutouts
   const shareText = useMemo(() => {
-    if (!activeTemplate) return `챌린지 ${scoreNum}점 달성! #챌린지스튜디오`;
+    const grade =
+      scoreNum >= 90 ? '🏆 PERFECT CLEAR' :
+      scoreNum >= 80 ? '🌟 거의 완벽' :
+      scoreNum >= 60 ? '💪 성공' :
+      scoreNum >= 40 ? '🙌 도전 완료' : '🔄 리트라이 각';
+    const badgeLine = unlockedBadges.length > 0
+      ? `획득 뱃지: ${unlockedBadges.map(id => {
+          const b = ALL_BADGES.find(x => x.id === id);
+          return b ? `${b.emoji} ${b.label}` : '';
+        }).filter(Boolean).join(' · ')}`
+      : '';
+    const perfects = stats.counts.perfect;
+    const hint = perfects > 0 ? `PERFECT ${perfects}번!` : '';
+
+    if (!activeTemplate) {
+      return [
+        `${grade} · ${scoreNum}점`,
+        hint,
+        '#챌린지스튜디오 #챌린지 #shorts',
+      ].filter(Boolean).join('\n');
+    }
+
     const caption = activeTemplate.sns_template.caption_template
       .replace('{template_name}', activeTemplate.name)
       .replace('{score}', String(scoreNum));
     const hashtags = activeTemplate.sns_template.hashtags.map(h => '#' + h).join(' ');
-    return `${caption}\n${hashtags}`;
-  }, [activeTemplate, scoreNum]);
+
+    return [
+      `${grade} · ${scoreNum}점`,
+      caption,
+      hint,
+      badgeLine,
+      hashtags + ' #shorts #챌린지',
+    ].filter(Boolean).join('\n');
+  }, [activeTemplate, scoreNum, unlockedBadges, stats.counts.perfect]);
 
   useEffect(() => {
     Animated.stagger(150, [
@@ -743,6 +870,19 @@ export default function ResultScreen() {
       return () => clearTimeout(t);
     }
   }, []);
+
+  // ▶ Auto-compose on mount: template(intro/overlays/BGM/outro) + recording → 세로형 쇼츠 MP4
+  const autoComposedRef = useRef(false);
+  useEffect(() => {
+    if (autoComposedRef.current) return;
+    if (!videoTemplate || !rawVideoUri) return;
+    if (composedUri || composing) return;
+    autoComposedRef.current = true;
+    // 살짝 딜레이 — 애니메이션 끝난 뒤 시작
+    const t = setTimeout(() => { handleCompose(); }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoTemplate, rawVideoUri]);
 
   // Handlers
   const handleCompose = useCallback(async () => {
@@ -764,7 +904,7 @@ export default function ResultScreen() {
       setComposedUri(composedUrl);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 2500);
-      doDownload(composedUrl, activeTemplate?.name ?? '챌린지', resultBlob.type);
+      // 자동 다운로드는 제거 — 사용자는 아래 다운로드/공유 버튼으로 직접 저장
     } catch (e) {
       setComposeError(e instanceof Error ? e.message : '합성 실패');
     } finally {
@@ -826,13 +966,18 @@ export default function ResultScreen() {
         // @ts-ignore
         <style>{`
           @keyframes confettiFall {
-            0%   { transform: translateY(0) rotate(0deg); opacity:1; }
-            100% { transform: translateY(130vh) rotate(720deg); opacity:0; }
+            0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+            8%   { opacity: 1; }
+            60%  { opacity: 1; }
+            100% { transform: translate(var(--drift, 0px), 130vh) rotate(720deg); opacity: 0; }
           }
         `}</style>
       )}
 
-      <Confetti show={showConfetti} />
+      <Confetti
+        show={showConfetti}
+        tier={scoreNum >= 90 ? 'epic' : scoreNum >= 75 ? 'normal' : 'mini'}
+      />
 
       <ShareModal
         visible={showShareModal}
@@ -878,7 +1023,18 @@ export default function ResultScreen() {
             opacity: scoreAnim,
             transform: [{ scale: scoreAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
             borderTopColor: accentColor,
-          },
+            // @ts-ignore web radial-glow per score tier
+            backgroundImage:
+              scoreNum >= 90
+                ? `radial-gradient(90% 60% at 50% 0%, ${accentColor}26 0%, transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)`
+                : scoreNum >= 75
+                  ? `radial-gradient(80% 50% at 50% 0%, ${accentColor}1a 0%, transparent 70%)`
+                  : undefined,
+            boxShadow:
+              scoreNum >= 90
+                ? `0 18px 60px ${accentColor}44, 0 4px 14px rgba(0,0,0,0.45)`
+                : undefined,
+          } as any,
         ]}>
           {/* Accent stripe */}
           <View style={[st.scoreStripe, { backgroundColor: accentColor }]} />
@@ -964,6 +1120,20 @@ export default function ResultScreen() {
         ]}>
           <Text style={st.sectionTitle}>🎬 영상</Text>
 
+          {/* Empty state when there's literally no video yet */}
+          {!composedUri && !rawVideoUri && !composing && (
+            <View style={{
+              paddingVertical: 40,
+              alignItems: 'center',
+              gap: 8,
+            }}>
+              <Text style={{ fontSize: 40 }}>🎞️</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, textAlign: 'center' }}>
+                영상이 아직 준비되지 않았어요
+              </Text>
+            </View>
+          )}
+
           {/* Video player: composed first, else raw */}
           {(composedUri || rawVideoUri) && (
             <View style={st.videoWrap}>
@@ -973,10 +1143,17 @@ export default function ResultScreen() {
                 controls
                 playsInline
                 style={{
-                  width: '100%', maxHeight: 360,
-                  borderRadius: 16, display: 'block', background: '#000',
+                  width: 'min(360px, 78vw)',
+                  aspectRatio: '9 / 16',
+                  maxHeight: '72vh',
+                  borderRadius: 22,
+                  display: 'block',
+                  background: '#000',
+                  margin: '0 auto',
+                  objectFit: 'cover',
                   // @ts-ignore
-                  boxShadow: `0 8px 32px ${accentColor}33`,
+                  boxShadow: `0 18px 48px ${accentColor}55, 0 4px 12px rgba(0,0,0,0.4)`,
+                  border: `1px solid ${accentColor}33`,
                 }}
               />
               {composedUri && (
@@ -1028,8 +1205,14 @@ export default function ResultScreen() {
               <Text style={st.downloadText}>📥 저장</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[st.shareBtn, { backgroundColor: accentColor }]}
+              style={[st.shareBtn, {
+                backgroundColor: accentColor,
+                // @ts-ignore web gradient
+                backgroundImage: `linear-gradient(135deg, ${accentColor} 0%, #ec4899 100%)`,
+                boxShadow: `0 8px 22px ${accentColor}66, inset 0 1px 0 rgba(255,255,255,0.25)`,
+              } as any]}
               onPress={() => setShowShareModal(true)}
+              activeOpacity={0.88}
             >
               <Text style={st.shareText}>📤 SNS 공유</Text>
             </TouchableOpacity>
@@ -1068,7 +1251,12 @@ export default function ResultScreen() {
             <Text style={st.retakeText}>🔄 다시 도전</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[st.homeBtn, { backgroundColor: accentColor }]}
+            style={[st.homeBtn, {
+              backgroundColor: accentColor,
+              // @ts-ignore web gradient
+              backgroundImage: `linear-gradient(135deg, ${accentColor} 0%, #7c3aed 100%)`,
+              boxShadow: `0 8px 22px ${accentColor}55, inset 0 1px 0 rgba(255,255,255,0.22)`,
+            } as any]}
             onPress={goHome}
             activeOpacity={0.85}
           >
@@ -1084,9 +1272,15 @@ export default function ResultScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: '#F4F5F9' },
+  root: {
+    flex: 1,
+    backgroundColor: '#0b0d1a',
+    // @ts-ignore web gradient
+    backgroundImage:
+      'radial-gradient(120% 80% at 50% -10%, #1e1b4b 0%, #0b0d1a 55%, #05060d 100%)',
+  },
   scroll:  { flex: 1 },
-  content: { paddingTop: 8, paddingBottom: 88, gap: 14 },
+  content: { paddingTop: 8, paddingBottom: 96, gap: 16 },
 
   // Header
   headerRow: {
@@ -1095,21 +1289,29 @@ const st = StyleSheet.create({
   },
   backBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center', justifyContent: 'center',
+    // @ts-ignore
+    backdropFilter: 'blur(12px)',
   },
-  backText:     { fontSize: 22, color: '#333', fontWeight: '700' },
+  backText:     { fontSize: 22, color: '#fff', fontWeight: '700' },
   headerCenter: { flex: 1, alignItems: 'center', gap: 2 },
-  headerTitle:  { fontSize: 20, fontWeight: '900', color: '#1a1a2e', textAlign: 'center' },
-  headerSub:    { fontSize: 12, color: '#999' },
+  headerTitle:  { fontSize: 20, fontWeight: '900', color: '#f8fafc', textAlign: 'center', letterSpacing: 0.2 },
+  headerSub:    { fontSize: 12, color: 'rgba(255,255,255,0.55)', letterSpacing: 0.3 },
 
   // Score card
   scoreCard: {
-    backgroundColor: '#fff', borderRadius: 24,
-    overflow: 'hidden', borderTopWidth: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 16, elevation: 5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderTopWidth: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    // @ts-ignore web
+    backdropFilter: 'blur(20px)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35, shadowRadius: 32, elevation: 8,
   },
   scoreStripe: { height: 4, width: '100%' },
   scoreBody: {
@@ -1129,73 +1331,103 @@ const st = StyleSheet.create({
   // Tag distribution
   tagRow: { flexDirection: 'row', gap: 10, width: '100%', marginTop: 4 },
   tagCard: {
-    flex: 1, backgroundColor: '#f8fafc', borderRadius: 14,
-    alignItems: 'center', paddingVertical: 14,
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16,
+    alignItems: 'center', paddingVertical: 16,
     borderTopWidth: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  tagCount: { fontSize: 28, fontWeight: '900' },
-  tagName:  { color: '#9ca3af', fontSize: 10, fontWeight: '700', marginTop: 3, letterSpacing: 0.5 },
+  tagCount: { fontSize: 30, fontWeight: '900', color: '#fff' },
+  tagName:  { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '700', marginTop: 4, letterSpacing: 1 },
 
-  // Sections
+  // Sections — glassmorphic
   section: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 18, gap: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderRadius: 22,
+    padding: 20,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    // @ts-ignore web
+    backdropFilter: 'blur(16px)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 20, elevation: 3,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.3 },
 
   // Mission results
   missionList: { gap: 8 },
 
   // Badges
-  noBadge:  { color: '#9ca3af', fontSize: 13, textAlign: 'center', paddingVertical: 4 },
-  badgeHint: { color: '#7c3aed', fontSize: 13, fontWeight: '700' },
+  noBadge:  { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', paddingVertical: 4 },
+  badgeHint: { color: '#c4b5fd', fontSize: 13, fontWeight: '700' },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
 
   // Video section
   videoWrap:    { position: 'relative' },
   composedBadge: {
-    position: 'absolute', top: 12, right: 12,
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10,
+    position: 'absolute', top: 12, alignSelf: 'center',
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    // @ts-ignore web
+    boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
   },
-  composedBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  composedBadgeText: {
+    color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 0.5,
+    // @ts-ignore web
+    textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+  },
 
   // Compose CTA
   composeCta:   { gap: 12 },
-  composeDesc:  { color: '#6b7280', fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  composeDesc:  { color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 20, textAlign: 'center' },
   composeBtn: {
     // @ts-ignore web
-    background: 'linear-gradient(135deg, #7c3aed, #ec4899)',
+    background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
     backgroundColor: '#7c3aed',
-    paddingVertical: 18, borderRadius: 16,
-    alignItems: 'center', minHeight: 58, justifyContent: 'center',
-    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
+    paddingVertical: 18, borderRadius: 18,
+    alignItems: 'center', minHeight: 60, justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5, shadowRadius: 16, elevation: 8,
+    // @ts-ignore web
+    boxShadow: '0 10px 28px rgba(124,58,237,0.45), 0 1px 0 rgba(255,255,255,0.18) inset',
   },
-  composeBtnDis:  { backgroundColor: '#d1d5db', shadowOpacity: 0 },
-  composeBtnText: { color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
+  composeBtnDis: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    // @ts-ignore web
+    background: 'rgba(255,255,255,0.06)',
+    shadowOpacity: 0,
+    borderColor: 'rgba(255,255,255,0.08)',
+    // @ts-ignore web
+    boxShadow: 'none',
+  },
+  composeBtnText: {
+    color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.8,
+    // @ts-ignore web
+    textShadow: '0 2px 8px rgba(0,0,0,0.35)',
+  },
 
   // Error box
   errorBox: {
-    backgroundColor: '#fef2f2', borderRadius: 12, padding: 14, gap: 8,
-    borderWidth: 1, borderColor: '#fecaca', alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 14, padding: 16, gap: 10,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.35)', alignItems: 'center',
   },
-  errorText:    { color: '#dc2626', fontSize: 13, textAlign: 'center' },
+  errorText:    { color: '#fca5a5', fontSize: 13, textAlign: 'center' },
   retryBtn:     { backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10 },
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   // Action row
   actionRow: { flexDirection: 'row', gap: 10 },
   downloadBtn: {
-    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e5e7eb',
-    paddingVertical: 14, borderRadius: 12, alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
+    paddingVertical: 14, borderRadius: 14, alignItems: 'center',
     minHeight: 50, justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+    // @ts-ignore web
+    backdropFilter: 'blur(10px)',
   },
-  downloadText: { color: '#374151', fontSize: 14, fontWeight: '700' },
+  downloadText: { color: '#f1f5f9', fontSize: 14, fontWeight: '700' },
   shareBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 12,
     alignItems: 'center', minHeight: 50, justifyContent: 'center',
@@ -1210,6 +1442,10 @@ const st = StyleSheet.create({
     alignItems: 'center', minHeight: 54, justifyContent: 'center',
     shadowColor: '#059669', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
+    // @ts-ignore web
+    backgroundImage: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    // @ts-ignore web
+    boxShadow: '0 8px 22px rgba(5,150,105,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
   },
   saveBtnDis:  { backgroundColor: '#d1d5db', shadowOpacity: 0 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
@@ -1220,13 +1456,15 @@ const st = StyleSheet.create({
   // Bottom buttons
   bottomRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   retakeBtn: {
-    flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e5e7eb',
-    paddingVertical: 16, borderRadius: 14, alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
+    paddingVertical: 16, borderRadius: 16, alignItems: 'center',
     minHeight: 56, justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    // @ts-ignore web
+    backdropFilter: 'blur(10px)',
   },
-  retakeText: { color: '#374151', fontSize: 15, fontWeight: '800' },
+  retakeText: { color: '#f1f5f9', fontSize: 15, fontWeight: '800' },
   homeBtn: {
     flex: 1, paddingVertical: 16, borderRadius: 14,
     alignItems: 'center', minHeight: 56, justifyContent: 'center',

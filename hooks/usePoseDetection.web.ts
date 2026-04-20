@@ -9,6 +9,7 @@ import { generateMockPose, generateSquatMockPose } from '../utils/poseUtils';
 
 interface UsePoseDetectionReturn {
   isReady: boolean;
+  isRealPose: boolean;
   landmarks: NormalizedLandmark[];
   detect: (_b64: string, _w: number, _h: number) => Promise<void>;
   error: string | null;
@@ -23,6 +24,7 @@ const DETECT_INTERVAL_MS = 100;
 
 export function usePoseDetection(): UsePoseDetectionReturn {
   const [isReady, setIsReady]       = useState(false);
+  const [isRealPose, setIsRealPose] = useState(false);
   const [landmarks, setLandmarks]   = useState<NormalizedLandmark[]>([]);
   const [error, setError]           = useState<string | null>(null);
 
@@ -77,6 +79,7 @@ export function usePoseDetection(): UsePoseDetectionReturn {
           })
         );
         setLandmarks(raw);
+        if (!isRealPose) setIsRealPose(true);
       }
     } catch (e) {
       // Non-fatal: skip this frame
@@ -161,6 +164,7 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
   return {
     isReady,
+    isRealPose,
     landmarks,
     detect: async () => {},   // kept for interface compatibility
     error,

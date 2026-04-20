@@ -249,10 +249,29 @@ function drawGenreEffect(
   elapsed: number,
 ) {
   if (genre === 'kpop' || genre === 'hiphop') {
-    const pulse = Math.sin(elapsed * 0.005) * 0.3 + 0.5;
-    ctx.strokeStyle = `rgba(233,69,96,${pulse.toFixed(2)})`;
-    ctx.lineWidth = 8;
-    ctx.strokeRect(4, 4, CW - 8, CH - 8);
+    // 비트 동기화 네온 보더 + 스파클
+    const beat = Math.sin(elapsed * 0.008) * 0.5 + 0.5;
+    ctx.save();
+    ctx.strokeStyle = `rgba(233,69,96,${(0.3 + beat * 0.6).toFixed(2)})`;
+    ctx.lineWidth = 6 + beat * 8;
+    ctx.shadowColor = 'rgba(233,69,96,0.7)';
+    ctx.shadowBlur = 20;
+    ctx.strokeRect(6, 6, CW - 12, CH - 12);
+    ctx.shadowBlur = 0;
+    // 모서리 장식
+    const corner = 40;
+    ctx.strokeStyle = `rgba(255,215,0,${(0.6 + beat * 0.4).toFixed(2)})`;
+    ctx.lineWidth = 4;
+    [[0,0],[CW,0],[0,CH],[CW,CH]].forEach(([x,y],i)=>{
+      const sx = i%2===0 ? 1 : -1;
+      const sy = i<2 ? 1 : -1;
+      ctx.beginPath();
+      ctx.moveTo(x + sx*20, y);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x, y + sy*20);
+      ctx.stroke();
+    });
+    ctx.restore();
   } else if (genre === 'news') {
     ctx.fillStyle = '#c62828';
     ctx.fillRect(0, CH - 80, CW, 6);
@@ -260,29 +279,145 @@ function drawGenreEffect(
     ctx.fillRect(0, CH - 74, CW, 74);
     ctx.font = 'bold 26px sans-serif';
     ctx.fillStyle = '#e3f2fd'; ctx.textAlign = 'left';
-    ctx.fillText('LIVE NEWS', 20, CH - 28);
+    ctx.fillText('● LIVE NEWS', 20, CH - 28);
+    // 시간 표시
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    ctx.textAlign = 'right';
+    ctx.fillText(`${hh}:${mm}`, CW - 20, CH - 28);
   } else if (genre === 'fitness') {
+    // 양쪽 바: 펄스 프로그레스
     const pct = Math.sin(elapsed * 0.001) * 0.5 + 0.5;
     ctx.fillStyle = 'rgba(20,184,166,0.3)';
     ctx.fillRect(0, 92, 8, CH - 92);
+    ctx.fillRect(CW - 8, 92, 8, CH - 92);
     ctx.fillStyle = '#14b8a6';
     ctx.fillRect(0, 92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
+    ctx.fillRect(CW - 8, 92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
+  } else if (genre === 'daily' || genre === 'travel') {
+    // 하단 vlog 자막 스트립
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, CH - 50, CW, 50);
+    ctx.font = '600 16px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`📅 ${new Date().toLocaleDateString('ko-KR')}`, 18, CH - 20);
+    ctx.textAlign = 'right';
+    ctx.fillText('My Vlog', CW - 18, CH - 20);
   }
 }
 
+// 판정 태그 스탬프 (Perfect! / Good! / Miss!)
+function drawTagStamp(
+  ctx: CanvasRenderingContext2D,
+  tag: 'perfect' | 'good' | 'fail' | null,
+  tagTimestamp: number,
+  now: number,
+) {
+  if (!tag || !tagTimestamp) return;
+  const age = now - tagTimestamp;
+  if (age < 0 || age > 900) return;
+  const p = age / 900; // 0→1
+  const scale = p < 0.2 ? 0.5 + (p/0.2)*0.7 : 1.2 - (p-0.2)/0.8 * 0.4;
+  const alpha = p < 0.1 ? p/0.1 : p > 0.7 ? (1 - p)/0.3 : 1;
+  const text = tag === 'perfect' ? 'PERFECT!' : tag === 'good' ? 'GOOD!' : 'MISS';
+  const color = tag === 'perfect' ? '#fbbf24' : tag === 'good' ? '#22c55e' : '#ef4444';
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(CW / 2, CH * 0.35);
+  ctx.rotate(-0.15);
+  ctx.scale(scale, scale);
+  ctx.font = 'bold 72px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 20;
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+// 콤보 메터
+function drawCombo(ctx: CanvasRenderingContext2D, combo: number, elapsed: number) {
+  if (combo < 2) return;
+  const pulse = 1 + Math.sin(elapsed * 0.01) * 0.08;
+  ctx.save();
+  ctx.translate(CW - 90, 130);
+  ctx.scale(pulse, pulse);
+  ctx.fillStyle = 'rgba(234,88,12,0.92)';
+  ctx.beginPath();
+  rrect(ctx, -70, -26, 140, 52, 26);
+  ctx.fill();
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`🔥 ${combo} COMBO`, 0, 0);
+  ctx.restore();
+}
+
+// 스쿼트 카운트 뱃지
+function drawSquatCount(ctx: CanvasRenderingContext2D, count: number) {
+  if (count <= 0) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(20,184,166,0.95)';
+  ctx.beginPath();
+  rrect(ctx, 20, 110, 150, 70, 16);
+  ctx.fill();
+  ctx.font = '600 13px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('SQUATS', 36, 122);
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(String(count), 36, 138);
+  ctx.restore();
+}
+
+// 음성 인식 실시간 티커
+function drawVoiceTicker(ctx: CanvasRenderingContext2D, text: string, color: string) {
+  if (!text) return;
+  const y = 830;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.beginPath();
+  rrect(ctx, 30, y - 50, CW - 60, 56, 12);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.fillRect(30, y + 4, CW - 60, 2);
+  ctx.font = '600 22px sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const show = text.length > 32 ? '...' + text.slice(-32) : text;
+  ctx.fillText(`🎤 ${show}`, 48, y - 22);
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------------------
-// MediaPipe 33-point connections
+// MoveNet 17-point connections (face / torso / arms / legs)
 // ---------------------------------------------------------------------------
 const POSE_CONNECTIONS: [number, number][] = [
-  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
-  [9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],
-  [17,19],[12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
-  [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
-  [27,29],[28,30],[29,31],[30,32],[27,31],[28,32],
+  // face
+  [0,1],[0,2],[1,3],[2,4],
+  // shoulders+torso
+  [5,6],[5,11],[6,12],[11,12],
+  // arms
+  [5,7],[7,9],[6,8],[8,10],
+  // legs
+  [11,13],[13,15],[12,14],[14,16],
 ];
 
 function lmColor(i: number) {
-  return i <= 10 ? '#fbbf24' : i <= 22 ? '#00ff88' : '#00aaff';
+  // face=yellow, arms=green, legs=blue
+  if (i <= 4) return '#fbbf24';
+  if (i <= 10) return '#00ff88';
+  return '#00aaff';
 }
 
 function drawSkeleton(
@@ -333,6 +468,12 @@ export interface RecordingCameraWebProps {
   currentMission?:     any | null;
   missionScore?:       number;
   isRecording?:        boolean;
+  // Live judgement state
+  currentTag?:         'perfect' | 'good' | 'fail' | null;
+  tagTimestamp?:       number;
+  combo?:              number;
+  squatCount?:         number;
+  voiceTranscript?:    string;
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +493,11 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       currentMission = null,
       missionScore   = 0,
       isRecording    = false,
+      currentTag    = null,
+      tagTimestamp  = 0,
+      combo         = 0,
+      squatCount    = 0,
+      voiceTranscript = '',
     },
     ref,
   ) => {
@@ -374,6 +520,11 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const landmarksRef      = useRef(landmarks);
     const templateRef       = useRef(template);
     const facingRef         = useRef(facing);
+    const currentTagRef     = useRef(currentTag);
+    const tagTimestampRef   = useRef(tagTimestamp);
+    const comboRef          = useRef(combo);
+    const squatCountRef     = useRef(squatCount);
+    const voiceTranscriptRef = useRef(voiceTranscript);
 
     elapsedRef.current        = elapsed;
     isRecordingRef.current     = isRecording;
@@ -382,6 +533,11 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     landmarksRef.current       = landmarks;
     templateRef.current        = template;
     facingRef.current          = facing;
+    currentTagRef.current      = currentTag;
+    tagTimestampRef.current    = tagTimestamp;
+    comboRef.current           = combo;
+    squatCountRef.current      = squatCount;
+    voiceTranscriptRef.current = voiceTranscript;
 
     const [denied, setDenied] = useState(false);
     const [ready, setReady]   = useState(false);
@@ -403,6 +559,8 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           const stream = await acquireStream(facing);
           if (cancelled) return;
           streamRef.current = stream;
+          // 전역 노출: poseUtils(포즈감지) + useJudgement(볼륨감지) 에서 접근
+          (window as any).__cameraStream = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.play().catch(() => {});
@@ -485,10 +643,17 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         // 5. Mission card
         if (isRec && mission) drawMissionCard(ctx, mission, score);
 
-        // 6. Skeleton — 실제 MediaPipe 랜드마크일 때만 (score < 0.98 = real, not mock)
-        const hasRealPose = lms && lms.length > 0 &&
-          lms.some((l: any) => l.score !== undefined && l.score < 0.98 && l.score > 0.3);
-        if (hasRealPose) drawSkeleton(ctx, lms as NormalizedLandmark[], face === 'front');
+        // 6. Skeleton — 숨김 처리 (판정용으로만 사용, 화면/최종 영상에 노출 금지)
+        void lms; void drawSkeleton;
+
+        // 7. Live judgement overlays
+        if (isRec) {
+          const nowMs = performance.now();
+          drawCombo(ctx, comboRef.current, elap);
+          if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
+          if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
+          drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
+        }
 
         rafRef.current = requestAnimationFrame(drawFrame);
       };

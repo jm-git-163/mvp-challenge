@@ -74,6 +74,17 @@ export default function ProfileScreen() {
     ? Object.values(successRates).reduce((a, b) => a + b, 0) /
       Object.values(successRates).length
     : 0;
+  const bestScore = sessions.length
+    ? Math.max(...sessions.map(s => s.avg_score))
+    : 0;
+  const bestStreak = (() => {
+    // consecutive sessions with avg_score >= 0.6 starting from most recent
+    let streak = 0;
+    for (const s of sessions) {
+      if (s.avg_score >= 0.6) streak++; else break;
+    }
+    return streak;
+  })();
 
   return (
     <SafeAreaView style={styles.root}>
@@ -104,10 +115,25 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>평균 성공률</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{preferredGenres.length}</Text>
-            <Text style={styles.statLabel}>장르</Text>
+            <Text style={[styles.statValue, { color: '#fbbf24' }]}>
+              {Math.round(bestScore * 100)}
+            </Text>
+            <Text style={styles.statLabel}>🏆 최고점</Text>
           </View>
         </View>
+
+        {/* ── 연속 성공 스트릭 ──────────────────── */}
+        {bestStreak > 0 && (
+          <View style={styles.streakCard}>
+            <Text style={styles.streakEmoji}>🔥</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.streakTitle}>{bestStreak}회 연속 성공</Text>
+              <Text style={styles.streakSub}>
+                최근 {bestStreak}개 세션이 모두 60점 이상
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ── 선호 장르 ────────────────────────── */}
         {preferredGenres.length > 0 && (
@@ -186,11 +212,15 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0f0e17',
+    backgroundColor: '#0b0d1a',
+    // @ts-ignore web
+    backgroundImage:
+      'radial-gradient(120% 80% at 50% -10%, #2d1b4b 0%, #0b0d1a 55%, #05060d 100%)',
   },
   scroll: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 48,
+    gap: 4,
   },
   center: {
     flex: 1,
@@ -205,21 +235,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#e94560',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.18)',
+    // @ts-ignore web
+    backgroundImage: 'linear-gradient(135deg, #ec4899 0%, #7c3aed 100%)',
+    // @ts-ignore web
+    boxShadow: '0 10px 30px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
   },
   avatarText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '900',
+    letterSpacing: 0.5,
   },
   userId: {
-    color: '#aaa',
-    fontSize: 13,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    letterSpacing: 0.4,
+    fontVariant: ['tabular-nums'] as any,
   },
   // ── 통계 ──
   statsRow: {
@@ -229,20 +268,28 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
     alignItems: 'center',
-    padding: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    // @ts-ignore web
+    backdropFilter: 'blur(16px)',
   },
   statValue: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
+    letterSpacing: 0.3,
   },
   statLabel: {
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 4,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   // ── 섹션 ──
   section: {
@@ -261,17 +308,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(236,72,153,0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: '#e94560',
+    borderColor: 'rgba(236,72,153,0.45)',
   },
   chipText: {
-    color: '#e94560',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#f9a8d4',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   // ── 성공률 바 ──
   rateRow: {
@@ -286,15 +334,17 @@ const styles = StyleSheet.create({
   },
   rateTrack: {
     flex: 1,
-    height: 6,
-    backgroundColor: '#333',
-    borderRadius: 3,
+    height: 7,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   rateBar: {
     height: '100%',
     backgroundColor: '#e94560',
-    borderRadius: 3,
+    borderRadius: 4,
+    // @ts-ignore web
+    backgroundImage: 'linear-gradient(90deg, #7c3aed, #ec4899)',
   },
   ratePct: {
     color: '#fff',
@@ -307,9 +357,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1a1a2e',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   sessionInfo: {
     gap: 2,
@@ -327,6 +379,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
   },
+  // 연속 성공 스트릭
+  streakCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: 'rgba(251,146,60,0.1)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(251,146,60,0.4)',
+    marginBottom: 24,
+    // @ts-ignore web
+    backdropFilter: 'blur(12px)',
+    // @ts-ignore web
+    boxShadow: '0 8px 20px rgba(251,146,60,0.15)',
+  },
+  streakEmoji: { fontSize: 34 },
+  streakTitle: { color: '#fed7aa', fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
+  streakSub:   { color: 'rgba(254,215,170,0.7)', fontSize: 12, marginTop: 2 },
   emptyText: {
     color: '#fff',
     fontSize: 16,

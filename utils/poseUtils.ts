@@ -200,24 +200,58 @@ export function detectSquat(lms: NormalizedLandmark[], minConf = 0.25): SquatSta
   const lhip = safe('left_hip');   const rhip = safe('right_hip');
   const lknee = safe('left_knee'); const rknee = safe('right_knee');
   const lank = safe('left_ankle'); const rank = safe('right_ankle');
+  const lsho = safe('left_shoulder'); const rsho = safe('right_shoulder');
 
   const angles: number[] = [];
   if (lhip && lknee && lank) angles.push(calculateAngle(lhip, lknee, lank));
   if (rhip && rknee && rank) angles.push(calculateAngle(rhip, rknee, rank));
 
-  if (angles.length === 0) return { phase: 'unknown', kneeAngle: 180, score: 0 };
+  // Primary path — we have proper knee angles
+  if (angles.length > 0) {
+    const avg = angles.reduce((s, v) => s + v, 0) / angles.length;
+    const phase: SquatState['phase'] =
+      avg < 115 ? 'down' :
+      avg > 150 ? 'up'   : 'unknown';
 
-  const avg = angles.reduce((s, v) => s + v, 0) / angles.length;
-  const phase: SquatState['phase'] =
-    avg < 110 ? 'down' :
-    avg > 155 ? 'up'   : 'unknown';
+    const score =
+      avg < 95  ? 1.00 :
+      avg < 120 ? 0.85 :
+      avg < 150 ? 0.65 : 0.40;
 
-  const score =
-    avg < 90  ? 1.00 :
-    avg < 120 ? 0.85 :
-    avg < 150 ? 0.65 : 0.40;
+    return { phase, kneeAngle: avg, score };
+  }
 
-  return { phase, kneeAngle: avg, score };
+  // ── Fallback: ankles often out of frame on phone selfie.
+  //    Use shoulder→hip vs hip→knee ratio as a depth proxy.
+  const hip  = lhip ?? rhip;
+  const knee = lknee ?? rknee;
+  const sho  = lsho ?? rsho;
+  if (hip && knee && sho) {
+    // Standing: hip roughly mid-torso; squatting: hip descends towards knee line
+    const torso = Math.max(0.01, Math.abs(hip.y - sho.y));
+    const thigh = Math.max(0.01, Math.abs(knee.y - hip.y));
+    const ratio = thigh / torso;           // standing ≈ 0.8+, deep squat ≈ 0.15~0.35
+
+    // Map ratio back to a pseudo-angle for downstream UX
+    const pseudoAngle =
+      ratio > 0.75 ? 170 :
+      ratio > 0.55 ? 150 :
+      ratio > 0.40 ? 125 :
+      ratio > 0.25 ? 100 : 85;
+
+    const phase: SquatState['phase'] =
+      ratio < 0.40 ? 'down' :
+      ratio > 0.70 ? 'up'   : 'unknown';
+
+    const score =
+      ratio < 0.30 ? 1.00 :
+      ratio < 0.45 ? 0.80 :
+      ratio < 0.60 ? 0.55 : 0.35;
+
+    return { phase, kneeAngle: pseudoAngle, score };
+  }
+
+  return { phase: 'unknown', kneeAngle: 180, score: 0 };
 }
 
 // ──────────────────────────────────────────────

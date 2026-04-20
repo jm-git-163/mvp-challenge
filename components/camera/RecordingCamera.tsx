@@ -38,6 +38,11 @@ interface Props {
   currentMission?:     any | null;
   missionScore?:       number;
   isRecording?:        boolean;
+  currentTag?:         'perfect' | 'good' | 'fail' | null;
+  tagTimestamp?:       number;
+  combo?:              number;
+  squatCount?:         number;
+  voiceTranscript?:    string;
 }
 
 const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(

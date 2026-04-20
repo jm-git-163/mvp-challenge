@@ -114,212 +114,239 @@ function HeroBanner() {
 
   return (
     <View style={hero.wrap}>
-      {/* Dark base */}
+      {/* Dark outer base (app shell) */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0a0a0f' }]} />
 
-      {/* Web gradient overlay */}
-      <View style={[StyleSheet.absoluteFill, {
-        // @ts-ignore web only
-        background: 'linear-gradient(135deg, #0f0a1e 0%, #160d2e 40%, #0a1628 70%, #0a0a0f 100%)',
-      }]} />
+      {/* ── Claude "studio paper" surface ────────────────────────────── */}
+      <View style={hero.paper}>
+        {/* warm cream gradient */}
+        <View style={[StyleSheet.absoluteFill, {
+          // @ts-ignore web only — warm Claude.ai cream
+          background: 'linear-gradient(155deg, #F7F3EB 0%, #F1EADB 45%, #EADFC8 100%)',
+        }]} />
 
-      {/* Orb 1 — purple blob */}
-      <Animated.View style={[hero.orb1, {
-        opacity: orb1Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.45, 0.7, 0.45] }),
-        transform: [{
-          translateX: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [-20, 20] }),
-        }, {
-          translateY: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [0, -15] }),
-        }],
-      }]} />
+        {/* faint paper grain via radial */}
+        <View style={[StyleSheet.absoluteFill, {
+          // @ts-ignore web only
+          background: 'radial-gradient(circle at 18% 15%, rgba(204,120,92,0.18), transparent 55%), radial-gradient(circle at 85% 85%, rgba(161,98,68,0.12), transparent 60%)',
+        }]} />
 
-      {/* Orb 2 — blue blob */}
-      <Animated.View style={[hero.orb2, {
-        opacity: orb2Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.35, 0.6, 0.35] }),
-        transform: [{
-          translateX: orb2Anim.interpolate({ inputRange: [0, 1], outputRange: [10, -25] }),
-        }, {
-          translateY: orb2Anim.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }),
-        }],
-      }]} />
+        {/* soft inner border */}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, hero.paperBorder]} />
 
-      {/* Orb 3 — pink blob */}
-      <Animated.View style={[hero.orb3, {
-        opacity: orb1Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 0.5, 0.3] }),
-      }]} />
+        {/* amber orb (restrained, Claude-y) */}
+        <Animated.View style={[hero.amberOrb, {
+          opacity: orb1Anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.38, 0.6, 0.38] }),
+          transform: [{ translateX: orb1Anim.interpolate({ inputRange: [0, 1], outputRange: [-16, 16] }) }],
+        }]} />
 
-      {/* Particle stars */}
-      {['8%', '22%', '55%', '75%', '92%'].map((left, i) => (
-        <Animated.Text
-          key={i}
-          style={[
-            hero.star,
-            {
-              left: left as any,
-              top: `${12 + (i * 19) % 55}%` as any,
-              opacity: shimAnim.interpolate({
-                inputRange: [0, (i + 1) / 6, (i + 2) / 6, 1],
-                outputRange: [0.15, 0.9, 0.15, 0.15],
-                extrapolate: 'clamp',
-              }),
-            },
-          ]}
-        >
-          {['✦', '✧', '✦', '✧', '✦'][i]}
-        </Animated.Text>
-      ))}
-
-      {/* Main content */}
-      <View style={hero.inner}>
-        {/* Floating emoji with glow */}
-        <Animated.View style={[hero.emojiWrap, { transform: [{ translateY: floatAnim }, { scale: pulseAnim }] }]}>
-          <View style={hero.emojiGlow} />
-          <Text style={hero.emoji}>🎬</Text>
-        </Animated.View>
-
-        <Text style={hero.title}>챌린지 스튜디오</Text>
-
-        <Text style={hero.sub}>
-          미션 완수 → AI 판정 → 영상 자동 완성
-        </Text>
-
-        {/* Feature pills */}
-        <View style={hero.pills}>
-          {FEATURE_PILLS.map((pill) => (
-            <View key={pill} style={hero.pill}>
-              <Text style={hero.pillText}>{pill}</Text>
-            </View>
-          ))}
+        {/* Top row — small brand chip */}
+        <View style={hero.topRow}>
+          <View style={hero.brandChip}>
+            <View style={hero.brandDot} />
+            <Text style={hero.brandChipText}>CLAUDE · STUDIO</Text>
+          </View>
+          <View style={hero.aiBadge}>
+            <Text style={hero.aiBadgeText}>beta</Text>
+          </View>
         </View>
-      </View>
 
-      {/* Bottom fade */}
-      <View style={hero.bottomFade} />
+        {/* Main content */}
+        <View style={hero.inner}>
+          <Animated.View style={[hero.emojiWrap, { transform: [{ translateY: floatAnim }] }]}>
+            <View style={hero.emojiPlate}>
+              <Text style={hero.emoji}>🎬</Text>
+            </View>
+          </Animated.View>
+
+          <Text style={hero.eyebrow}>AI CHALLENGE STUDIO</Text>
+          <Text style={hero.title}>챌린지 스튜디오</Text>
+          <Text style={hero.sub}>
+            미션 완수 <Text style={hero.subDot}>·</Text> AI 판정 <Text style={hero.subDot}>·</Text> 영상 자동 완성
+          </Text>
+
+          {/* Feature chips — Claude minimal line style */}
+          <View style={hero.pills}>
+            {FEATURE_PILLS.map((pill) => (
+              <View key={pill} style={hero.pill}>
+                <Text style={hero.pillText}>{pill}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Bottom paper edge */}
+        <View style={hero.paperEdge} />
+      </View>
     </View>
   );
 }
 
 const hero = StyleSheet.create({
   wrap: {
-    height: 240,
+    height: 280,
     overflow: 'hidden',
     position: 'relative',
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 18,
+    backgroundColor: '#0a0a0f',
   },
-  orb1: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#7c3aed',
-    top: -60,
-    left: -40,
-    // @ts-ignore web
-    filter: 'blur(80px)',
+  paper: {
+    flex: 1,
+    borderRadius: 22,
+    overflow: 'hidden',
+    position: 'relative',
+    // @ts-ignore web — Claude paper shadow
+    boxShadow: '0 22px 48px -18px rgba(161,98,68,0.45), 0 2px 0 rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.6)',
   },
-  orb2: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: '#2563eb',
-    top: 20,
-    right: -30,
-    // @ts-ignore web
-    filter: 'blur(70px)',
+  paperBorder: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(161,98,68,0.22)',
   },
-  orb3: {
+  amberOrb: {
     position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#ec4899',
-    bottom: -20,
-    left: '40%',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: '#CC785C',
+    top: -80,
+    right: -60,
     // @ts-ignore web
     filter: 'blur(60px)',
   },
-  star: {
+  topRow: {
     position: 'absolute',
+    top: 14,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 3,
+  },
+  brandChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(161,98,68,0.25)',
+  },
+  brandDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#CC785C',
+    // @ts-ignore web
+    boxShadow: '0 0 8px rgba(204,120,92,0.9)',
+  },
+  brandChipText: {
     fontSize: 10,
-    color: '#fff',
-    zIndex: 1,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    color: '#5C3A2E',
+  },
+  aiBadge: {
+    backgroundColor: '#1F1B16',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  aiBadgeText: {
+    color: '#F7F3EB',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
   },
   inner: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 26,
     zIndex: 2,
-    gap: 8,
+    gap: 5,
   },
   emojiWrap: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  emojiGlow: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#7c3aed',
+  emojiPlate: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: '#1F1B16',
+    alignItems: 'center',
+    justifyContent: 'center',
     // @ts-ignore web
-    filter: 'blur(20px)',
-    opacity: 0.7,
+    boxShadow: '0 10px 24px -8px rgba(161,98,68,0.55), inset 0 1px 0 rgba(255,255,255,0.15)',
   },
   emoji: {
-    fontSize: 48,
-    zIndex: 1,
-    // @ts-ignore web
-    filter: 'drop-shadow(0 0 16px rgba(124,58,237,0.9))',
+    fontSize: 30,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2.6,
+    color: '#8A5A3E',
+    marginTop: 4,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 1.5,
-    // @ts-ignore web
-    textShadow: '0 0 30px rgba(124,58,237,0.8), 0 2px 4px rgba(0,0,0,0.5)',
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1F1B16',
+    letterSpacing: -0.5,
+    // @ts-ignore web — serif stack for Claude feel
+    fontFamily: '"Tiempos Headline","Copernicus",Georgia,"Times New Roman",serif',
   },
   sub: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    color: '#5C3A2E',
     fontWeight: '600',
     textAlign: 'center',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    marginTop: 2,
+  },
+  subDot: {
+    color: '#CC785C',
+    fontWeight: '900',
   },
   pills: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: 10,
   },
   pill: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 999,
     paddingHorizontal: 11,
     paddingVertical: 5,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(161,98,68,0.22)',
   },
   pillText: {
-    color: 'rgba(255,255,255,0.85)',
+    color: '#3F2A1F',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  bottomFade: {
+  paperEdge: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    height: 40,
+    bottom: 0,
+    height: 3,
     // @ts-ignore web
-    background: 'linear-gradient(to bottom, transparent, #0d0d14)',
-    backgroundColor: 'transparent',
+    background: 'linear-gradient(to right, transparent, rgba(204,120,92,0.55), transparent)',
   },
 });
 
@@ -413,11 +440,15 @@ function GenreFilter({ selected, onSelect }: GenreFilterProps) {
                         // @ts-ignore web
                         background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
                         backgroundColor: colors[0],
-                        borderColor: 'transparent',
+                        borderColor: 'rgba(255,255,255,0.25)',
+                        // @ts-ignore web
+                        boxShadow: `0 6px 18px ${colors[0]}66, 0 1px 0 rgba(255,255,255,0.2) inset`,
                       }
                     : {
-                        backgroundColor: 'rgba(255,255,255,0.06)',
+                        backgroundColor: 'rgba(255,255,255,0.055)',
                         borderColor: 'rgba(255,255,255,0.1)',
+                        // @ts-ignore web
+                        backdropFilter: 'blur(10px)',
                       },
                 ]}
               >
@@ -436,31 +467,38 @@ function GenreFilter({ selected, onSelect }: GenreFilterProps) {
 
 const gf = StyleSheet.create({
   wrap: {
-    backgroundColor: '#0d0d14',
+    backgroundColor: 'transparent',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   scroll: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
+    paddingVertical: 14,
+    gap: 10,
     flexDirection: 'row',
     alignItems: 'center',
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderWidth: 1,
-    minHeight: 38,
+    minHeight: 40,
+    // @ts-ignore web — hover glow
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+    // @ts-ignore web
+    cursor: 'pointer',
   },
   emoji:        { fontSize: 14 },
-  label:        { fontSize: 13, fontWeight: '700' },
-  labelActive:  { color: '#ffffff' },
-  labelInactive:{ color: 'rgba(255,255,255,0.45)' },
+  label:        { fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
+  labelActive:  { color: '#ffffff',
+    // @ts-ignore web
+    textShadow: '0 1px 4px rgba(0,0,0,0.35)',
+  },
+  labelInactive:{ color: 'rgba(255,255,255,0.55)' },
 });
 
 // ─── Featured Row ("지금 인기") ───────────────────────────────────────────────
@@ -512,7 +550,7 @@ function FeaturedRow({ templates, onSelect }: { templates: Template[]; onSelect:
 
 const fr = StyleSheet.create({
   wrap: {
-    backgroundColor: '#0d0d14',
+    backgroundColor: 'transparent',
     paddingTop: 4,
     paddingBottom: 4,
   },
@@ -610,9 +648,13 @@ function ChallengeCard({ item: t, cardWidth, onPress }: CardProps) {
   const diffLabel = DIFF_LABELS[t.difficulty] ?? '';
 
   const onPressIn  = () =>
-    Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, tension: 200, friction: 10 }).start();
+    Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true, tension: 200, friction: 10 }).start();
   const onPressOut = () =>
     Animated.spring(scaleAnim, { toValue: 1.0,  useNativeDriver: true, tension: 200, friction: 10 }).start();
+  const onHoverIn  = () =>
+    Animated.spring(scaleAnim, { toValue: 1.025, useNativeDriver: true, tension: 180, friction: 12 }).start();
+  const onHoverOut = () =>
+    Animated.spring(scaleAnim, { toValue: 1.0,   useNativeDriver: true, tension: 180, friction: 12 }).start();
 
   const genreLabel = GENRES.find(g => g.value === t.genre)?.label ?? t.genre.toUpperCase();
 
@@ -622,6 +664,8 @@ function ChallengeCard({ item: t, cardWidth, onPress }: CardProps) {
         onPress={() => onPress(t)}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
+        onHoverIn={onHoverIn}
+        onHoverOut={onHoverOut}
         style={cc.pressable}
       >
         {/* ── Top gradient section ── */}
@@ -700,16 +744,22 @@ function ChallengeCard({ item: t, cardWidth, onPress }: CardProps) {
 
 const cc = StyleSheet.create({
   wrap: {
-    borderRadius: 24,
+    borderRadius: 26,
     overflow: 'hidden',
-    backgroundColor: '#16161f',
+    backgroundColor: 'rgba(22,22,31,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
     elevation: 10,
     // @ts-ignore web
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    boxShadow: '0 12px 40px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06) inset',
+    // @ts-ignore web — hover feedback
+    transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+    // @ts-ignore web
+    cursor: 'pointer',
   },
   pressable: { flex: 1 },
 
@@ -800,7 +850,7 @@ const cc = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 4,
     gap: 8,
-    backgroundColor: '#16161f',
+    backgroundColor: 'rgba(22,22,31,0.92)',
   },
   title: {
     fontSize: 16,
@@ -836,17 +886,19 @@ const cc = StyleSheet.create({
 
   // CTA
   cta: {
-    height: 52,
+    height: 54,
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   ctaText: {
     color: '#ffffff',
     fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontWeight: '900',
+    letterSpacing: 1.2,
     // @ts-ignore web
-    textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+    textShadow: '0 2px 6px rgba(0,0,0,0.4)',
   },
 });
 
@@ -990,18 +1042,25 @@ export default function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0d0d14' },
-  safeTop: { backgroundColor: '#0a0a0f' },
+  root: {
+    flex: 1,
+    backgroundColor: '#0b0d1a',
+    // @ts-ignore web
+    backgroundImage: 'radial-gradient(140% 100% at 50% -10%, #1e1b4b 0%, #0b0d1a 55%, #05060d 100%)',
+  },
+  safeTop: { backgroundColor: 'transparent' },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#0a0a0f',
+    paddingVertical: 14,
+    backgroundColor: 'rgba(10,10,20,0.55)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    // @ts-ignore web
+    backdropFilter: 'blur(18px)',
   },
   headerLeft: { gap: 2 },
   headerLogo: {
@@ -1031,7 +1090,7 @@ const s = StyleSheet.create({
   profileBtnText: { fontSize: 18 },
 
   featuredWrap: {
-    backgroundColor: '#0d0d14',
+    backgroundColor: 'transparent',
     paddingTop: 20,
     paddingBottom: 4,
   },
@@ -1043,7 +1102,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 12,
-    backgroundColor: '#0d0d14',
+    backgroundColor: 'transparent',
   },
   sectionTitle: {
     fontSize: 17,
@@ -1065,7 +1124,7 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
 
-  listContent: { paddingBottom: 80, backgroundColor: '#0d0d14' },
+  listContent: { paddingBottom: 80, backgroundColor: 'transparent' },
   colWrap: { paddingHorizontal: 16, gap: 16, marginBottom: 16 },
 
   // Loading
@@ -1075,6 +1134,15 @@ const s = StyleSheet.create({
     height: 220,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    // @ts-ignore web
+    backgroundImage:
+      'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.14) 50%, rgba(255,255,255,0.04) 100%)',
+    // @ts-ignore web
+    backgroundSize: '200% 100%',
+    // @ts-ignore web
+    animation: 'skeletonSweep 1.4s ease-in-out infinite',
   },
   loadingText: { color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 4 },
 

@@ -33,7 +33,7 @@ const W = 720;
 const H = 1280;
 const FPS = 15;
 const FRAME_MS = 1000 / FPS;
-const INTRO_MS = 4000;   // 4-second pre-made intro animation (countdown + branding)
+const INTRO_MS = 5000;   // 5-second pre-made intro animation (countdown + branding) — Cycle 9 pacing
 const OUTRO_MS = 3000;   // 3-second outro celebration (trophy + hashtags)
 
 // ---------------------------------------------------------------------------
@@ -794,12 +794,32 @@ function createSimpleBGM(
   audioCtx: AudioContext,
   spec: BgmSpec,
   dest: AudioNode,
+  opts?: { introMs?: number; totalMs?: number },
 ): SimpleBGMHandle {
   const { genre, bpm, volume } = spec;
   if (genre === 'none') return { stop: () => {} };
 
+  const introMs   = opts?.introMs   ?? 0;
+  const totalMs   = opts?.totalMs   ?? 0;
+  const duckLevel = Math.max(0.0001, volume * 0.28); // intro duck (≈-11dB)
+  const fullLevel = Math.max(0.0001, volume);
+
   const masterGain = audioCtx.createGain();
-  masterGain.gain.value = volume;
+  const t0 = audioCtx.currentTime;
+  // Cycle 21 — envelope: intro duck → ramp up at intro end → fade out last 0.8s
+  if (introMs > 0) {
+    masterGain.gain.setValueAtTime(duckLevel, t0);
+    masterGain.gain.setValueAtTime(duckLevel, t0 + introMs / 1000 - 0.25);
+    masterGain.gain.linearRampToValueAtTime(fullLevel, t0 + introMs / 1000 + 0.15);
+  } else {
+    masterGain.gain.setValueAtTime(fullLevel, t0);
+  }
+  if (totalMs > 0) {
+    const fadeOutStart = t0 + Math.max(0, (totalMs - 800)) / 1000;
+    const fadeOutEnd   = t0 + totalMs / 1000;
+    masterGain.gain.setValueAtTime(fullLevel, fadeOutStart);
+    masterGain.gain.linearRampToValueAtTime(0.0001, fadeOutEnd);
+  }
   masterGain.connect(dest);
 
   const beatInterval = 60 / bpm;
@@ -1319,92 +1339,196 @@ function drawIntroFrame(
 ): void {
   const centerX = canvasW / 2;
   const centerY = canvasH / 2;
-  const ca       = template.clipArea;
-  const cx       = ca.xPct * canvasW;
-  const cy       = ca.yPct * canvasH;
-  const cw       = ca.wPct * canvasW;
-  const ch       = ca.hPct * canvasH;
 
-  // Dark overlay over the clip area placeholder
+  // 풀스크린 어두운 그라데이션 오버레이 (드라마틱)
+  const darkGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, canvasH * 0.7);
+  darkGrad.addColorStop(0, 'rgba(0,0,0,0.35)');
+  darkGrad.addColorStop(1, 'rgba(0,0,0,0.88)');
+  ctx.fillStyle = darkGrad;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // Cycle 32 — 시네마 레터박스 바 (처음 400ms 슬라이드 인, 마지막 400ms 슬라이드 아웃)
+  const barTarget = canvasH * 0.12;
+  const introSlideIn  = Math.min(1, elapsed / 400);
+  const introSlideOut = elapsed > 4600 ? Math.min(1, (elapsed - 4600) / 400) : 0;
+  const barH = barTarget * (introSlideIn - introSlideOut);
+  if (barH > 0) {
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvasW, barH);
+    ctx.fillRect(0, canvasH - barH, canvasW, barH);
+    // 바 안쪽 가장자리에 accent 라인
+    ctx.fillStyle = template.accentColor + 'cc';
+    ctx.fillRect(0, barH - 2, canvasW, 2);
+    ctx.fillRect(0, canvasH - barH, canvasW, 2);
+    ctx.restore();
+  }
+
+  // 필름 그레인 — 전체 프레임에 deterministic noise
   ctx.save();
-  rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-  ctx.fillStyle = 'rgba(0,0,0,0.60)';
-  ctx.fill();
+  ctx.globalAlpha = 0.08;
+  const grainCols = 64;
+  const grainRows = Math.ceil((canvasH / canvasW) * grainCols);
+  const gw = canvasW / grainCols;
+  const gh = canvasH / grainRows;
+  const grainT = Math.floor(elapsed / 66); // 15fps변경
+  for (let r = 0; r < grainRows; r++) {
+    for (let c = 0; c < grainCols; c++) {
+      const v = Math.sin((c * 12.9898 + r * 78.233 + grainT * 43.7) * 1.0) * 43758.5453;
+      const n = v - Math.floor(v);
+      if (n > 0.65) {
+        ctx.fillStyle = n > 0.9 ? '#ffffff' : '#aaa';
+        ctx.fillRect(c * gw, r * gh, gw * 0.8, gh * 0.8);
+      }
+    }
+  }
   ctx.restore();
 
-  // Countdown label: 3 → 2 → 1 → GO!
-  const secIdx     = Math.min(3, Math.floor(elapsed / 1000)); // 0,1,2,3
-  const secProg    = (elapsed % 1000) / 1000;                 // 0→1 within each second
-  const labels     = ['3', '2', '1', 'GO!'];
-  const label      = labels[secIdx];
-  const isGo       = secIdx === 3;
-  const countScale = isGo ? (0.8 + secProg * 0.4) : (1.5 - secProg * 0.5);
-  const alpha      = isGo ? Math.max(0, 1 - secProg * 0.5) : 1;
-
-  // Pulsing glow ring
-  const ringR = 88;
+  // Accent color rays (방사 광선)
   ctx.save();
-  ctx.globalAlpha = 0.45 * (1 - secProg);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + elapsed * 0.0008;
+    const len = canvasH * 0.65;
+    const grad = ctx.createLinearGradient(
+      centerX, centerY,
+      centerX + Math.cos(a) * len, centerY + Math.sin(a) * len,
+    );
+    grad.addColorStop(0, template.accentColor + '33');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    const spread = 0.06;
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(
+      centerX + Math.cos(a + spread) * len,
+      centerY + Math.sin(a + spread) * len,
+    );
+    ctx.lineTo(
+      centerX + Math.cos(a - spread) * len,
+      centerY + Math.sin(a - spread) * len,
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Countdown: 3 (0-1s) → 2 (1-2s) → 1 (2-3s) → GO! (3-5s, 2초 임팩트)
+  const rawIdx  = Math.floor(elapsed / 1000);
+  const secIdx  = Math.min(3, rawIdx);
+  const isGo    = secIdx === 3;
+  // GO! 구간은 2초이므로 진행도 0-1로 다시 매핑
+  const secProg = isGo
+    ? Math.min(1, (elapsed - 3000) / 2000)
+    : (elapsed % 1000) / 1000;
+  const labels  = ['3', '2', '1', 'GO!'];
+  const label   = labels[secIdx];
+
+  // 숫자는 "튕기면서 들어옴" — easeOutBack
+  const easeOutBack = (t: number) => {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  };
+  const inProg = Math.min(1, secProg / 0.3);
+  const outProg = secProg > 0.7 ? (secProg - 0.7) / 0.3 : 0;
+  const countScale = isGo
+    ? 0.3 + easeOutBack(inProg) * 1.4 + outProg * 0.8
+    : 0.3 + easeOutBack(inProg) * 0.9;
+  const alpha = isGo ? Math.max(0, 1 - outProg) : 1 - outProg * 0.3;
+
+  // 링: 1초마다 한 번씩 회전하며 줄어드는 시계
+  const ringR = 140;
+  ctx.save();
+  ctx.globalAlpha = 0.85;
   ctx.strokeStyle = template.accentColor;
-  ctx.lineWidth   = 8;
+  ctx.lineWidth   = 12;
+  ctx.lineCap     = 'round';
+  ctx.shadowColor = template.accentColor;
+  ctx.shadowBlur  = 24;
   ctx.beginPath();
-  ctx.arc(centerX, centerY, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * secProg);
+  ctx.arc(centerX, centerY, ringR, -Math.PI/2, -Math.PI/2 + Math.PI * 2 * secProg);
   ctx.stroke();
+  ctx.shadowBlur  = 0;
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // Radial glow
-  const glowGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ringR + 30);
-  glowGrad.addColorStop(0, template.accentColor + '55');
+  // 방사 글로우
+  const glowGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ringR + 80);
+  glowGrad.addColorStop(0, template.accentColor + '88');
+  glowGrad.addColorStop(0.4, template.accentColor + '33');
   glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = glowGrad;
   ctx.beginPath();
-  ctx.arc(centerX, centerY, ringR + 30, 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, ringR + 80, 0, Math.PI * 2);
   ctx.fill();
 
-  // Big countdown number
+  // 카운트 숫자
   ctx.save();
   ctx.translate(centerX, centerY);
   ctx.scale(countScale, countScale);
   ctx.globalAlpha = alpha;
-  ctx.font        = `bold ${isGo ? 68 : 100}px sans-serif`;
+  ctx.font        = `900 ${isGo ? 110 : 180}px sans-serif`;
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'middle';
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-  ctx.lineWidth   = 6;
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.lineWidth   = 12;
   ctx.strokeText(label, 0, 0);
-  ctx.fillStyle   = isGo ? '#FFD700' : '#ffffff';
+  // 그라데이션 텍스트
+  const textGrad = ctx.createLinearGradient(0, -100, 0, 100);
+  textGrad.addColorStop(0, isGo ? '#FFE55C' : '#ffffff');
+  textGrad.addColorStop(1, isGo ? '#FF6B35' : template.accentColor);
+  ctx.fillStyle   = textGrad;
+  ctx.shadowColor = template.accentColor;
+  ctx.shadowBlur  = 30;
   ctx.fillText(label, 0, 0);
+  ctx.shadowBlur  = 0;
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // Template name + subtitle (fade in during first second)
-  const nameAlpha = Math.min(1, elapsed / 800);
+  // 상단 배지: "챌린지 시작"
+  const badgeAlpha = Math.min(1, elapsed / 600);
+  const badgeY = canvasH * 0.15;
   ctx.save();
-  ctx.globalAlpha = nameAlpha;
-  ctx.font        = 'bold 24px sans-serif';
-  ctx.fillStyle   = '#fff';
-  ctx.textAlign   = 'center';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor  = template.accentColor;
-  ctx.shadowBlur   = 10;
-  ctx.fillText(template.name, centerX, centerY + ringR + 20);
-  ctx.shadowBlur   = 0;
-  ctx.font         = '16px sans-serif';
-  ctx.fillStyle    = 'rgba(255,255,255,0.70)';
-  ctx.fillText('준비하세요! 곧 시작합니다 ▶', centerX, centerY + ringR + 52);
-  ctx.globalAlpha  = 1;
+  ctx.globalAlpha = badgeAlpha;
+  ctx.fillStyle = template.accentColor;
+  rrPath(ctx, centerX - 110, badgeY - 22, 220, 44, 22);
+  ctx.fill();
+  ctx.font = '800 20px sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🎬 CHALLENGE START', centerX, badgeY);
+  ctx.globalAlpha = 1;
   ctx.restore();
 
-  // Clip area border
-  if (ca.borderColor && ca.borderWidth) {
-    ctx.save();
-    rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-    ctx.strokeStyle = ca.borderColor;
-    ctx.lineWidth   = ca.borderWidth;
-    ctx.stroke();
-    ctx.restore();
+  // 하단 템플릿명 + emoji (kinetic reveal)
+  const nameY = centerY + ringR + 100;
+  const nameProg = Math.min(1, elapsed / 1500);
+  ctx.save();
+  ctx.globalAlpha = nameProg;
+  // 이모지
+  if (template.mascotEmoji) {
+    ctx.font = 'bold 56px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(template.mascotEmoji, centerX, nameY - 20);
   }
+  ctx.font        = '900 38px sans-serif';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'top';
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.lineWidth = 5;
+  ctx.strokeText(template.name, centerX, nameY + 20);
+  ctx.shadowColor = template.accentColor;
+  ctx.shadowBlur  = 14;
+  ctx.fillStyle   = '#fff';
+  ctx.fillText(template.name, centerX, nameY + 20);
+  ctx.shadowBlur  = 0;
+  // 메타 정보
+  ctx.font = '600 18px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  const metaLine = `${template.duration_ms / 1000}초 챌린지`;
+  ctx.fillText(metaLine, centerX, nameY + 70);
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -1420,101 +1544,163 @@ function drawOutroFrame(
 ): void {
   const progress  = Math.min(1, outroElapsed / OUTRO_MS);
   const centerX   = canvasW / 2;
-  const centerY   = canvasH * 0.40;
+  const centerY   = canvasH * 0.42;
 
-  // Darkening overlay
-  ctx.fillStyle = `rgba(0,0,0,${0.35 * progress})`;
+  // 풀스크린 어두운 그라데이션 + 골드 글로우
+  const bgGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, canvasH * 0.7);
+  bgGrad.addColorStop(0, `rgba(80,60,0,${0.55 * progress})`);
+  bgGrad.addColorStop(1, `rgba(0,0,0,${0.90 * progress})`);
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  // Radiating gold spikes
+  // Cycle 32 — 아웃트로 시네마 레터박스 (바로 들어와서 끝까지 유지)
+  const outroBarH = canvasH * 0.12 * Math.min(1, progress * 2.5);
   ctx.save();
-  for (let i = 0; i < 12; i++) {
-    const angle = (i / 12) * Math.PI * 2 + outroElapsed * 0.0025;
-    const len   = 220 * progress;
-    ctx.globalAlpha   = 0.10 * progress;
-    ctx.strokeStyle   = '#FFD700';
-    ctx.lineWidth     = 10;
-    ctx.lineCap       = 'round';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvasW, outroBarH);
+  ctx.fillRect(0, canvasH - outroBarH, canvasW, outroBarH);
+  // 골드 에지 라인
+  ctx.fillStyle = `rgba(255,215,0,${0.85 * progress})`;
+  ctx.fillRect(0, outroBarH - 2, canvasW, 2);
+  ctx.fillRect(0, canvasH - outroBarH, canvasW, 2);
+  ctx.restore();
+
+  // 폭죽 파티클 (랜덤한 위치에 반짝이는 점)
+  const particles = 40;
+  for (let i = 0; i < particles; i++) {
+    const seed = i * 7.31;
+    const pX = ((Math.sin(seed) + 1) / 2) * canvasW;
+    const pY = ((Math.cos(seed * 1.7) + 1) / 2) * canvasH;
+    const pPhase = (outroElapsed * 0.001 + seed) % 1;
+    const pAlpha = Math.sin(pPhase * Math.PI) * Math.min(1, progress * 2);
+    const pSize = 2 + ((i % 4)) * 2;
+    const colors = ['#FFD700', '#FFA500', '#FF6B35', '#FFE55C', '#ffffff'];
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, pAlpha) * 0.85;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.shadowColor = colors[i % colors.length];
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(pX, pY, pSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 방사 골드 스파이크 (회전)
+  ctx.save();
+  for (let i = 0; i < 16; i++) {
+    const angle = (i / 16) * Math.PI * 2 + outroElapsed * 0.0015;
+    const len   = 300 * progress;
+    const grad  = ctx.createLinearGradient(
+      centerX, centerY,
+      centerX + Math.cos(angle) * len, centerY + Math.sin(angle) * len,
+    );
+    grad.addColorStop(0, 'rgba(255,215,0,0.5)');
+    grad.addColorStop(1, 'rgba(255,215,0,0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(centerX + Math.cos(angle) * len, centerY + Math.sin(angle) * len);
     ctx.stroke();
   }
-  ctx.globalAlpha = 1;
   ctx.restore();
 
-  // Trophy emoji (animate scale-in)
-  const trophyScale = 0.2 + progress * 0.8;
+  // 트로피 이모지 (스프링 스케일 인)
+  const easeOutBack = (t: number) => {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  };
+  const trophyProg = Math.min(1, progress * 1.8);
+  const trophyScale = 0.1 + easeOutBack(trophyProg) * 1.3;
   ctx.save();
-  ctx.translate(centerX, centerY - 25);
+  ctx.translate(centerX, centerY - 40);
   ctx.scale(trophyScale, trophyScale);
-  ctx.globalAlpha = progress;
-  ctx.font        = '88px sans-serif';
+  ctx.globalAlpha = Math.min(1, progress * 2);
+  ctx.font        = '140px sans-serif';
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#FFD700';
+  ctx.shadowBlur = 40;
   ctx.fillText('🏆', 0, 0);
+  ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
   ctx.restore();
 
-  // "챌린지 완료!" with golden glow
-  const textScale = 0.4 + progress * 0.6;
-  ctx.save();
-  ctx.translate(centerX, centerY + 70);
-  ctx.scale(textScale, textScale);
-  ctx.globalAlpha    = progress;
-  ctx.font           = 'bold 52px sans-serif';
-  ctx.fillStyle      = '#FFD700';
-  ctx.textAlign      = 'center';
-  ctx.textBaseline   = 'middle';
-  ctx.shadowColor    = template.accentColor;
-  ctx.shadowBlur     = 20;
-  ctx.strokeStyle    = 'rgba(0,0,0,0.55)';
-  ctx.lineWidth      = 4;
-  ctx.strokeText('챌린지 완료!', 0, 0);
-  ctx.fillText('챌린지 완료!', 0, 0);
-  ctx.shadowBlur     = 0;
-  ctx.globalAlpha    = 1;
-  ctx.restore();
-
-  // Orbiting star emojis
-  const numStars = 6;
-  for (let i = 0; i < numStars; i++) {
-    const angle  = (i / numStars) * Math.PI * 2 + outroElapsed * 0.005;
-    const orbitR = 130 * Math.min(1, progress * 2);
-    const sx     = centerX + Math.cos(angle) * orbitR;
-    const sy     = centerY + Math.sin(angle) * orbitR;
+  // "챌린지 완료!" 타이틀 (두 번째 단계)
+  if (progress > 0.25) {
+    const titleProg = (progress - 0.25) / 0.4;
+    const titleAlpha = Math.min(1, titleProg * 2);
+    const titleScale = 0.5 + easeOutBack(Math.min(1, titleProg)) * 0.6;
     ctx.save();
-    ctx.globalAlpha    = Math.min(1, progress * 2);
-    ctx.font           = '26px sans-serif';
-    ctx.textAlign      = 'center';
-    ctx.textBaseline   = 'middle';
-    ctx.fillText('⭐', sx, sy);
-    ctx.globalAlpha    = 1;
+    ctx.translate(centerX, centerY + 120);
+    ctx.scale(titleScale, titleScale);
+    ctx.globalAlpha = titleAlpha;
+    ctx.font         = '900 56px sans-serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle  = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth    = 8;
+    ctx.strokeText('챌린지 완료!', 0, 0);
+    const titleGrad = ctx.createLinearGradient(0, -40, 0, 40);
+    titleGrad.addColorStop(0, '#FFE55C');
+    titleGrad.addColorStop(1, '#FF6B35');
+    ctx.fillStyle    = titleGrad;
+    ctx.shadowColor  = '#FFD700';
+    ctx.shadowBlur   = 30;
+    ctx.fillText('챌린지 완료!', 0, 0);
+    ctx.shadowBlur   = 0;
+    ctx.globalAlpha  = 1;
     ctx.restore();
   }
 
-  // Hashtags fade-in (second half of outro)
-  if (progress > 0.45) {
-    const hashAlpha = (progress - 0.45) / 0.55;
-    const top5      = template.hashtags.slice(0, 5).map(h => '#' + h).join('  ');
+  // 템플릿 이름 배지
+  if (progress > 0.4) {
+    const nameAlpha = Math.min(1, (progress - 0.4) / 0.3);
+    ctx.save();
+    ctx.globalAlpha = nameAlpha;
+    ctx.fillStyle = template.accentColor;
+    rrPath(ctx, centerX - 140, centerY + 180, 280, 44, 22);
+    ctx.fill();
+    ctx.font         = '800 20px sans-serif';
+    ctx.fillStyle    = '#fff';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      `${template.mascotEmoji ?? '✨'}  ${template.name}`,
+      centerX, centerY + 202,
+    );
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // 해시태그 + CTA
+  if (progress > 0.55) {
+    const hashAlpha = (progress - 0.55) / 0.45;
+    const tags = template.hashtags.slice(0, 4).map(h => '#' + h).join('  ');
     ctx.save();
     ctx.globalAlpha    = hashAlpha;
-    ctx.font           = '18px sans-serif';
+    ctx.font           = '600 19px sans-serif';
     ctx.fillStyle      = '#fff';
     ctx.textAlign      = 'center';
     ctx.textBaseline   = 'top';
-    ctx.shadowColor    = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur     = 4;
-    ctx.fillText(top5, canvasW / 2, canvasH * 0.63);
+    ctx.shadowColor    = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur     = 6;
+    ctx.fillText(tags, canvasW / 2, canvasH * 0.72);
     ctx.shadowBlur     = 0;
 
-    // Pulsing CTA
-    const pulse = 0.85 + 0.15 * Math.sin(outroElapsed * 0.007);
-    ctx.globalAlpha    = hashAlpha * pulse;
-    ctx.font           = 'bold 22px sans-serif';
-    ctx.fillStyle      = '#FFD700';
-    ctx.fillText('❤️  좋아요 & 공유하기!', canvasW / 2, canvasH * 0.71);
-    ctx.globalAlpha    = 1;
+    // 펄싱 CTA 버튼 스타일
+    const pulse = 0.9 + 0.1 * Math.sin(outroElapsed * 0.008);
+    ctx.globalAlpha = hashAlpha * pulse;
+    ctx.fillStyle = 'rgba(255,215,0,0.95)';
+    rrPath(ctx, centerX - 130, canvasH * 0.78, 260, 52, 26);
+    ctx.fill();
+    ctx.font         = '800 22px sans-serif';
+    ctx.fillStyle    = '#000';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👉 SWIPE UP · FOLLOW', canvasW / 2, canvasH * 0.78 + 26);
+    ctx.globalAlpha  = 1;
     ctx.restore();
   }
 }
@@ -1746,16 +1932,182 @@ function drawProgressBar(
   elapsed: number,
   duration: number,
   accentColor: string,
+  bpm: number = 0,
 ): void {
-  const barH = 6;
+  const barH = 4;
   const barY = canvasH - barH;
   const progress = Math.min(1, elapsed / duration);
-  // Track
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  // Dark track
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, barY, canvasW, barH);
-  // Fill
-  ctx.fillStyle = accentColor;
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, barY, canvasW, barY);
+  grad.addColorStop(0, accentColor);
+  grad.addColorStop(1, '#ffffff');
+  ctx.fillStyle = grad;
   ctx.fillRect(0, barY, canvasW * progress, barH);
+  // Leading edge glow dot
+  if (progress > 0 && progress < 1) {
+    ctx.save();
+    ctx.shadowColor = accentColor;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(canvasW * progress, barY + barH / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  // Beat markers (BGM sync) — small ticks above the bar at each beat
+  if (bpm > 0) {
+    const beatMs = 60000 / bpm;
+    const totalBeats = Math.floor(duration / beatMs);
+    const markerY = barY - 6;
+    for (let i = 1; i < totalBeats; i++) {
+      const bx = (i * beatMs) / duration * canvasW;
+      const past = elapsed >= i * beatMs;
+      // Accent on every 4th beat
+      const isDown = i % 4 === 0;
+      ctx.fillStyle = past ? (isDown ? '#ffffff' : accentColor) : 'rgba(255,255,255,0.22)';
+      ctx.fillRect(bx - 0.5, markerY, 1, isDown ? 5 : 3);
+    }
+    // Beat pulse ring on the leading edge at downbeats
+    const beatPhase = (elapsed % beatMs) / beatMs;
+    const pulseR = 6 + (1 - beatPhase) * 8;
+    ctx.save();
+    ctx.globalAlpha = (1 - beatPhase) * 0.6;
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(canvasW * progress, barY + barH / 2, pulseR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cycle 7 — Cinematic studio wrap (main phase only):
+//   • Top/bottom gradient scrims (readability + CapCut cinematic feel)
+//   • Template watermark with tracking
+//   • Scrolling hashtag ticker above progress bar
+//   • Subtle film grain texture
+// ---------------------------------------------------------------------------
+function drawStudioWrap(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  template: VideoTemplate,
+  elapsed: number,
+): void {
+  const accent = template.accentColor || '#ffffff';
+
+  // ── Top scrim (for readability of time/overlays) ─────────────────────────
+  const topH = 120;
+  const topGrad = ctx.createLinearGradient(0, 0, 0, topH);
+  topGrad.addColorStop(0, 'rgba(0,0,0,0.55)');
+  topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = topGrad;
+  ctx.fillRect(0, 0, W, topH);
+
+  // ── Bottom scrim (for hashtag ticker + progress bar) ─────────────────────
+  const botH = 150;
+  const botGrad = ctx.createLinearGradient(0, H - botH, 0, H);
+  botGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  botGrad.addColorStop(1, 'rgba(0,0,0,0.75)');
+  ctx.fillStyle = botGrad;
+  ctx.fillRect(0, H - botH, W, botH);
+
+  // ── Corner cinematic marks (CapCut-style crop guides) ────────────────────
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 2;
+  const ml = 20; const mi = 16;
+  // TL
+  ctx.beginPath(); ctx.moveTo(mi, mi + ml); ctx.lineTo(mi, mi); ctx.lineTo(mi + ml, mi); ctx.stroke();
+  // TR
+  ctx.beginPath(); ctx.moveTo(W - mi - ml, mi); ctx.lineTo(W - mi, mi); ctx.lineTo(W - mi, mi + ml); ctx.stroke();
+  // BL
+  ctx.beginPath(); ctx.moveTo(mi, H - mi - ml); ctx.lineTo(mi, H - mi); ctx.lineTo(mi + ml, H - mi); ctx.stroke();
+  // BR
+  ctx.beginPath(); ctx.moveTo(W - mi - ml, H - mi); ctx.lineTo(W - mi, H - mi); ctx.lineTo(W - mi, H - mi - ml); ctx.stroke();
+  ctx.restore();
+
+  // ── Top-left: template name watermark (modern tracking) ──────────────────
+  ctx.save();
+  ctx.font = '600 13px "Inter", "SF Pro Display", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  const wmText = (template.name || template.id || '').toUpperCase();
+  // Letter-spacing via character-by-character draw
+  const wmSpacing = 3;
+  let wx = 40;
+  const wy = 28;
+  for (const ch of wmText.slice(0, 28)) {
+    ctx.fillText(ch, wx, wy);
+    wx += ctx.measureText(ch).width + wmSpacing;
+  }
+  // Accent underline bar
+  ctx.fillStyle = accent;
+  ctx.fillRect(40, wy + 22, 28, 3);
+  ctx.restore();
+
+  // ── Top-right: live timecode ─────────────────────────────────────────────
+  ctx.save();
+  const tcSec = Math.max(0, (elapsed / 1000));
+  const tcM = Math.floor(tcSec / 60);
+  const tcS = Math.floor(tcSec % 60);
+  const tcF = Math.floor((tcSec * 30) % 30);
+  const tc = `${tcM.toString().padStart(2, '0')}:${tcS.toString().padStart(2, '0')}:${tcF.toString().padStart(2, '0')}`;
+  ctx.font = '600 12px "SF Mono", "Menlo", monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  // Pill background
+  const tcW = ctx.measureText(tc).width + 18;
+  rrPath(ctx, W - 40 - tcW, 24, tcW, 22, 4);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(tc, W - 50, 29);
+  // Red REC dot
+  const pulse = 0.6 + 0.4 * Math.sin(elapsed * 0.008);
+  ctx.globalAlpha = pulse;
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.arc(W - 40 - tcW - 8, 35, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // ── Hashtag ticker above progress bar ────────────────────────────────────
+  if (template.hashtags && template.hashtags.length > 0) {
+    const tickerY = H - 24;
+    const tagStr = template.hashtags.map(h => '#' + h).join('    •    ') + '    •    ';
+    ctx.save();
+    ctx.font = '500 12px "Inter", system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    const tagW = ctx.measureText(tagStr).width;
+    const scroll = (elapsed * 0.04) % tagW;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    // Draw twice so it wraps seamlessly
+    ctx.fillText(tagStr, -scroll, tickerY);
+    ctx.fillText(tagStr, -scroll + tagW, tickerY);
+    ctx.restore();
+  }
+
+  // ── Subtle film grain (low-alpha noise dots) ─────────────────────────────
+  ctx.save();
+  ctx.globalAlpha = 0.04;
+  ctx.fillStyle = '#ffffff';
+  // Seeded by time so it shimmers
+  const seed = Math.floor(elapsed / 33);
+  for (let i = 0; i < 60; i++) {
+    // Deterministic pseudo-random based on seed + i
+    const r = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
+    const rx = ((r - Math.floor(r)) * W);
+    const r2 = Math.sin(seed * 39.346 + i * 11.135) * 21732.123;
+    const ry = ((r2 - Math.floor(r2)) * H);
+    ctx.fillRect(rx, ry, 1.5, 1.5);
+  }
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------
@@ -1926,12 +2278,26 @@ export async function composeVideo(
           ctx.restore();
         }
 
-        // Clip and draw video frame
+        // Clip and draw video frame (aspect-fit center-crop — no stretching)
         ctx.save();
         rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
         ctx.clip();
         try {
-          ctx.drawImage(video, cx, cy, cw, ch);
+          const vw = video.videoWidth || 720;
+          const vh = video.videoHeight || 1280;
+          const srcAR = vw / vh;
+          const dstAR = cw / ch;
+          let sx = 0, sy = 0, sw = vw, sh = vh;
+          if (srcAR > dstAR) {
+            // 소스가 더 가로 → 가로 잘라내기
+            sw = vh * dstAR;
+            sx = (vw - sw) / 2;
+          } else if (srcAR < dstAR) {
+            // 소스가 더 세로 → 세로 잘라내기
+            sh = vw / dstAR;
+            sy = (vh - sh) / 2;
+          }
+          ctx.drawImage(video, sx, sy, sw, sh, cx, cy, cw, ch);
         } catch (_) {
           ctx.fillStyle = 'rgba(0,0,0,0.4)';
           ctx.fillRect(cx, cy, cw, ch);
@@ -1969,9 +2335,17 @@ export async function composeVideo(
         }
       }
 
+      // ── Cycle 7: cinematic studio wrap (main phase only) ─────────────────────
+      if (elapsed >= mainStart && elapsed < mainEnd) {
+        drawStudioWrap(ctx, W, H, template, elapsed - mainStart);
+      }
+
       // ── Shared: vignette + progress bar (always) ─────────────────────────────
       drawVignette(ctx, W, H);
-      drawProgressBar(ctx, W, H, elapsed, duration, template.accentColor);
+      drawProgressBar(
+        ctx, W, H, elapsed, duration, template.accentColor,
+        template.bgm?.bpm ?? 0,
+      );
 
       // ── Video playback control ──────────────────────────────────────────────
       if (elapsed >= mainStart && !videoStarted) {
@@ -1993,7 +2367,10 @@ export async function composeVideo(
       try {
         audioCtx = new AudioContext();
         const dest = audioCtx.createMediaStreamDestination();
-        bgmHandle = createSimpleBGM(audioCtx, template.bgm, dest);
+        bgmHandle = createSimpleBGM(audioCtx, template.bgm, dest, {
+          introMs: INTRO_MS,
+          totalMs: INTRO_MS + template.duration_ms + 400,
+        });
 
         // Canvas stream + audio
         const canvasStream = canvas.captureStream(FPS);

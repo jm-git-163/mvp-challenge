@@ -16,7 +16,7 @@ import TimingBar              from '../../../components/ui/TimingBar';
 import JudgementBurst         from '../../../components/mission/JudgementBurst';
 
 import { usePoseDetection }          from '../../../hooks/usePoseDetection';
-import { useJudgement }              from '../../../hooks/useJudgement';
+import { useJudgement, prewarmSpeech } from '../../../hooks/useJudgement';
 import { useRecording }              from '../../../hooks/useRecording';
 import { useSessionStore }           from '../../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../../utils/soundUtils';
@@ -1033,6 +1033,25 @@ function TemplateOverlay({ template, elapsed, isRecording }: { template: any; el
 
   return (
     <>
+      {/* ── 보편 시네마틱 프레임 (모든 템플릿 공통) ─────────────── */}
+      <View pointerEvents="none" style={[tov.cineTopScrim, {
+        // @ts-ignore web gradient
+        backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.10) 70%, transparent 100%)',
+      }]} />
+      <View pointerEvents="none" style={[tov.cineBottomScrim, {
+        // @ts-ignore web gradient
+        backgroundImage: 'linear-gradient(0deg, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.10) 70%, transparent 100%)',
+      }]} />
+      <View pointerEvents="none" style={[tov.cineVignette, {
+        // @ts-ignore web radial vignette
+        backgroundImage: 'radial-gradient(120% 85% at 50% 50%, transparent 55%, rgba(0,0,0,0.45) 100%)',
+      }]} />
+      {/* 4 코너 crop marks */}
+      <View pointerEvents="none" style={[tov.cornerMark, tov.cornerTL, { borderColor: gs.accentColor }]} />
+      <View pointerEvents="none" style={[tov.cornerMark, tov.cornerTR, { borderColor: gs.accentColor }]} />
+      <View pointerEvents="none" style={[tov.cornerMark, tov.cornerBL, { borderColor: gs.accentColor }]} />
+      <View pointerEvents="none" style={[tov.cornerMark, tov.cornerBR, { borderColor: gs.accentColor }]} />
+
       {(genre==='kpop'||genre==='hiphop') && hasSpotlight && <KpopSpotlights accentColor={gs.accentColor} />}
       {hasStarRain && <StarRainLayer color={starColor} />}
       {hasTicker   && <NewsTickerLayer accentColor={gs.accentColor} tickerText={tickerText} />}
@@ -1109,6 +1128,15 @@ function TemplateOverlay({ template, elapsed, isRecording }: { template: any; el
 }
 
 const tov = StyleSheet.create({
+  // 시네마틱 프레임
+  cineTopScrim:    { position:'absolute', top:0, left:0, right:0, height:140, zIndex:15 },
+  cineBottomScrim: { position:'absolute', bottom:0, left:0, right:0, height:160, zIndex:15 },
+  cineVignette:    { position:'absolute', top:0, left:0, right:0, bottom:0, zIndex:14 },
+  cornerMark:      { position:'absolute', width:20, height:20, borderWidth:2, zIndex:16 },
+  cornerTL:        { top:56, left:10, borderRightWidth:0, borderBottomWidth:0 },
+  cornerTR:        { top:56, right:10, borderLeftWidth:0, borderBottomWidth:0 },
+  cornerBL:        { bottom:70, left:10, borderRightWidth:0, borderTopWidth:0 },
+  cornerBR:        { bottom:70, right:10, borderLeftWidth:0, borderTopWidth:0 },
   topBar:            { position:'absolute', top:0, left:0, right:0, zIndex:20, flexDirection:'row', alignItems:'center', paddingVertical:8, paddingHorizontal:12, gap:10, borderBottomWidth:1 },
   livePill:          { flexDirection:'row', alignItems:'center', gap:5, paddingHorizontal:8, paddingVertical:4, borderRadius:6 },
   liveDot:           { width:6, height:6, borderRadius:3, backgroundColor:'#fff' },
@@ -1295,7 +1323,7 @@ export default function RecordScreen() {
   const defaultFacing  = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
   const [facing, setFacing] = useState<'front'|'back'>(defaultFacing);
 
-  const { isReady, landmarks, setSquatMockMode } = usePoseDetection();
+  const { isReady, isRealPose, landmarks, error: poseError, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, resetVoice } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
@@ -1313,6 +1341,7 @@ export default function RecordScreen() {
   const [burstVisible, setBurstVisible] = useState(false);
   const [burstTag,     setBurstTag]     = useState<JudgementTag|null>(null);
   const [combo,        setCombo]        = useState(0);
+  const [tagStampTs,   setTagStampTs]   = useState(0);
   const [particles,    setParticles]    = useState<Particle[]>([]);
   const [charState,    setCharState]    = useState<keyof typeof CHAR>('idle');
 
@@ -1336,7 +1365,10 @@ export default function RecordScreen() {
     if (sessionKey === prevSessionKeyRef.current) return;
     prevSessionKeyRef.current = sessionKey;
     // prewarmMic() 제거: 카메라 스트림에 이미 오디오 포함, 별도 getUserMedia 호출은 마이크 팝업 유발
-    try { setSquatMockMode(activeTemplate?.genre === 'fitness'); } catch { /* ignore */ }
+    // Cycle 30 — 실제 카메라 감지만 사용, 자동 스쿼트 목(Mock) 모드 끔.
+    // 기존 setSquatMockMode(fitness)는 MediaPipe 실패 fallback 시 사용자가 움직이지 않아도
+    // 스쿼트 카운트가 자동 증가하는 치명적 버그의 원인 → 비활성화.
+    try { setSquatMockMode(false); } catch { /* ignore */ }
     resetRecording();
     resetVoice();
     comboRef.current = 0; setCombo(0);
@@ -1348,6 +1380,12 @@ export default function RecordScreen() {
     setShowOutro(false); setShowIntro(false); introShownRef.current = false;
   }, [sessionKey]); // eslint-disable-line
 
+  // 화면 진입 시 음성 인식 권한 미리 요청 (녹화 중 팝업 방지)
+  useEffect(() => {
+    const t = setTimeout(prewarmSpeech, 800);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line
+
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
   useEffect(() => () => {
     resetVoice();
@@ -1358,6 +1396,29 @@ export default function RecordScreen() {
     if (state === 'recording') Animated.timing(hudOpacity, { toValue:1, duration:400, useNativeDriver:true }).start();
     else hudOpacity.setValue(0);
   }, [state]);
+
+  // Cycle 29 — 데스크톱 키보드 단축키: Space = 시작/중지, Esc = 취소
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      // Ignore when typing into a form field
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (state === 'idle' && isReady && cameraRef.current) {
+          initAudio();
+          start(cameraRef.current);
+        } else if (state === 'recording' && cameraRef.current) {
+          stop(cameraRef.current);
+        }
+      } else if (e.code === 'Escape') {
+        if (state === 'idle') router.back();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state, isReady, start, stop, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bounceChar = useCallback(() => {
     Animated.sequence([
@@ -1384,6 +1445,9 @@ export default function RecordScreen() {
 
   useEffect(() => {
     if (state !== 'recording') return;
+    // Cycle 30 — 실제 MediaPipe 검출이 확립되기 전까지는 판정하지 않음.
+    // 이전에는 mock/부분 초기화 상태에서도 판정이 돌아 스쿼트가 자동 카운트되는 현상 유발.
+    if (!isRealPose) return;
     const result = judge(landmarks, elapsed);
     setCurrentScore(result.score); setCurrentTag(result.tag); setCurrentMission(result.currentMission);
     scoreAccumRef.current.push(result.score);
@@ -1392,8 +1456,13 @@ export default function RecordScreen() {
       prevMissionSeqRef.current = result.currentMission.seq;
       animateMissionIn();
       const m = result.currentMission;
-      const text = m.type==='voice_read' && m.read_text ? `따라 읽어주세요: ${m.read_text}` : m.guide_text ?? '';
-      if (text) speakMission(text);
+      // voice_read 미션에서는 TTS가 대본을 읽지 않음 (사용자가 읽어야 함).
+      // 대신 짧은 안내만 — 자막 화면에 텍스트가 크게 표시되므로 TTS 음성이 마이크 입력을 오염시키지 않도록 차단.
+      if (m.type === 'voice_read') {
+        // no speakMission — 가이드는 자막 렌더로만 처리
+      } else if (m.guide_text) {
+        speakMission(m.guide_text);
+      }
     }
     if (result.tag !== prevTagRef.current) {
       const prev = prevTagRef.current;
@@ -1412,6 +1481,7 @@ export default function RecordScreen() {
       if (result.tag !== 'fail' || prev !== 'fail') {
         if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
         setBurstTag(result.tag); setBurstVisible(true);
+        setTagStampTs(performance.now());
         burstTimerRef.current = setTimeout(() => setBurstVisible(false), 900);
       }
     }
@@ -1499,8 +1569,36 @@ export default function RecordScreen() {
               missionScore={currentScore}
               isRecording={isRecording}
               landmarks={landmarks}
+              currentTag={currentTag}
+              tagTimestamp={tagStampTs}
+              combo={combo}
+              squatCount={squatCount}
+              voiceTranscript={voiceTranscript}
             >
               {particles.map(p => <Text key={p.id} style={[r.particle, { left:p.left as any }]}>{p.emoji}</Text>)}
+
+              {/* 상태 뱃지: 포즈/음성 감지 실제 작동 여부를 정직하게 표시 */}
+              {isRecording && !showIntro && (
+                <View style={r.statusBadgeRow} pointerEvents="none">
+                  {/* 포즈 미션이 필요한 장르에서만 표시 */}
+                  {(activeTemplate?.genre === 'fitness' ||
+                    activeTemplate?.missions.some(m => m.type === 'gesture' || m.type === 'timing' || m.type === 'expression')) && (
+                    <View style={[r.statusChip, isRealPose ? r.statusChipOk : r.statusChipWarn]}>
+                      <Text style={r.statusChipText}>
+                        {isRealPose ? '🟢 포즈 감지 중' : (poseError ? '🔴 포즈 감지 실패' : '⏳ 포즈 모델 로딩...')}
+                      </Text>
+                    </View>
+                  )}
+                  {/* 음성 미션이 있으면 표시 */}
+                  {activeTemplate?.missions.some(m => m.type === 'voice_read') && (
+                    <View style={[r.statusChip, voiceTranscript ? r.statusChipOk : r.statusChipWarn]}>
+                      <Text style={r.statusChipText}>
+                        {voiceTranscript ? '🟢 음성 인식 중' : '🎤 말해주세요'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* TOP HUD: [● REC 00:23]  [score]  [🔥3x] [🔄] */}
               <Animated.View style={[r.topHud, { opacity:hudOpacity }]}>
@@ -1583,10 +1681,23 @@ export default function RecordScreen() {
 
               {isIdle && (
                 <View style={[r.startArea, { maxWidth:maxW }]}>
-                  <Pressable style={r.startBtn} onPress={() => { initAudio(); if (cameraRef.current) start(cameraRef.current); }}>
+                  <Pressable
+                    style={[r.startBtn, !isReady && { opacity: 0.55 }]}
+                    disabled={!isReady}
+                    onPress={() => {
+                      if (!isReady) return;
+                      initAudio();
+                      if (cameraRef.current) start(cameraRef.current);
+                    }}
+                  >
                     <View style={r.startGlow} />
-                    <Text style={r.startBtnText}>▶  챌린지 시작</Text>
+                    <Text style={r.startBtnText}>
+                      {isReady ? '▶  챌린지 시작' : '⏳  포즈 모델 로딩 중...'}
+                    </Text>
                   </Pressable>
+                  {typeof window !== 'undefined' && (
+                    <Text style={r.kbdHint}>Space = 시작 · Esc = 취소</Text>
+                  )}
                   <TouchableOpacity style={r.cancelBtn} onPress={() => router.back()} hitSlop={{top:12,bottom:12,left:24,right:24}}>
                     <Text style={r.cancelText}>← 취소</Text>
                   </TouchableOpacity>
@@ -1613,6 +1724,11 @@ const r = StyleSheet.create({
   root:    { flex:1, backgroundColor:'#000' },
   safe:    { flex:1 },
   camWrap: { flex:1 },
+  statusBadgeRow: { position:'absolute', top:70, left:0, right:0, flexDirection:'row', justifyContent:'center', gap:6, zIndex:25 },
+  statusChip: { paddingHorizontal:10, paddingVertical:4, borderRadius:12, borderWidth:1 },
+  statusChipOk: { backgroundColor:'rgba(34,197,94,0.2)', borderColor:'rgba(34,197,94,0.6)' },
+  statusChipWarn: { backgroundColor:'rgba(239,68,68,0.2)', borderColor:'rgba(239,68,68,0.6)' },
+  statusChipText: { color:'#fff', fontSize:11, fontWeight:'700' },
   particle:{ position:'absolute', top:'10%', fontSize:30, zIndex:50,
     // @ts-ignore web
     animation:'float 1.6s ease-out forwards' },
@@ -1672,4 +1788,5 @@ const r = StyleSheet.create({
     textShadow:'0 2px 8px rgba(0,0,0,0.3)', zIndex:1 },
   cancelBtn:    { paddingVertical:10 },
   cancelText:   { color:'rgba(255,255,255,0.45)', fontSize:14, fontWeight:'500' },
+  kbdHint:      { color:'rgba(255,255,255,0.35)', fontSize:11, fontWeight:'600', letterSpacing:0.5, marginTop:-2 },
 });
