@@ -84,6 +84,38 @@
 - MediaRecorder 생성자 + Blob 생성자 DI로 node 환경 테스트 가능.
 - Vitest: **8/8 pass**.
 
+## Phase 4 — 디자인 시스템 (토큰·모션·스키마)
+
+### 4.1 `engine/design/tokens.ts` (2026-04-20)
+- docs/VISUAL_DESIGN.md §2~7 **단일 진실 공급원**. 프레임워크 중립 (TS 모듈).
+- 색 팔레트 (bgBase/bgElevated/bgGlass + 5 accent + 텍스트/상태), `parseColor`/`rgbaString` 합성 유틸.
+- 타이포 스케일 9단 (display→micro + score 전용 tabular-nums).
+- SPACING/RADIUS/SAFE_AREA(12%/16%)/CANVAS(1080×1920) 상수.
+- `GLASS_CARD` · `neonGlow(accent)` 레시피.
+- Vitest: **12/12 pass**.
+
+### 4.2 `engine/design/motion.ts` (2026-04-20)
+- docs/VISUAL_DESIGN §4 모션 토큰 + **순수 함수** 이징 곡선 (Framer 의존 X).
+- `cubicBezier` Newton–Raphson 평가기 + 바이섹션 폴백.
+- `EASE` 토큰 8종 (standard/overshoot/bounce/anticipate + 기본 4종).
+- `DURATION` 5단 (instant 100 ~ cinematic 1200).
+- `MOTION_PRESETS` 6종 (enter/exit/successPop/press/sceneWipeIn/Out).
+- `evaluatePreset(preset, elapsedMs)` 키프레임 보간.
+- Vitest: **11/11 pass**.
+
+### 4.3 `engine/templates/schema.ts` (2026-04-20)
+- docs/COMPOSITION.md §9 + docs/TEMPLATES.md 기준 **zod** 템플릿 스키마.
+- `zCameraFraming` 7종 discriminated union (fullscreen/circle/rounded_rect/hexagon/heart/tv_frame/custom_mask).
+- `zLayerType` 35종 (COMPOSITION §3 전수).
+- `zReactiveBinding`: onBeat(1/2/4/8/16) · onOnset · onVolume · onMission* · track(landmark+offset+rotateWith+scaleWith).
+- `zMissionSpec` 6종 (Phase 1 엔진과 1:1 매칭).
+- `zPostFx` 9종 파이프라인.
+- Superrefine: scoreWeight 합=1.0, layer/mission id 중복 금지, mission endSec ≤ duration.
+- `parseTemplate(x)` helper: 실패 시 경로 포함 상세 에러 throw.
+- Vitest: **17/17 pass**.
+
+---
+
 ### 3.4 `engine/recording/compositor.ts` (2026-04-20)
 - Phase 3용 **단순 컴포지터** — 본격 `LayerEngine`은 Phase 5로 연기 (CLAUDE.md 로드맵 준수).
 - `requestAnimationFrame` 루프 + `targetFps` 게이팅 (기본 30fps).
