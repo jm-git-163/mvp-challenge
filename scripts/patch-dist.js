@@ -1,7 +1,13 @@
 /**
  * patch-dist.js
- * expo export 후 자동 실행 — dist/index.html 에 캐시버스터 스크립트 주입
- * vercel.json buildCommand: "npx expo export --platform web && node scripts/patch-dist.js"
+ * expo export 후 자동 실행 — dist/index.html 에 캐시버스터 스크립트 주입.
+ *
+ * ⚠️ 중요: 이 스크립트는 **번들 JS 내용을 변조하지 않는다.**
+ *   - entry-XXX.js 파일명에서 해시만 읽음 (read-only).
+ *   - dist/index.html 의 <head>/<body> 에만 meta·script 삽입.
+ *   - Terser/esbuild 출력물은 그대로 보존 → `q is not a function` 류 심볼 파손 발생 불가.
+ *
+ * 호출 경로: package.json scripts.postexport (expo export 후 자동) 또는 scripts.build:web.
  */
 
 const fs   = require('fs');

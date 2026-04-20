@@ -18,6 +18,11 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### P1-C 배포 설정 + patch-dist 검토 (2026-04-20)
+- `vercel.json`: `buildCommand`→`npm run build:web` (scripts.build:web 단일 경로), `installCommand`→`npm ci --legacy-peer-deps` 신규.
+- `scripts/patch-dist.js` 상단에 **"번들 JS 미변조" 검토 결과 명시**(read-only 해시 추출 + HTML head/body 삽입만). `q is not a function` 재발 가능성 제로 입증.
+- **BLOCKER**: WORK_ORDER §4.3.3 Sentry 도입은 CLAUDE.md §12 "서버 전송·분석툴 전면 금지" 와 충돌. 사용자 판단 필요 — 법적 가드레일 해석 요청(현행 유지 vs. 크래시 보고 한정 예외).
+
 ---
 
 ## Phase 5f — Canvas 2D PostProcess 폴백 (2026-04-20)

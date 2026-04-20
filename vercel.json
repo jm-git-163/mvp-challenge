@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npx expo export --platform web && node scripts/patch-dist.js",
+  "buildCommand": "npm run build:web",
+  "installCommand": "npm ci --legacy-peer-deps",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
