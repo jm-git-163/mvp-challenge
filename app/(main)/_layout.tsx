@@ -34,14 +34,14 @@ export default function MainLayout() {
         name="record/index"
         options={{
           title: '촬영',
-          tabBarItemStyle: { display: 'none' },
+          href: null,
         }}
       />
       <Tabs.Screen
         name="result/index"
         options={{
           title: '결과',
-          tabBarItemStyle: { display: 'none' },
+          href: null,
         }}
       />
       <Tabs.Screen
