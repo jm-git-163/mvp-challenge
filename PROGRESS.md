@@ -70,6 +70,12 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.5 `engine/recognition/faceTypes.ts` + `engine/missions/smileMission.ts` (2026-04-20)
+- ARKit 표준 blendshape 추출 유틸: `smileIntensity=max(L,R)`, `jawOpen`, `browUp`, `blinkAmount`.
+- `SmileMission`: hysteresis (활성 0.5/비활성 0.35) + peak + bestSustainedMs 추적.
+- CLAUDE §5 Smile 공식: `intensity * 50 + sustain * 50`. `targetSustainMs` 기본 3000ms.
+- Vitest: **13/13 pass**.
+
 ### 1.4 `engine/recognition/poseTypes.ts` + `engine/missions/squatCounter.ts` (2026-04-20)
 - MediaPipe Pose 33-포인트 인덱스 상수 + `dist2D`/`angleDeg`/`mean` 순수 유틸.
 - `SquatCounter` 4-phase 상태머신 (up → descending → down → ascending → up).
