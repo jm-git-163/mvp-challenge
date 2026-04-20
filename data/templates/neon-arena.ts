@@ -21,7 +21,10 @@ export const neonArena: Template = {
   mood: 'neon_cyberpunk',
 
   bgm: {
-    src: '/bgm/synthwave-128.mp3',
+    // 플레이스홀더 synthwave 트랙 (scripts/generate-placeholder-bgm.js 로 생성).
+    // Expo SDK 50+ public/ 디렉터리 → 빌드 시 dist/bgm/ 로 자동 복사.
+    // WAV 포맷 선택: 런타임 데코딩 단순, Safari·Chrome·Firefox 전부 네이티브 지원.
+    src: '/bgm/synthwave-128.wav',
     volume: 0.7,
     beatsJson: '/bgm/synthwave-128.beats.json',
     loop: true,

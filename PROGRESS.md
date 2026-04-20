@@ -18,6 +18,13 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit 3: neon-arena BGM 실재화 (2026-04-20)
+- `scripts/generate-placeholder-bgm.js` 신규: 순수 Math 합성(킥+서브베이스+아르페지오+패드) → `public/bgm/synthwave-128.wav` (1.7MB, 20초 128BPM) + `.beats.json` (43 beats, 11 downbeats). 외부 라이선스 0.
+- `package.json`: `gen:bgm` 스크립트 추가.
+- `data/templates/neon-arena.ts` bgm.src `/bgm/synthwave-128.mp3` → `.wav` (Safari·Chrome·Firefox 네이티브 지원).
+- `npm run build:web` 검증: `public/bgm/` → `dist/bgm/` 자동 복사 확인.
+- Vitest **539/539 green** 유지.
+
 ### Focused Commit 2: record UI 에 포즈 status+retry 노출 (2026-04-20)
 - `hooks/usePoseDetection.ts` (native) 도 `status`/`retry` 필드 추가 → web/native 인터페이스 통일.
 - `app/record/index.tsx` 에서 `poseStatus`·`retryPose` 구독. 상태 칩을 5상태(ready-real/ready-mock/error/loading/idle) 별로 KO 메시지 분기.
