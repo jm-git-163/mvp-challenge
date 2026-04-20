@@ -166,12 +166,17 @@ export function useJudgement(): {
       const conf = (i: number) =>
         (landmarks[i]?.score ?? landmarks[i]?.visibility ?? 0);
       const fullLeg = (h: number, k: number, a: number) =>
-        conf(h) > 0.50 && conf(k) > 0.50 && conf(a) > 0.50;
+        conf(h) > 0.40 && conf(k) > 0.40 && conf(a) > 0.40;
+      // Fallback gate: shoulder+hip+knee visible is enough for the ratio-based
+      // depth proxy in detectSquat() — ankles commonly crop on phone selfies.
+      const hipKneeOnly = (s: number, h: number, k: number) =>
+        conf(s) > 0.40 && conf(h) > 0.40 && conf(k) > 0.40;
       const squatLmOk = landmarks.length >= 17 && (
-        fullLeg(11, 13, 15) || fullLeg(12, 14, 16)
+        fullLeg(11, 13, 15) || fullLeg(12, 14, 16) ||
+        hipKneeOnly(5, 11, 13) || hipKneeOnly(6, 12, 14)
       );
       if (template && template.genre === 'fitness' && squatLmOk) {
-        const sq = detectSquat(landmarks, 0.50);
+        const sq = detectSquat(landmarks, 0.40);
         kneeAngleOut = sq.kneeAngle;
         lastKneeAngle.current = sq.kneeAngle;
 

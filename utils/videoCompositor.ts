@@ -1859,6 +1859,22 @@ function drawTextOverlay(
   const ANIM_IN = 0.12;  // first 12% = animation in
   const ANIM_OUT = 0.88; // last 12% = animation out
 
+  // Kinetic word-by-word reveal (CapCut-style) — takes over rendering entirely
+  if (overlay.animation === 'kinetic') {
+    let kAlpha = 1;
+    if (localT > ANIM_OUT) kAlpha = Math.max(0, (1 - localT) / (1 - ANIM_OUT));
+    if (kAlpha <= 0) return;
+    const words = computeKineticReveal(overlay.text, 0, localMs, 110, 260);
+    ctx.save();
+    ctx.globalAlpha = kAlpha;
+    const cx = overlay.xPct * canvasW;
+    const cy = overlay.yPct * canvasH;
+    const maxW = Math.min(canvasW - 60, 640);
+    drawKineticText(ctx, words, cx, cy, overlay.fontSize, overlay.color, overlay.bold ?? true, maxW);
+    ctx.restore();
+    return;
+  }
+
   switch (overlay.animation) {
     case 'fade': {
       if (localT < ANIM_IN) alpha = localT / ANIM_IN;

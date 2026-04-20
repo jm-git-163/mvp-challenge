@@ -22,7 +22,7 @@ export interface TextOverlay {
   fontSize: number;
   color: string;
   align?: 'left' | 'center' | 'right';
-  animation?: 'fade' | 'slide_up' | 'slide_left' | 'bounce' | 'typewriter';
+  animation?: 'fade' | 'slide_up' | 'slide_left' | 'bounce' | 'typewriter' | 'kinetic';
   bold?: boolean;
   bgColor?: string;
   outlineColor?: string;
