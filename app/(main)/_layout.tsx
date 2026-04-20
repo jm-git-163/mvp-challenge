@@ -32,11 +32,21 @@ export default function MainLayout() {
       />
       <Tabs.Screen
         name="record/index"
-        options={{ title: '촬영', tabBarLabel: '촬영', href: null }}
+        options={{
+          title: '촬영',
+          href: null,
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
       />
       <Tabs.Screen
         name="result/index"
-        options={{ title: '결과', tabBarLabel: '결과', href: null }}
+        options={{
+          title: '결과',
+          href: null,
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
       />
       <Tabs.Screen
         name="profile/index"
