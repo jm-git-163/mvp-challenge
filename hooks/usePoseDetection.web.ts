@@ -1,11 +1,23 @@
 /**
  * usePoseDetection.web.ts
- * 웹 전용 — MediaPipe Tasks Vision PoseLandmarker (real detection)
- * Falls back to mock pose if MediaPipe fails to load.
+ * 웹 전용 — MediaPipe Tasks Vision PoseLandmarker.
+ *
+ * Phase 1-B: mediaPipeLoader (순수 모듈)로 로딩 로직 위임.
+ *   - status 필드 노출: 'idle' | 'loading' | 'ready-real' | 'ready-mock' | 'error'
+ *   - retry() 노출: 실패 후 재시도 (landmarker 정리 후 load 재실행)
+ *   - 프로덕션에서는 mock 폴백 금지 (allowMockFallback=false)
+ *   - BASE/MODEL URL 환경변수화 (EXPO_PUBLIC_MEDIAPIPE_BASE / _MODEL_URL)
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import { generateMockPose, generateSquatMockPose } from '../utils/poseUtils';
+import {
+  loadPoseLandmarker,
+  resolvePoseConfig,
+  type PoseLoadStatus,
+  type PoseLandmarkerHandle,
+  type PoseLoaderDeps,
+} from '../engine/recognition/mediaPipeLoader';
 
 interface UsePoseDetectionReturn {
   isReady: boolean;
@@ -13,37 +25,48 @@ interface UsePoseDetectionReturn {
   landmarks: NormalizedLandmark[];
   detect: (_b64: string, _w: number, _h: number) => Promise<void>;
   error: string | null;
+  status: PoseLoadStatus;
+  retry: () => void;
   setSquatMockMode: (enabled: boolean) => void;
 }
 
-const MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
-
-// How often to run pose detection (ms)
 const DETECT_INTERVAL_MS = 100;
 
+// __DEV__ 는 RN 런타임 전역. 웹 번들에서는 process.env.NODE_ENV 로 판정.
+function detectIsDev(): boolean {
+  if (typeof (globalThis as any).__DEV__ === 'boolean') return (globalThis as any).__DEV__;
+  try {
+    return typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
+  } catch {
+    return false;
+  }
+}
+
 export function usePoseDetection(): UsePoseDetectionReturn {
-  const [isReady, setIsReady]       = useState(false);
+  const [status, setStatus]         = useState<PoseLoadStatus>('idle');
   const [isRealPose, setIsRealPose] = useState(false);
   const [landmarks, setLandmarks]   = useState<NormalizedLandmark[]>([]);
   const [error, setError]           = useState<string | null>(null);
+  const [loadNonce, setLoadNonce]   = useState(0);
 
-  // Refs that survive re-renders without triggering them
-  const landmarkerRef    = useRef<any>(null);
+  const landmarkerRef    = useRef<PoseLandmarkerHandle | null>(null);
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const mockTimerRef     = useRef(0);
-  const useMockRef       = useRef(false);   // fallback mode
+  const useMockRef       = useRef(false);
   const squatMockRef     = useRef(false);
   const lastTimestampRef = useRef(0);
 
-  // ── setSquatMockMode — kept for API compatibility ───────────────────────────
   const setSquatMockMode = useCallback((enabled: boolean) => {
     squatMockRef.current = enabled;
   }, []);
 
-  // ── Run detection against the exposed video element ────────────────────────
+  const retry = useCallback(() => {
+    setError(null);
+    setStatus('idle');
+    setLoadNonce((n) => n + 1);
+  }, []);
+
   const runDetection = useCallback(() => {
-    // Fallback mock path
     if (useMockRef.current) {
       mockTimerRef.current += DETECT_INTERVAL_MS;
       const pose = squatMockRef.current
@@ -53,22 +76,19 @@ export function usePoseDetection(): UsePoseDetectionReturn {
       return;
     }
 
-    const landmarker = landmarkerRef.current;
+    const landmarker = landmarkerRef.current as any;
     if (!landmarker) return;
 
-    // Access the video element exposed by RecordingCamera.web.tsx
     const video = (window as any).__poseVideoEl as HTMLVideoElement | undefined;
     if (!video || video.readyState < 2 || video.videoWidth === 0) return;
 
     try {
-      // MediaPipe requires strictly increasing timestamps in VIDEO mode
       const now = performance.now();
       if (now <= lastTimestampRef.current) return;
       lastTimestampRef.current = now;
 
       const result = landmarker.detectForVideo(video, now);
       if (result?.landmarks?.length > 0) {
-        // MediaPipe returns landmarks already normalized 0-1
         const raw: NormalizedLandmark[] = result.landmarks[0].map(
           (lm: { x: number; y: number; z: number; visibility?: number }) => ({
             x: lm.x,
@@ -82,92 +102,82 @@ export function usePoseDetection(): UsePoseDetectionReturn {
         if (!isRealPose) setIsRealPose(true);
       }
     } catch (e) {
-      // Non-fatal: skip this frame
       console.warn('[PoseDetection] detectForVideo error:', e);
     }
-  }, []);
+  }, [isRealPose]);
 
-  // ── Load MediaPipe and start the detection loop ─────────────────────────────
+  // ── Load pipeline ────────────────────────────────────────────────────────
   useEffect(() => {
-    let destroyed = false;
+    const ac = new AbortController();
+    setStatus('loading');
 
-    const load = async () => {
-      try {
-        // Dynamic import — package installed via npm
-        const { PoseLandmarker, FilesetResolver } =
-          await import('@mediapipe/tasks-vision');
+    const env: Record<string, string | undefined> = {
+      EXPO_PUBLIC_MEDIAPIPE_BASE: (process.env as any)?.EXPO_PUBLIC_MEDIAPIPE_BASE,
+      EXPO_PUBLIC_MEDIAPIPE_MODEL_URL: (process.env as any)?.EXPO_PUBLIC_MEDIAPIPE_MODEL_URL,
+    };
+    const config = resolvePoseConfig(env, detectIsDev());
 
-        const vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
-        );
-
-        const landmarker = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: MODEL_URL,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO' as any,
-          numPoses: 1,
-          minPoseDetectionConfidence: 0.5,
-          minPosePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
-
-        if (destroyed) {
-          landmarker.close();
-          return;
-        }
-
-        landmarkerRef.current = landmarker;
-        setIsReady(true);
-        setError(null);
-      } catch (err: any) {
-        if (destroyed) return;
-        console.warn('[PoseDetection] MediaPipe failed to load, falling back to mock:', err);
-        // Activate mock fallback
-        useMockRef.current = true;
-        setIsReady(true);
-        setError('MediaPipe unavailable — using mock pose');
-      }
+    const deps: PoseLoaderDeps = {
+      importMediaPipe: async () => {
+        const mod = await import('@mediapipe/tasks-vision');
+        return {
+          PoseLandmarker: mod.PoseLandmarker as any,
+          FilesetResolver: mod.FilesetResolver as any,
+        };
+      },
     };
 
-    load();
+    (async () => {
+      const out = await loadPoseLandmarker(config, deps, ac.signal);
+      if (ac.signal.aborted) return;
+
+      if (out.status === 'ready-real' && out.handle) {
+        landmarkerRef.current = out.handle;
+        useMockRef.current = false;
+        setError(null);
+        setStatus('ready-real');
+        return;
+      }
+      if (out.status === 'ready-mock') {
+        useMockRef.current = true;
+        setError(out.error?.message ?? 'MediaPipe unavailable — using mock pose');
+        setStatus('ready-mock');
+        return;
+      }
+      useMockRef.current = false;
+      setError(out.error?.message ?? '포즈 엔진 로드 실패');
+      setStatus('error');
+    })();
 
     return () => {
-      destroyed = true;
+      ac.abort();
+      if (landmarkerRef.current) {
+        try { landmarkerRef.current.close(); } catch { /* ignore */ }
+        landmarkerRef.current = null;
+      }
     };
-  }, []);
+  }, [loadNonce]);
 
-  // ── Start/stop detection interval once model is ready ──────────────────────
+  // ── Detection loop ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isReady) return;
-
+    if (status !== 'ready-real' && status !== 'ready-mock') return;
     intervalRef.current = setInterval(runDetection, DETECT_INTERVAL_MS);
-
     return () => {
       if (intervalRef.current !== null) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [isReady, runDetection]);
-
-  // ── Cleanup landmarker on unmount ──────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      if (landmarkerRef.current) {
-        try { landmarkerRef.current.close(); } catch { /* ignore */ }
-        landmarkerRef.current = null;
-      }
-    };
-  }, []);
+  }, [status, runDetection]);
 
   return {
-    isReady,
+    isReady: status === 'ready-real' || status === 'ready-mock',
     isRealPose,
     landmarks,
-    detect: async () => {},   // kept for interface compatibility
+    detect: async () => {},
     error,
+    status,
+    retry,
     setSquatMockMode,
   };
 }

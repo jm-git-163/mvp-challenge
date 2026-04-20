@@ -4,6 +4,27 @@
 
 ---
 
+## WORK_ORDER Phase 1 — 긴급 버그 수정 (feat/phase-1-bugfix)
+
+### P1-A 라우트 선언 정합화 (2026-04-20)
+- `app/_layout.tsx` 71~73라인 패치: `(auth)` 제거(빈 디렉터리), `record/index`→`record`, `result/index`→`result`.
+- `scripts/lint-routes.js` 신규: `<Stack.Screen name>` 추출 → app/ 트리와 대조, 그룹/중첩/`/index` 접미사 검증.
+- `package.json` `pretest` 훅으로 자동 실행. `vitest.config.ts` include 에 `scripts/**/*.test.{ts,js}` 추가.
+- Vitest: lint-routes 유닛 10/10 + 기존 517 유지 → **527/527 green**.
+
+### P1-B MediaPipe 로드 상태기 + retry (2026-04-20)
+- `engine/recognition/mediaPipeLoader.ts` 신규: DI 로 `importMediaPipe` 주입 가능, `PoseLoadStatus` 5상태 머신(`idle|loading|ready-real|ready-mock|error`), AbortSignal 3지점 체크, 프로덕션 mock 폴백 금지(`allowMockFallback=isDev`).
+- `resolvePoseConfig(env, isDev)` — `EXPO_PUBLIC_MEDIAPIPE_BASE` / `EXPO_PUBLIC_MEDIAPIPE_MODEL_URL` 외부화.
+- `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
+- 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
+
+### P1-C 배포 설정 + patch-dist 검토 (2026-04-20)
+- `vercel.json`: `buildCommand`→`npm run build:web` (scripts.build:web 단일 경로), `installCommand`→`npm ci --legacy-peer-deps` 신규.
+- `scripts/patch-dist.js` 상단에 **"번들 JS 미변조" 검토 결과 명시**(read-only 해시 추출 + HTML head/body 삽입만). `q is not a function` 재발 가능성 제로 입증.
+- **BLOCKER**: WORK_ORDER §4.3.3 Sentry 도입은 CLAUDE.md §12 "서버 전송·분석툴 전면 금지" 와 충돌. 사용자 판단 필요 — 법적 가드레일 해석 요청(현행 유지 vs. 크래시 보고 한정 예외).
+
+---
+
 ## Phase 5f — Canvas 2D PostProcess 폴백 (2026-04-20)
 
 ### 5f-fallback `engine/effects/postProcess2d.ts`

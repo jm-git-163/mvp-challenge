@@ -83,7 +83,11 @@
       "Bash(cmd.exe /c \"echo %CD%\")",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('name:',p.name\\); console.log\\('deps keys:',Object.keys\\(p.dependencies||{}\\).length\\); console.log\\('has next:',!!p.dependencies?.next\\); console.log\\('has vitest:',!!p.devDependencies?.vitest\\); console.log\\('has mediapipe tasks-vision:',!!p.dependencies?.['@mediapipe/tasks-vision']\\); console.log\\('has pixi:',!!p.dependencies?.['pixi.js']\\); console.log\\('has zod:',!!p.dependencies?.zod\\); console.log\\('has playwright:',!!p.devDependencies?.['@playwright/test']\\);\")",
       "Bash(awk '{print $5, $NF}')",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(git checkout *)",
+      "Bash(node scripts/lint-routes.js)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(npm test *)"
     ]
   }
 }
