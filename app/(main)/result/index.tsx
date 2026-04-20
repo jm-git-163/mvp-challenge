@@ -160,12 +160,26 @@ function computeMissionResults(frameTags: FrameTag[]): MissionResult[] {
 
 // ─── Download helper ──────────────────────────────────────────────────────────
 
-function doDownload(uri: string, name: string, mimeType?: string): void {
+async function doDownload(uri: string, name: string, mimeType?: string): Promise<void> {
   if (typeof window === 'undefined' || !uri) return;
+
+  // If mime is unknown (e.g. raw recording blob URL), fetch and inspect.
+  // Saving a WebM file as ".mp4" produces an unplayable file on most players.
+  let resolvedMime = mimeType;
+  if (!resolvedMime && uri.startsWith('blob:')) {
+    try {
+      const resp = await fetch(uri);
+      resolvedMime = resp.headers.get('content-type') || (await resp.blob()).type || '';
+    } catch { /* ignore — fall back to guess below */ }
+  }
+
   const ext =
-    mimeType?.includes('mp4') ? 'mp4' :
-    mimeType?.includes('webm') ? 'webm' :
-    uri.toLowerCase().endsWith('.webm') ? 'webm' : 'mp4';
+    resolvedMime?.includes('mp4') ? 'mp4' :
+    resolvedMime?.includes('webm') ? 'webm' :
+    uri.toLowerCase().endsWith('.webm') ? 'webm' :
+    uri.toLowerCase().endsWith('.mp4') ? 'mp4' :
+    'webm'; // Chrome MediaRecorder default — safer than defaulting to mp4
+
   const safeName = (name || 'challenge')
     .replace(/[^\w가-힣\s-]/g, '')   // strip emoji + symbols, keep Korean
     .trim()
@@ -493,10 +507,18 @@ function ShareModal({
     if (typeof navigator === 'undefined') return;
     if (navigator.share) {
       try {
-        const videoUri = composedUri ?? rawVideoUri;
-        if (composedBlob && (navigator as any).canShare?.({ files: [new File([composedBlob], 'challenge.mp4', { type: 'video/mp4' })] })) {
-          const file = new File([composedBlob], `${templateName}_챌린지.mp4`, { type: 'video/mp4' });
-          await navigator.share({ files: [file], title: `${templateName} 챌린지 완료!`, text: shareText });
+        // Use the ACTUAL blob mime so Web Share doesn't reject a mislabeled file
+        const realMime = composedBlob?.type || 'video/webm';
+        const ext = realMime.includes('mp4') ? 'mp4' : 'webm';
+        const safeName = (templateName || 'challenge').replace(/[^\w가-힣\s-]/g, '').trim().slice(0, 40);
+        if (composedBlob) {
+          const probe = new File([composedBlob], `${safeName}.${ext}`, { type: realMime });
+          if ((navigator as any).canShare?.({ files: [probe] })) {
+            await navigator.share({ files: [probe], title: `${templateName} 챌린지 완료!`, text: shareText });
+          } else {
+            // canShare rejected files (e.g. iOS Safari with webm) — fall back to link share
+            await navigator.share({ title: `${templateName} 챌린지 완료!`, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' });
+          }
         } else {
           await navigator.share({ title: `${templateName} 챌린지 완료!`, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' });
         }
@@ -510,7 +532,8 @@ function ShareModal({
   const handleDownload = () => {
     const uri = composedUri ?? rawVideoUri;
     if (uri) {
-      doDownload(uri, templateName, composedBlob?.type);
+      // doDownload is async (may fetch blob mime), but we fire-and-forget for UX
+      doDownload(uri, templateName, composedBlob?.type).catch(() => {});
       showToast('📥 영상 저장 중...');
     }
   };
