@@ -68,6 +68,19 @@
 
 ---
 
+## Phase 2 — 점수 엔진
+
+### 2.1 `engine/scoring/scorer.ts` (2026-04-20)
+- 공통 `Scorer` 인터페이스 (`totalScore(): number`) — 모든 미션이 이미 만족.
+- `aggregate(missions, opts)`: 가중 평균 세션 점수 + `passed` 판정 (기본 60점).
+- `starsFromScore`: `1 + round(score/25)` → 1..5. 경계값 12/13/37/38/62/63/87/88 테스트.
+- `clampScore`: NaN/Infinity → 0, 범위 밖 → [0..100]로 정수 라운드.
+- `missionResultOf` 헬퍼: Scorer + 메타 → MissionResult.
+- 결정론: 동일 입력 → 동일 출력 (Math.random 없음, CLAUDE §3 #2 준수).
+- Vitest: **23/23 pass**.
+
+---
+
 ## Phase 1 — 인식 엔진
 
 ### 1.8 `engine/missions/scriptMission.ts` (2026-04-20)
