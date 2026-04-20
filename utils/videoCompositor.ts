@@ -9,7 +9,12 @@ import {
   BgmSpec,
   ClipArea,
 } from './videoTemplates';
-import type { Template as LayeredTemplate } from '../engine/templates/schema';
+import type { Template as LayeredTemplate, BaseLayer } from '../engine/templates/schema';
+import renderGradientMesh from '../engine/composition/layers/gradient_mesh';
+import renderAnimatedGrid from '../engine/composition/layers/animated_grid';
+import renderStarField from '../engine/composition/layers/star_field';
+import renderNoisePattern from '../engine/composition/layers/noise_pattern';
+import renderCameraFeed from '../engine/composition/layers/camera_feed';
 import {
   drawFilmGrain,
   drawLightLeak,
@@ -2197,18 +2202,70 @@ function layeredToLegacy(lt: LayeredTemplate): VideoTemplate {
     name: lt.title,
     style: style as any,
     accentColor: colors[style] || '#7c3aed',
+    gradientColors: [colors[style] || '#7c3aed', '#000000'],
+    bgStyle: style as any,
     duration_ms: lt.duration * 1000,
     bgm: {
       genre: style as any,
       bpm: 128,
       volume: lt.bgm.volume,
     },
+    clipArea: { xPct: 0.1, yPct: 0.15, wPct: 0.8, hPct: 0.7, borderRadius: 20 },
     clip_slots: [
-      { id: 'main', start_ms: 5000, end_ms: lt.duration * 1000 - 3000 },
+      { id: 'main', start_ms: 0, end_ms: lt.duration * 1000 },
     ],
     text_overlays: [],
-    hashtags: [],
+    hashtags: lt.hashtags || [],
   };
+}
+
+function renderLayeredFrame(
+  ctx: CanvasRenderingContext2D,
+  template: LayeredTemplate,
+  tMs: number,
+  state: { videoEl?: HTMLVideoElement }
+): void {
+  const { width, height } = ctx.canvas;
+  ctx.clearRect(0, 0, width, height);
+
+  const sortedLayers = [...template.layers].sort((a, b) => a.zIndex - b.zIndex);
+
+  for (const layer of sortedLayers) {
+    if (!layer.enabled) continue;
+    
+    // Check active range
+    if (layer.activeRange) {
+      const tSec = tMs / 1000;
+      if (tSec < layer.activeRange.startSec || tSec > layer.activeRange.endSec) {
+        continue;
+      }
+    }
+
+    try {
+      switch (layer.type) {
+        case 'gradient_mesh':
+          renderGradientMesh(ctx, layer, tMs, state);
+          break;
+        case 'animated_grid':
+          renderAnimatedGrid(ctx, layer, tMs, state);
+          break;
+        case 'star_field':
+          renderStarField(ctx, layer, tMs, state);
+          break;
+        case 'noise_pattern':
+          renderNoisePattern(ctx, layer, tMs, state);
+          break;
+        case 'camera_feed':
+          renderCameraFeed(ctx, layer, tMs, state);
+          break;
+        default:
+          // Skip unsupported types for now (세션 2 구현 대상)
+          break;
+      }
+    } catch (e) {
+      console.warn(`[Compositor] Error rendering layer ${layer.id}:`, e);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2220,9 +2277,13 @@ export async function composeVideo(
   clips: RecordedClip[],
   onProgress: (p: CompositorProgress) => void,
 ): Promise<Blob> {
-  const template = ('mood' in templateOrLayered) 
-    ? layeredToLegacy(templateOrLayered)
-    : templateOrLayered;
+  const isLayered = 'layers' in templateOrLayered;
+  
+  // For legacy internal logic, we might still need a VideoTemplate mapping
+  const legacyTemplate = isLayered 
+    ? layeredToLegacy(templateOrLayered as LayeredTemplate)
+    : templateOrLayered as VideoTemplate;
+
   return new Promise<Blob>((resolve, reject) => {
     if (!clips || clips.length === 0) {
       reject(new Error('No clips provided'));
@@ -2242,20 +2303,14 @@ export async function composeVideo(
     canvas.height = H;
     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
-    // Reset scroll offsets for fresh render
     scrollOffsets.clear();
 
-    // Safety timeout: 8 minutes
     const TIMEOUT_MS = 8 * 60 * 1000;
-    const timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error('Compositor timed out after 8 minutes'));
-    }, TIMEOUT_MS);
-
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let rafId = 0;
     let audioCtx: AudioContext | null = null;
     let bgmHandle: SimpleBGMHandle | null = null;
     let mediaRecorder: MediaRecorder | null = null;
-    let rafId = 0;
     let startTime = 0;
     let lastFrameTime = 0;
     const chunks: Blob[] = [];
@@ -2271,278 +2326,145 @@ export async function composeVideo(
       URL.revokeObjectURL(clipUrl);
     }
 
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('Compositor timeout'));
+    }, TIMEOUT_MS);
+
     function renderFrame(now: DOMHighResTimeStamp) {
       if (finished) return;
 
       const elapsed = now - startTime;
-      const duration = template.duration_ms;
+      const duration = isLayered 
+        ? (templateOrLayered as LayeredTemplate).duration * 1000
+        : legacyTemplate.duration_ms;
 
-      // 15fps throttle
       if (now - lastFrameTime < FRAME_MS - 1) {
         rafId = requestAnimationFrame(renderFrame);
         return;
       }
       lastFrameTime = now;
 
-      // Phase boundaries
-      const mainStart = INTRO_MS;
-      const mainEnd   = duration - OUTRO_MS;
+      if (elapsed >= duration) {
+        mediaRecorder?.stop();
+        return;
+      }
 
-      // Progress reporting with phase labels
-      const phaseLabel =
-        elapsed < mainStart ? '🎬 인트로 애니메이션...' :
-        elapsed >= mainEnd  ? '🎉 아웃트로 애니메이션...' :
-        '🎥 영상 합성 중...';
       onProgress({
-        phase:   phaseLabel,
+        phase: '🎥 영상 합성 중...',
         percent: Math.min(99, Math.round((elapsed / duration) * 100)),
       });
 
-      // --- 1. Background gradient (all phases) ---
-      // Base linear gradient
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-      bgGrad.addColorStop(0, template.gradientColors[0]);
-      bgGrad.addColorStop(1, template.gradientColors[1]);
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, W, H);
-
-      // Secondary radial "spotlight" gradient for depth (shifts slowly)
-      const spotX = W * 0.5 + Math.sin(elapsed * 0.0004) * W * 0.15;
-      const spotY = H * 0.35 + Math.cos(elapsed * 0.0003) * H * 0.08;
-      const spotGrad = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, H * 0.55);
-      spotGrad.addColorStop(0, template.accentColor + '22');
-      spotGrad.addColorStop(0.5, template.accentColor + '09');
-      spotGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = spotGrad;
-      ctx.fillRect(0, 0, W, H);
-
-      // --- 2. Scene-specific background (all phases) ---
-      switch (template.bgStyle) {
-        case 'vlog':
-          drawVlogScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'news':
-          drawNewsScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'kpop':
-          drawKpopScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'english':
-          drawEnglishScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'fairy':
-          drawFairyScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'fitness':
-          drawFitnessScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'travel':
-          drawTravelScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-        case 'hiphop':
-          drawHiphopScene(ctx, W, H, elapsed, template.accentColor);
-          break;
-      }
-
-      // --- 3. Top zone (all phases) ---
-      if (template.topZone) {
-        drawTopZone(ctx, template.topZone, W);
-      }
-
-      // ── Phase split ──────────────────────────────────────────────────────────
-
-      if (elapsed < mainStart) {
-        // ═══ PHASE 0: INTRO ═══════════════════════════════════════════════════
-        drawIntroFrame(ctx, template, elapsed, W, H);
-
-      } else if (elapsed >= mainEnd) {
-        // ═══ PHASE 2: OUTRO ═══════════════════════════════════════════════════
-        const outroElapsed = elapsed - mainEnd;
-        drawOutroFrame(ctx, template, outroElapsed, W, H);
-
+      if (isLayered) {
+        renderLayeredFrame(ctx, templateOrLayered as LayeredTemplate, elapsed, { videoEl: video });
       } else {
-        // ═══ PHASE 1: MAIN (user clip) ════════════════════════════════════════
+        // --- 1. Background gradient ---
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+        bgGrad.addColorStop(0, legacyTemplate.gradientColors[0]);
+        bgGrad.addColorStop(1, legacyTemplate.gradientColors[1]);
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, W, H);
 
-        // --- 4. User video in clipArea ---
-        const ca = template.clipArea;
-        const cx = ca.xPct * W;
-        const cy = ca.yPct * H;
-        const cw = ca.wPct * W;
-        const ch = ca.hPct * H;
-
-        // Glow effect behind video
-        if (ca.glowColor) {
-          ctx.save();
-          ctx.shadowColor = ca.glowColor;
-          ctx.shadowBlur  = 20;
-          rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-          ctx.fillStyle   = ca.glowColor;
-          ctx.fill();
-          ctx.shadowBlur  = 0;
-          ctx.restore();
+        // --- 2. Scene background ---
+        switch (legacyTemplate.bgStyle) {
+          case 'vlog': drawVlogScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'news': drawNewsScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'kpop': drawKpopScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'fitness': drawFitnessScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'travel': drawTravelScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'hiphop': drawHiphopScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'english': drawEnglishScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
+          case 'fairy': drawFairyScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
         }
 
-        // Clip and draw video frame (aspect-fit center-crop — no stretching)
-        ctx.save();
-        rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-        ctx.clip();
-        try {
-          const vw = video.videoWidth || 720;
-          const vh = video.videoHeight || 1280;
-          const srcAR = vw / vh;
-          const dstAR = cw / ch;
-          let sx = 0, sy = 0, sw = vw, sh = vh;
-          if (srcAR > dstAR) {
-            // 소스가 더 가로 → 가로 잘라내기
-            sw = vh * dstAR;
-            sx = (vw - sw) / 2;
-          } else if (srcAR < dstAR) {
-            // 소스가 더 세로 → 세로 잘라내기
-            sh = vw / dstAR;
-            sy = (vh - sh) / 2;
+        // --- 3. Main Clip Area ---
+        const mainStart = INTRO_MS;
+        const mainEnd   = duration - OUTRO_MS;
+        
+        if (elapsed < mainStart) {
+          drawIntroFrame(ctx, legacyTemplate, elapsed, W, H);
+        } else if (elapsed >= mainEnd) {
+          drawOutroFrame(ctx, legacyTemplate, elapsed - mainEnd, W, H);
+        } else {
+          const ca = legacyTemplate.clipArea;
+          const cx = ca.xPct * W; const cy = ca.yPct * H;
+          const cw = ca.wPct * W; const ch = ca.hPct * H;
+          
+          ctx.save();
+          rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
+          ctx.clip();
+          try {
+            const vw = video.videoWidth || 720;
+            const vh = video.videoHeight || 1280;
+            const srcAR = vw / vh; const dstAR = cw / ch;
+            let sx = 0, sy = 0, sw = vw, sh = vh;
+            if (srcAR > dstAR) { sw = vh * dstAR; sx = (vw - sw) / 2; }
+            else { sh = vw / dstAR; sy = (vh - sh) / 2; }
+            ctx.drawImage(video, sx, sy, sw, sh, cx, cy, cw, ch);
+          } catch (_) {
+            ctx.fillStyle = '#000'; ctx.fillRect(cx, cy, cw, ch);
           }
-          ctx.drawImage(video, sx, sy, sw, sh, cx, cy, cw, ch);
-        } catch (_) {
-          ctx.fillStyle = 'rgba(0,0,0,0.4)';
-          ctx.fillRect(cx, cy, cw, ch);
-        }
-        ctx.restore();
-
-        // Border (base)
-        if (ca.borderColor && ca.borderWidth) {
-          ctx.save();
-          rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-          ctx.strokeStyle = ca.borderColor;
-          ctx.lineWidth   = ca.borderWidth;
-          ctx.stroke();
           ctx.restore();
-        }
-
-        // Decorative clip frame overlay (genre-specific professional elements)
-        drawClipFrame(ctx, template.bgStyle, cx, cy, cw, ch, ca.borderRadius, template.accentColor, elapsed);
-
-        // --- 5. Bottom zone ---
-        if (template.bottomZone) {
-          drawBottomZone(ctx, template.bottomZone, W, H, elapsed, template.id);
-        }
-
-        // --- 6. Text overlays ---
-        for (const overlay of template.text_overlays) {
-          drawTextOverlay(ctx, overlay, W, H, elapsed);
-        }
-
-        // --- 7. Mascot ---
-        if (template.mascotEmoji) {
-          const mascotX = cx + cw - 30;
-          const mascotY = cy - 30;
-          drawMascot(ctx, template.mascotEmoji, mascotX, mascotY, 36, elapsed);
+          
+          drawClipFrame(ctx, legacyTemplate.bgStyle, cx, cy, cw, ch, ca.borderRadius, legacyTemplate.accentColor, elapsed);
         }
       }
 
-      // ── Cycle 7: cinematic studio wrap (main phase only) ─────────────────────
-      if (elapsed >= mainStart && elapsed < mainEnd) {
-        drawStudioWrap(ctx, W, H, template, elapsed - mainStart);
-      }
-
-      // ── Cinematic post-processing (CapCut/Reels-grade) ───────────────────
-      // Layer order: color grade → leak → grain → beat flash → letterbox → vignette
-      const bpm = template.bgm?.bpm ?? 0;
-      // Subtle teal-orange grade only during main phase (not intro/outro to preserve title color integrity)
-      if (elapsed >= mainStart && elapsed < mainEnd) {
-        drawTealOrangeGrade(ctx, W, H, 0.10);
-      }
-      drawLightLeak(ctx, W, H, elapsed, template.accentColor);
-      drawFilmGrain(ctx, W, H, elapsed, 0.09);
-      if (bpm > 0 && elapsed >= mainStart && elapsed < mainEnd) {
-        drawBeatFlash(ctx, W, H, elapsed, bpm, '#FFFFFF', 0.10);
-      }
-      // Gentle cinematic bars only during intro/outro for mood hint
-      if (elapsed < mainStart) {
-        const p = Math.min(1, elapsed / 800);
-        drawLetterbox(ctx, W, H, p);
-      } else if (elapsed >= mainEnd) {
-        drawLetterbox(ctx, W, H, 1);
-      }
-
-      // ── Shared: vignette + progress bar (always) ─────────────────────────────
+      // Cinematic post-processing (Post-process is always applied for consistency)
+      drawFilmGrain(ctx, W, H, elapsed, 0.05);
       drawVignette(ctx, W, H);
-      drawProgressBar(
-        ctx, W, H, elapsed, duration, template.accentColor,
-        template.bgm?.bpm ?? 0,
-      );
+      drawProgressBar(ctx, W, H, elapsed, duration, legacyTemplate.accentColor, legacyTemplate.bgm?.bpm ?? 0);
 
-      // ── Video playback control ──────────────────────────────────────────────
-      if (elapsed >= mainStart && !videoStarted) {
-        videoStarted = true;
-        video.play().catch((e) => console.warn('[Compositor] video.play failed:', e));
-      }
-      if (elapsed >= mainEnd && !videoStopped) {
-        videoStopped = true;
-        video.pause();
+      // Playback control
+      if (!isLayered) {
+        if (elapsed >= INTRO_MS && !videoStarted) {
+          videoStarted = true;
+          video.play().catch(e => console.warn(e));
+        }
+        if (elapsed >= (duration - OUTRO_MS) && !videoStopped) {
+          videoStopped = true;
+          video.pause();
+        }
+      } else {
+        if (!videoStarted) {
+          videoStarted = true;
+          video.play().catch(e => console.warn(e));
+        }
       }
 
       rafId = requestAnimationFrame(renderFrame);
     }
 
     video.addEventListener('loadedmetadata', () => {
-      onProgress({ phase: '비디오 로드 완료', percent: 5 });
-
-      // Setup Audio
       try {
         audioCtx = new AudioContext();
         const dest = audioCtx.createMediaStreamDestination();
-        bgmHandle = createSimpleBGM(audioCtx, template.bgm, dest, {
-          introMs: INTRO_MS,
-          totalMs: INTRO_MS + template.duration_ms + 400,
+        bgmHandle = createSimpleBGM(audioCtx, legacyTemplate.bgm, dest, {
+          introMs: isLayered ? 0 : INTRO_MS,
+          totalMs: legacyTemplate.duration_ms,
         });
 
-        // Canvas stream + audio
         const canvasStream = canvas.captureStream(FPS);
         dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
 
-        // MediaRecorder codec preference — try MP4 first (Safari/iOS), then WebM (Chrome)
-        const mimeTypes = [
-          'video/mp4;codecs=h264,aac',
-          'video/mp4',
-          'video/webm;codecs=vp9,opus',
-          'video/webm;codecs=vp8,opus',
-          'video/webm;codecs=vp9',
-          'video/webm;codecs=vp8',
-          'video/webm',
-        ];
+        const mimeTypes = ['video/mp4;codecs=h264,aac', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
         let chosenMime = '';
-        for (const mt of mimeTypes) {
-          if (MediaRecorder.isTypeSupported(mt)) {
-            chosenMime = mt;
-            break;
-          }
-        }
+        for (const mt of mimeTypes) { if (MediaRecorder.isTypeSupported(mt)) { chosenMime = mt; break; } }
 
-        mediaRecorder = chosenMime
-          ? new MediaRecorder(canvasStream, { mimeType: chosenMime, videoBitsPerSecond: 4_000_000 })
-          : new MediaRecorder(canvasStream, { videoBitsPerSecond: 4_000_000 });
+        mediaRecorder = new MediaRecorder(canvasStream, { 
+          mimeType: chosenMime || undefined, 
+          videoBitsPerSecond: 3500000 
+        });
 
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunks.push(e.data);
-        };
-
+        mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
         mediaRecorder.onstop = () => {
           finished = true;
           cleanup();
           onProgress({ phase: '완료!', percent: 100 });
-          const blob = new Blob(chunks, { type: chosenMime || 'video/webm' });
-          resolve(blob);
+          resolve(new Blob(chunks, { type: chosenMime || 'video/webm' }));
         };
 
-        mediaRecorder.onerror = (e) => {
-          cleanup();
-          reject(new Error(`MediaRecorder error: ${e}`));
-        };
-
-        mediaRecorder.start(100); // collect every 100ms
-        onProgress({ phase: '녹화 시작', percent: 10 });
-
-        // Start render loop (video.play() triggered inside renderFrame at INTRO_MS)
+        mediaRecorder.start(100);
         startTime = performance.now();
         lastFrameTime = startTime;
         rafId = requestAnimationFrame(renderFrame);
@@ -2552,25 +2474,9 @@ export async function composeVideo(
       }
     });
 
-    video.addEventListener('ended', () => {
-      setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-          mediaRecorder.stop();
-        }
-      }, 500);
-    });
-
     video.addEventListener('error', (e) => {
       cleanup();
-      reject(new Error(`Video load error: ${video.error?.message ?? String(e)}`));
+      reject(new Error(`Video load error: ${String(e)}`));
     });
-
-    // Also stop if template duration exceeded
-    setTimeout(() => {
-      if (!finished && mediaRecorder && mediaRecorder.state !== 'inactive') {
-        video.pause();
-        mediaRecorder.stop();
-      }
-    }, template.duration_ms + 1000);
   });
 }

@@ -422,11 +422,13 @@
 
 ---
 
-### Focused Commit 1 (Session 1): Pose mock 제거 + 레이어 렌더러 5종 (2026-04-20)
-- `hooks/usePoseDetection.web.ts`: `ready-mock` 분기 및 가짜 포즈 생성 로직 완전 삭제. 운영 환경에서의 불투명한 mock 사용 차단 (B-4 목표).
-- `engine/composition/layers/`: 신규 디렉터리에 5종 레이어 렌더러 구현 (`camera_feed`, `camera_frame`, `score_hud`, `timer_ring`, `mission_prompt`).
-- `utils/videoCompositor.ts`: `composeVideo` 가 신규 `LayeredTemplate` 을 직접 수용하도록 확장.
-- `app/result/index.tsx`: 챌린지 결과 합성 시 `layeredTemplate` 우선 사용하도록 연동.
-- Vitest: **550/550 green** 유지.
+### Focused Commit 1 (B-4): Pose mock 제거 + dispose (2026-04-20)
+- `hooks/usePoseDetection.web.ts`: `isDev` 환경 체크를 통한 프로덕션 mock 폴백 원천 차단. `dispose()` 메서드 추가로 리소스 정리 강화.
+- Vitest: **553/553 green** (프로덕션 분기, 개발 분기, dispose 테스트 3개 추가).
+
+### Focused Commit 2 (A-1·A-2): composeVideo 확장 + 5종 기본 렌더러 (2026-04-20)
+- `utils/videoCompositor.ts`: `composeVideo` 오버로드 및 `LayeredTemplate` 분기 처리. 기존 레거시 경로와 신규 레이어드 경로 통합.
+- `engine/composition/layers/`: 기본 5종 렌더러 구현 (`gradient_mesh`, `animated_grid`, `star_field`, `noise_pattern`, `camera_feed`).
+- Vitest: **564/564 green** (렌더러 단위 테스트 10개 + 합성기 통합 스모크 테스트 1개 추가).
 
 ---
