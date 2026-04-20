@@ -4,6 +4,32 @@
 
 ---
 
+## Phase 5i — 레퍼런스 템플릿 3종 (2026-04-20)
+
+### 5i.1 `data/templates/neon-arena.ts`
+- 사이버펑크 스쿼트 챌린지. hexagon framing, duration 20s.
+- 22 레이어: bg_mesh/bg_grid/bg_stars/bg_shapes/bg_noise, cam_feed/cam_frame(onBeat glow pulse)/cam_reflect, ar_visor(face_roll 트래킹), ar_hand_l/r_spark, fg_particles/fg_ring/fg_flash(onOnset)/fg_visualizer, hud_counter/timer/score/prompt, fx_burst/lens_flare/chromatic/perfect_text.
+- mission: squat_count target=10, scoreWeight 1.0.
+- postProcess: bloom 1.2 / chromatic / crt_scanlines / vignette.
+
+### 5i.2 `data/templates/news-anchor.ts`
+- 시네마틱 뉴스룸 낭독. rounded_rect framing(120,260,840,1120,r=16), duration 20s.
+- 18 레이어: bg_studio/grad/grain, cam_feed/cam_frame, LIVE badge(onBeat every=4 opacity pulse), breaking_bar/ticker/title/logo, karaoke_caption(gold/muted), script_ghost, hud_score/timer, audio_wave(voiceActive), fx_gold/chroma.
+- mission: read_script "안녕하십니까, 오늘의 날씨를 전해드립니다…", scoreWeight 1.0.
+- postProcess: bloom 0.4 / warm LUT / film_grain / vignette.
+
+### 5i.3 `data/templates/emoji-explosion.ts`
+- 팝 코믹 표정+제스처. heart framing, duration 18.5s, 3씬 구성.
+- 32+ 레이어: bg_mesh(hueCycle)/floating_shapes/glitter, cam_frame(onBeat bounce), 6 orbiting emojis(60° phase), cheek_l/r(💖), forehead_star, rabbit_ears mask, hand_emoji(gesture-dynamic), fg_hearts/beat_luv/kinetic_cta, hud_prompt×3/score/timer, voice_bubble, audio_radial(onOnsetOnly), sc1/2/3 전용 burst+text+flare+confetti, global_confetti.
+- missionTimeline: smile(2~7s w=0.34) → gesture:peace(7~12s w=0.33) → pose_hold:hands_up(12~17s w=0.33). 합=1.00 (±0.01).
+
+### 5i.4 `data/templates/index.test.ts`
+- 3개 템플릿 모두 `parseTemplate()` 통과 검증.
+- id 고유성 / canvasSize 1080×1920 / scoreWeight 합 1.0 / endSec ≤ duration / 3씬 kind 순서 검증.
+- Vitest: **6/6 pass** — 전체 **375/375 green**.
+
+---
+
 ## Phase 0 — 권한·세션 기반
 
 ### 0.1 인프라 · 중복 문서 정리 (2026-04-20)
