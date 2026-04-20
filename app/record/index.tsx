@@ -26,6 +26,7 @@ import { getTemplateByMissionId }    from '../../utils/videoTemplates';
 import type { JudgementTag }         from '../../types/session';
 import { Claude } from '../../constants/claudeTheme';
 import type { TemplateIntro, TemplateOutro } from '../../types/template';
+import { UnloadGuard } from '../../engine/studio/unloadGuard';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1388,7 +1389,14 @@ export default function RecordScreen() {
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
 
-  useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
+  // Focused Commit C-4: activeTemplate 없이 진입 시 router.back() 은 이력 없을 때 실패.
+  // router.replace 로 홈 리다이렉트 (Edge/새 탭 직접 링크 대응).
+  useEffect(() => {
+    if (!activeTemplate) {
+      try { router.replace('/(main)/home'); }
+      catch { if (typeof window !== 'undefined') window.location.href = '/'; }
+    }
+  }, [activeTemplate]);
   // Focused Commit C-1: route unmount 종합 cleanup
   //   - voice/BGM 정지
   //   - __permissionStream track 정지 (프리워밍 세션 회수)
@@ -1415,6 +1423,22 @@ export default function RecordScreen() {
     if (state === 'recording') Animated.timing(hudOpacity, { toValue:1, duration:400, useNativeDriver:true }).start();
     else hudOpacity.setValue(0);
   }, [state]);
+
+  // Focused Commit C-2: UnloadGuard 자동 arm/disarm
+  //   - recording 상태 진입 시 arm (beforeunload 확인 다이얼로그)
+  //   - 그 외 상태(idle/complete) 진입 시 자동 disarm
+  //   - 라우트 언마운트 시 반드시 disarm (메모리 누수·유령 다이얼로그 방지)
+  const unloadGuardRef = useRef<UnloadGuard | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!unloadGuardRef.current) unloadGuardRef.current = new UnloadGuard();
+    const g = unloadGuardRef.current;
+    if (state === 'recording') g.arm(); else g.disarm();
+  }, [state]);
+  useEffect(() => () => {
+    try { unloadGuardRef.current?.disarm(); } catch {}
+    unloadGuardRef.current = null;
+  }, []);
 
   // Cycle 29 — 데스크톱 키보드 단축키: Space = 시작/중지, Esc = 취소
   useEffect(() => {

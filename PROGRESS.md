@@ -18,6 +18,12 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit C-2/3/4: UnloadGuard 자동화 + ErrorBoundary 복구 + 홈 네비 강건화 (2026-04-20)
+- **C-2** `app/record/index.tsx`: `UnloadGuard` 인스턴스 ref + `state==='recording'` 에서만 `arm()`, 그 외 `disarm()` 자동 전환. 언마운트 시 반드시 `disarm()` 으로 유령 다이얼로그·메모리 누수 차단.
+- **C-3** `components/ui/ErrorBoundary.tsx`: `getDerivedStateFromError` 가 `classifyError` 호출 → `category`/`userTitle` 상태 저장. `navigation-cleanup-failed` 일 때는 "홈으로" 버튼만 노출, `_forceHome()` 이 `__permissionStream` track 정지 + 3 globals 해제 + `window.location.href='/?_b=TS'` 하드 네비.
+- **C-4** `app/result/index.tsx` goHome: `router.replace` 실패 시 `window.location.href` 폴백. `app/record/index.tsx`: `!activeTemplate` 진입 시 `router.back()` → `router.replace('/(main)/home')` (Edge 이력 없음 대응).
+- Vitest **542/542 green** 유지.
+
 ### Focused Commit C-1: route unmount 종합 cleanup (2026-04-20)
 - `engine/studio/errorClassifier.ts`: `camera-play-failed` / `camera-not-ready` / `navigation-cleanup-failed` 3개 카테고리 신규 + 매칭 분기 추가. 테스트 3건 추가.
 - `app/record/index.tsx` 언마운트 effect 확장: `resetVoice` + `bgmStop` 에 더해 `window.__permissionStream` track 정지·`__poseVideoEl` / `__compositorCanvas` / `__permissionStream` global 해제.

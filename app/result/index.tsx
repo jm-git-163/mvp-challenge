@@ -1103,8 +1103,15 @@ export default function ResultScreen() {
 
   const goHome = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
-    reset();
-    router.replace('/(main)/home');   // home is still inside (main)
+    try { reset(); } catch {}
+    // Focused Commit C-4: Edge 에서 router.back() 이력 이슈 회피.
+    // replace → 실패 시 window.location.href 하드 네비게이션으로 폴백.
+    try {
+      router.replace('/(main)/home');
+    } catch (e) {
+      console.warn('[result] goHome router.replace failed, falling back to location.href', e);
+      if (typeof window !== 'undefined') window.location.href = '/?_b=' + Date.now();
+    }
   }, [reset, composedUri, router]);
 
   const doRetake = useCallback(() => {
