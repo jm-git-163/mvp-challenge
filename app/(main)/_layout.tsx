@@ -24,27 +24,25 @@ export default function MainLayout() {
       }}
     >
       <Tabs.Screen
-        name="home"
+        name="home/index"
         options={{
           title: '홈',
           tabBarLabel: '홈',
-          tabBarIcon: ({ color, focused }) => null,
         }}
       />
       <Tabs.Screen
-        name="record"
+        name="record/index"
         options={{ title: '촬영', tabBarLabel: '촬영', href: null }}
       />
       <Tabs.Screen
-        name="result"
+        name="result/index"
         options={{ title: '결과', tabBarLabel: '결과', href: null }}
       />
       <Tabs.Screen
-        name="profile"
+        name="profile/index"
         options={{
           title: '프로필',
           tabBarLabel: '프로필',
-          tabBarIcon: ({ color, focused }) => null,
         }}
       />
     </Tabs>

@@ -750,12 +750,24 @@ const s = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
   },
   denied: {
-    flex: 1, backgroundColor: '#111',
+    flex: 1, backgroundColor: '#F7F3EB',
     alignItems: 'center', justifyContent: 'center', padding: 32,
+    // @ts-ignore web
+    backgroundImage: 'radial-gradient(120% 90% at 50% 20%, #FBF7EE 0%, #F7F3EB 55%, #EEE6D5 100%)',
   },
   deniedIcon:    { fontSize: 48, marginBottom: 16 },
-  deniedTitle:   { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
-  deniedBody:    { color: '#aaa', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
-  deniedBtn:     { backgroundColor: '#fff', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 },
-  deniedBtnText: { color: '#111', fontSize: 15, fontWeight: '600' },
+  deniedTitle:   {
+    color: '#1F1B16', fontSize: 22, fontWeight: '800',
+    marginBottom: 12, textAlign: 'center', letterSpacing: -0.3,
+    // @ts-ignore web
+    fontFamily: '"Tiempos Headline","Copernicus","Source Serif Pro",Georgia,"Times New Roman",serif',
+  },
+  deniedBody:    { color: '#6F675A', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 28, maxWidth: 360, fontWeight: '500' },
+  deniedBtn:     {
+    backgroundColor: '#1F1B16', paddingHorizontal: 32, paddingVertical: 14,
+    borderRadius: 999, borderWidth: 1, borderColor: '#CC785C',
+    // @ts-ignore web
+    boxShadow: '0 8px 18px -10px rgba(204,120,92,0.6)',
+  },
+  deniedBtnText: { color: '#F7F3EB', fontSize: 14, fontWeight: '800', letterSpacing: 0.6 },
 });

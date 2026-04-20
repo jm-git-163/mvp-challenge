@@ -106,11 +106,14 @@ export function useJudgement(): {
   const voiceTranscriptRef = useRef('');
   const voiceAccuracyRef  = useRef(0);
 
-  // Squat counter
-  const squatPhaseRef   = useRef<'up' | 'down' | 'unknown'>('unknown');
-  const squatCountRef   = useRef(0);
-  const squatCountState = useRef(0);
-  const lastKneeAngle   = useRef(180);
+  // Squat counter — with phase-stability debouncing to reject MoveNet estimate noise
+  const squatPhaseRef          = useRef<'up' | 'down' | 'unknown'>('unknown');
+  const squatCandidatePhaseRef = useRef<'up' | 'down' | 'unknown'>('unknown');
+  const squatCandidateFrames   = useRef(0);
+  const squatReadyRef          = useRef(false); // arm only after first real "up" seen
+  const squatCountRef          = useRef(0);
+  const squatCountState        = useRef(0);
+  const lastKneeAngle          = useRef(180);
 
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -155,37 +158,59 @@ export function useJudgement(): {
       let squatPhaseOut: 'up' | 'down' | 'unknown' = squatPhaseRef.current;
       let kneeAngleOut = lastKneeAngle.current;
 
-      // 스쿼트 카운터 — 발목이 프레임 밖이어도 hip+knee+shoulder(상체 폴백)만
-      // 보이면 detectSquat 내부 ratio 폴백으로 카운트 가능하게 게이트 완화.
+      // 스쿼트 카운터 — MoveNet 추정 노이즈가 심하므로:
+      //  (1) 신뢰도 게이트 상향 (0.25 → 0.50)
+      //  (2) fullLeg(hip+knee+ankle)이 실제로 보일 때만 인정 (torso 폴백은 제거)
+      //  (3) 동일 phase가 3프레임(≈300ms) 이상 연속돼야 전이 인정 (디바운스)
+      //  (4) 첫 번째 확정 "up"을 본 뒤에만 카운터 무장 — 시작 시 down에서 바로 up으로 튀는 false positive 차단
       const conf = (i: number) =>
         (landmarks[i]?.score ?? landmarks[i]?.visibility ?? 0);
       const fullLeg = (h: number, k: number, a: number) =>
-        conf(h) > 0.25 && conf(k) > 0.25 && conf(a) > 0.25;
-      const torsoLeg = (s: number, h: number, k: number) =>
-        conf(s) > 0.25 && conf(h) > 0.25 && conf(k) > 0.25;
+        conf(h) > 0.50 && conf(k) > 0.50 && conf(a) > 0.50;
       const squatLmOk = landmarks.length >= 17 && (
-        fullLeg(11, 13, 15) || fullLeg(12, 14, 16) ||
-        torsoLeg(5, 11, 13) || torsoLeg(6, 12, 14)
+        fullLeg(11, 13, 15) || fullLeg(12, 14, 16)
       );
       if (template && template.genre === 'fitness' && squatLmOk) {
-        const sq = detectSquat(landmarks);
+        const sq = detectSquat(landmarks, 0.50);
         kneeAngleOut = sq.kneeAngle;
         lastKneeAngle.current = sq.kneeAngle;
 
-        if (squatPhaseRef.current !== 'down' && sq.phase === 'down') {
-          squatPhaseRef.current = 'down';
-          squatPhaseOut = 'down';
-        } else if (squatPhaseRef.current === 'down' && sq.phase === 'up') {
-          squatCountRef.current += 1;
-          squatPhaseRef.current = 'up';
-          squatPhaseOut = 'up';
-          if (squatCountRef.current !== squatCountState.current) {
-            squatCountState.current = squatCountRef.current;
-            setSquatCount(squatCountRef.current);
+        // 디바운스: 같은 phase가 연속 프레임으로 들어오는지 추적
+        const DEBOUNCE_FRAMES = 3;
+        if (sq.phase === 'unknown') {
+          squatCandidateFrames.current = 0;
+          squatCandidatePhaseRef.current = 'unknown';
+        } else if (sq.phase === squatCandidatePhaseRef.current) {
+          squatCandidateFrames.current += 1;
+        } else {
+          squatCandidatePhaseRef.current = sq.phase;
+          squatCandidateFrames.current = 1;
+        }
+
+        // 확정된 phase 전이만 반영
+        if (squatCandidateFrames.current >= DEBOUNCE_FRAMES) {
+          const stable = squatCandidatePhaseRef.current;
+
+          // 무장: 처음 "up"을 확정한 순간부터 카운트 허용
+          if (!squatReadyRef.current && stable === 'up') {
+            squatReadyRef.current = true;
+            squatPhaseRef.current = 'up';
+            squatPhaseOut = 'up';
+          } else if (squatReadyRef.current) {
+            if (squatPhaseRef.current === 'up' && stable === 'down') {
+              squatPhaseRef.current = 'down';
+              squatPhaseOut = 'down';
+            } else if (squatPhaseRef.current === 'down' && stable === 'up') {
+              // 진짜 1 rep 완료
+              squatCountRef.current += 1;
+              squatPhaseRef.current = 'up';
+              squatPhaseOut = 'up';
+              if (squatCountRef.current !== squatCountState.current) {
+                squatCountState.current = squatCountRef.current;
+                setSquatCount(squatCountRef.current);
+              }
+            }
           }
-        } else if (sq.phase !== 'unknown') {
-          squatPhaseRef.current = sq.phase;
-          squatPhaseOut = sq.phase;
         }
       }
 
@@ -380,9 +405,12 @@ export function useJudgement(): {
     setVoiceAccuracy(0);
 
     // 스쿼트 초기화
-    squatCountRef.current   = 0;
-    squatCountState.current = 0;
-    squatPhaseRef.current   = 'unknown';
+    squatCountRef.current          = 0;
+    squatCountState.current        = 0;
+    squatPhaseRef.current          = 'unknown';
+    squatCandidatePhaseRef.current = 'unknown';
+    squatCandidateFrames.current   = 0;
+    squatReadyRef.current          = false;
     lastKneeAngle.current   = 180;
     setSquatCount(0);
   }, []);

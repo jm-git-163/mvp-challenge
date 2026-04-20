@@ -71,7 +71,13 @@
       "Bash(git commit -m 'style\\(record\\): swap purple-gradient overlays to Claude ink+amber system *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://mvp-ivory-kappa.vercel.app/)",
       "Bash(git commit -m 'polish\\(compositor\\): serif intro/outro titles + Claude ink brand chip *)",
-      "Bash(git commit -m 'polish\\(compositor\\): outro CTA pill matches Claude brand chip *)"
+      "Bash(git commit -m 'polish\\(compositor\\): outro CTA pill matches Claude brand chip *)",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__resize_window",
+      "mcp__Claude_in_Chrome__find"
     ]
   }
 }
