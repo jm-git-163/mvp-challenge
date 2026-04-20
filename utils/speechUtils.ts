@@ -253,12 +253,20 @@ export class SpeechRecognizer {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onerror = (e: any) => {
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
-      if (e.error === 'not-allowed') {
-        // 마이크 권한 거부 → 사용자에게 interim으로 알림
+      // 진단용 — 왜 인식이 멈추는지 콘솔에 기록
+      try { console.warn('[speech] onerror:', e.error || e); } catch {}
+      if (e.error === 'no-speech' || e.error === 'aborted') {
+        // Chrome은 침묵이 길면 자동 종료 → onend에서 재시작됨 (listening 유지)
+        return;
+      }
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         this._listening = false;
-        onInterim('[마이크 권한 필요: 브라우저 주소창 옆 🔒에서 마이크 허용]');
+        onInterim('[마이크 권한 필요 — 주소창 🔒 아이콘에서 마이크 허용]');
         onFinal('');
+        return;
+      }
+      if (e.error === 'network') {
+        // 네트워크 에러 — 잠시 후 재시도 (listening 유지)
         return;
       }
       this._listening = false;
@@ -269,7 +277,19 @@ export class SpeechRecognizer {
     // generation check으로 이전 stop()에 의한 onend가 잘못 재시작하는 것 방지
     this.rec.onend = () => {
       if (this._listening && this._gen === myGen) {
-        try { this.rec.start(); } catch { /* ignore */ }
+        // Chrome InvalidStateError 회피: 100ms 지연 후 재시작
+        setTimeout(() => {
+          if (!this._listening || this._gen !== myGen) return;
+          try { this.rec.start(); }
+          catch (err) {
+            try { console.warn('[speech] restart failed:', err); } catch {}
+            // 400ms 뒤 한 번 더 시도
+            setTimeout(() => {
+              if (!this._listening || this._gen !== myGen) return;
+              try { this.rec.start(); } catch {}
+            }, 400);
+          }
+        }, 100);
       }
     };
 
