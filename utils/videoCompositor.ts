@@ -9,6 +9,14 @@ import {
   BgmSpec,
   ClipArea,
 } from './videoTemplates';
+import {
+  drawFilmGrain,
+  drawLightLeak,
+  drawBeatFlash,
+  drawLetterbox,
+  computeKineticReveal,
+  drawKineticText,
+} from './cinematicEffects';
 
 // ---------------------------------------------------------------------------
 // Public interfaces
@@ -2371,6 +2379,22 @@ export async function composeVideo(
       // ── Cycle 7: cinematic studio wrap (main phase only) ─────────────────────
       if (elapsed >= mainStart && elapsed < mainEnd) {
         drawStudioWrap(ctx, W, H, template, elapsed - mainStart);
+      }
+
+      // ── Cinematic post-processing (CapCut/Reels-grade) ───────────────────
+      // Layer order: leak → grain → beat flash → letterbox → vignette
+      const bpm = template.bgm?.bpm ?? 0;
+      drawLightLeak(ctx, W, H, elapsed, template.accentColor);
+      drawFilmGrain(ctx, W, H, elapsed, 0.09);
+      if (bpm > 0 && elapsed >= mainStart && elapsed < mainEnd) {
+        drawBeatFlash(ctx, W, H, elapsed, bpm, '#FFFFFF', 0.10);
+      }
+      // Gentle cinematic bars only during intro/outro for mood hint
+      if (elapsed < mainStart) {
+        const p = Math.min(1, elapsed / 800);
+        drawLetterbox(ctx, W, H, p);
+      } else if (elapsed >= mainEnd) {
+        drawLetterbox(ctx, W, H, 1);
       }
 
       // ── Shared: vignette + progress bar (always) ─────────────────────────────
