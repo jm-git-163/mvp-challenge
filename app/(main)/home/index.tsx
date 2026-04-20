@@ -15,12 +15,14 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import type { Template } from '../../../types/template';
+import { getThumbnailUrl } from '../../../utils/thumbnails';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -97,11 +99,17 @@ function ChallengeCard({ item: t, width, onPress }: CardProps) {
         hovered && card.wrapHover,
       ]}
     >
-      {/* 16:9 thumbnail placeholder */}
+      {/* 16:9 thumbnail — real Unsplash image */}
       <View style={card.thumb}>
-        <View style={card.thumbInner}>
-          <Text style={card.thumbNo}>{String(t.id).slice(0, 8).toUpperCase()}</Text>
-          <View style={card.playDot} />
+        <Image
+          source={{ uri: t.thumbnail_url || getThumbnailUrl(t.genre, t.id, 640) }}
+          style={card.thumbImg}
+          // @ts-ignore web
+          loading="lazy"
+        />
+        <View style={card.thumbOverlay} pointerEvents="none" />
+        <View style={card.playBadge} pointerEvents="none">
+          <View style={card.playTri} />
         </View>
         {diffLabel ? (
           <View style={card.diffTag}>
@@ -153,27 +161,40 @@ const card = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: T.border,
     position: 'relative',
+    overflow: 'hidden',
   },
-  thumbInner: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+  thumbImg: {
+    width: '100%',
+    height: '100%',
   },
-  thumbNo: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 2,
-    color: T.inkFaint,
-    fontFamily: T.fontMono,
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    // @ts-ignore web — subtle gradient to lift contrast for badges
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.0) 55%, rgba(0,0,0,0.35) 100%)',
   },
-  playDot: {
+  playBadge: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: T.ink,
+    backgroundColor: 'rgba(10,10,10,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
+    // @ts-ignore web
+    backdropFilter: 'blur(8px)',
+  },
+  playTri: {
+    width: 0,
+    height: 0,
+    marginLeft: 3,
+    borderTopWidth: 6,
+    borderTopColor: 'transparent',
+    borderBottomWidth: 6,
+    borderBottomColor: 'transparent',
+    borderLeftWidth: 10,
+    borderLeftColor: '#FFFFFF',
   },
   diffTag: {
     position: 'absolute',
