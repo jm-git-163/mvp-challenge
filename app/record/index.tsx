@@ -1462,8 +1462,11 @@ export default function RecordScreen() {
       // 대신 짧은 안내만 — 자막 화면에 텍스트가 크게 표시되므로 TTS 음성이 마이크 입력을 오염시키지 않도록 차단.
       if (m.type === 'voice_read') {
         // no speakMission — 가이드는 자막 렌더로만 처리
-      } else if (m.guide_text) {
-        speakMission(m.guide_text);
+        // BGM 덕킹: 사용자 음성이 잘 들리도록 배경음 볼륨 저하
+        try { getBgmPlayer().duck(0.22); } catch {}
+      } else {
+        try { getBgmPlayer().unduck(); } catch {}
+        if (m.guide_text) speakMission(m.guide_text);
       }
     }
     if (result.tag !== prevTagRef.current) {

@@ -180,7 +180,7 @@ const vt_vlog: VideoTemplate = {
       fontSize: 24,
       color: '#CC785C',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
       bold: true,
     },
     {
@@ -309,7 +309,7 @@ const vt_news: VideoTemplate = {
       fontSize: 26,
       color: '#fbbf24',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
       bold: true,
       bgColor: 'rgba(13,71,161,0.9)',
     },
@@ -377,7 +377,7 @@ const vt_kpop: VideoTemplate = {
       fontSize: 28,
       color: '#fff',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
       bold: true,
       bgColor: 'rgba(233,69,96,0.7)',
     },
@@ -401,7 +401,7 @@ const vt_kpop: VideoTemplate = {
       fontSize: 30,
       color: '#ef4444',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
       bold: true,
     },
     {
@@ -439,7 +439,7 @@ const vt_kpop: VideoTemplate = {
       fontSize: 14,
       color: '#fbbf24',
       align: 'right',
-      animation: 'bounce',
+      animation: 'kinetic',
     },
   ],
   clip_slots: [
@@ -517,7 +517,7 @@ const vt_english: VideoTemplate = {
       fontSize: 20,
       color: '#fff',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
     },
     {
       text: '✅ 잘하고 있어요! Great job!',
@@ -621,7 +621,7 @@ const vt_fairy: VideoTemplate = {
       fontSize: 26,
       color: '#fce7f3',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
       bold: true,
     },
     {
@@ -657,7 +657,7 @@ const vt_fairy: VideoTemplate = {
       fontSize: 24,
       color: '#fff',
       align: 'center',
-      animation: 'bounce',
+      animation: 'kinetic',
     },
     {
       text: '🎉 챌린지 성공! 최고야!',
@@ -724,7 +724,7 @@ const vt_fitness: VideoTemplate = {
     { text: '자세부터 정확하게', start_ms: 3000, end_ms: 9000, xPct: 0.5, yPct: 0.855, fontSize: 22, color: '#F7E4D9', align: 'center', animation: 'fade' },
     { text: '호흡 · 템포 · 코어', start_ms: 9000, end_ms: 16000, xPct: 0.5, yPct: 0.855, fontSize: 22, color: '#CC785C', align: 'center', animation: 'fade', bold: true },
     { text: 'HALFWAY · KEEP FORM', start_ms: 16000, end_ms: 23000, xPct: 0.5, yPct: 0.855, fontSize: 24, color: '#F7F3EB', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(161,98,68,0.85)' },
-    { text: '마지막 세트 · 밀어붙이자', start_ms: 23000, end_ms: 32000, xPct: 0.5, yPct: 0.855, fontSize: 24, color: '#F7E4D9', align: 'center', animation: 'bounce', bold: true },
+    { text: '마지막 세트 · 밀어붙이자', start_ms: 23000, end_ms: 32000, xPct: 0.5, yPct: 0.855, fontSize: 24, color: '#F7E4D9', align: 'center', animation: 'kinetic', bold: true },
     { text: 'SESSION COMPLETE', start_ms: 32000, end_ms: 40000, xPct: 0.5, yPct: 0.855, fontSize: 28, color: '#F7F3EB', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(204,120,92,0.9)' },
     { text: 'CHALLENGE · STUDIO', start_ms: 0, end_ms: 40000, xPct: 0.97, yPct: 0.855, fontSize: 11, color: 'rgba(204,120,92,0.75)', align: 'right', animation: 'fade' },
   ],
@@ -775,7 +775,7 @@ const vt_travel: VideoTemplate = {
   text_overlays: [
     { text: '🌏 여행 챌린지 출발!', start_ms: 0, end_ms: 4000, xPct: 0.5, yPct: 0.845, fontSize: 28, color: '#fff', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(249,115,22,0.85)' },
     { text: '📸 순간을 담아요!', start_ms: 4000, end_ms: 10000, xPct: 0.5, yPct: 0.845, fontSize: 22, color: '#fde68a', align: 'center', animation: 'fade' },
-    { text: '🗺️ 도전 중!', start_ms: 10000, end_ms: 17000, xPct: 0.5, yPct: 0.845, fontSize: 24, color: '#fff', align: 'center', animation: 'bounce', bold: true },
+    { text: '🗺️ 도전 중!', start_ms: 10000, end_ms: 17000, xPct: 0.5, yPct: 0.845, fontSize: 24, color: '#fff', align: 'center', animation: 'kinetic', bold: true },
     { text: '🌅 이 순간 최고!', start_ms: 17000, end_ms: 24000, xPct: 0.5, yPct: 0.845, fontSize: 26, color: '#fbbf24', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(249,115,22,0.7)' },
     { text: '🏆 여행 챌린지 완료!', start_ms: 24000, end_ms: 30000, xPct: 0.5, yPct: 0.845, fontSize: 30, color: '#fff', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(249,115,22,0.9)' },
     { text: '✈️ CHALLENGE STUDIO', start_ms: 0, end_ms: 30000, xPct: 0.97, yPct: 0.845, fontSize: 11, color: 'rgba(249,115,22,0.6)', align: 'right', animation: 'fade' },
@@ -826,7 +826,7 @@ const vt_hiphop: VideoTemplate = {
   bgm: { genre: 'hiphop', bpm: 92, volume: 0.60 },
   text_overlays: [
     { text: '🎤 DROP THE BEAT!', start_ms: 0, end_ms: 3000, xPct: 0.5, yPct: 0.84, fontSize: 32, color: '#f7b731', align: 'center', animation: 'slide_up', bold: true },
-    { text: '🔥 FIRE FLOW!', start_ms: 3000, end_ms: 8000, xPct: 0.5, yPct: 0.84, fontSize: 28, color: '#fff', align: 'center', animation: 'bounce', bold: true, bgColor: 'rgba(247,183,49,0.2)' },
+    { text: '🔥 FIRE FLOW!', start_ms: 3000, end_ms: 8000, xPct: 0.5, yPct: 0.84, fontSize: 28, color: '#fff', align: 'center', animation: 'kinetic', bold: true, bgColor: 'rgba(247,183,49,0.2)' },
     { text: '💫 GOING HARD!', start_ms: 8000, end_ms: 14000, xPct: 0.5, yPct: 0.84, fontSize: 26, color: '#fde68a', align: 'center', animation: 'fade' },
     { text: '⚡ BARS ON BARS!', start_ms: 14000, end_ms: 20000, xPct: 0.5, yPct: 0.84, fontSize: 28, color: '#f7b731', align: 'center', animation: 'slide_up', bold: true, bgColor: 'rgba(10,10,10,0.8)' },
     { text: '🏆 CHALLENGE DONE!', start_ms: 24000, end_ms: 30000, xPct: 0.5, yPct: 0.84, fontSize: 32, color: '#f7b731', align: 'center', animation: 'slide_up', bold: true },
