@@ -16,7 +16,7 @@ import React, {
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Alert, Animated, Modal, useWindowDimensions,
-  Platform,
+  Platform, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -549,35 +549,43 @@ function ShareModal({
     }
   };
 
+  // Copy caption to clipboard (used before opening platform since uploads need manual caption paste)
+  const copyCaption = async () => {
+    if (typeof navigator === 'undefined') return;
+    try { await navigator.clipboard.writeText(shareText); } catch {}
+  };
+
   const shareOptions: Array<{
-    icon: string; label: string; bg: string; textColor: string;
+    label: string; sub: string; accent: boolean;
     onPress: () => void;
   }> = [
     {
-      icon: '🎵', label: 'TikTok', bg: '#010101', textColor: '#fff',
-      onPress: () => { openPlatformShare('tiktok', shareText); showToast('TikTok 업로드 페이지 열기...'); },
-    },
-    {
-      icon: '📸', label: 'Instagram', bg: '#c13584', textColor: '#fff',
-      onPress: () => { handleDownload(); openPlatformShare('instagram', shareText); },
-    },
-    {
-      icon: '💬', label: '카카오톡', bg: '#FEE500', textColor: '#3C1E1E',
-      onPress: () => {
-        if (typeof window !== 'undefined') {
-          const url = `https://sharer.kakao.com/talk/friends/picker/link?app_key=KAKAO_APP_KEY&link_ver=4.0&template_id=0&template_args=%7B%7D`;
-          openPlatformShare('twitter', shareText); // fallback to text share
-        }
-        showToast('카카오 공유 실행 중...');
-      },
-    },
-    {
-      icon: '🔗', label: '링크 복사', bg: '#6366f1', textColor: '#fff',
-      onPress: handleCopyLink,
-    },
-    {
-      icon: '📥', label: '영상 저장', bg: '#059669', textColor: '#fff',
+      label: '영상 다운로드', sub: 'MP4 · 기기에 저장', accent: true,
       onPress: handleDownload,
+    },
+    {
+      label: '캡션 복사', sub: '해시태그 포함',        accent: false,
+      onPress: async () => { await copyCaption(); showToast('캡션 복사 완료'); },
+    },
+    {
+      label: 'TikTok 업로드', sub: '영상+캡션 자동 준비', accent: false,
+      onPress: async () => { handleDownload(); await copyCaption(); openPlatformShare('tiktok', shareText); showToast('영상 저장·캡션 복사 완료'); },
+    },
+    {
+      label: 'Instagram 업로드', sub: 'Stories · Reels',  accent: false,
+      onPress: async () => { handleDownload(); await copyCaption(); openPlatformShare('instagram', shareText); showToast('영상 저장·캡션 복사 완료'); },
+    },
+    {
+      label: 'X / Twitter',     sub: '게시글로 공유',      accent: false,
+      onPress: () => openPlatformShare('twitter', shareText),
+    },
+    {
+      label: 'Threads',         sub: '게시글로 공유',      accent: false,
+      onPress: () => openPlatformShare('threads', shareText),
+    },
+    {
+      label: '링크 복사',        sub: '페이지 URL + 캡션',   accent: false,
+      onPress: handleCopyLink,
     },
   ];
 
@@ -588,46 +596,49 @@ function ShareModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={sm.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={sm.sheet}>
-          {/* Handle */}
           <View style={sm.handle} />
 
-          <Text style={sm.title}>🎉 공유하기</Text>
-          <Text style={sm.subtitle}>{templateName} 챌린지 {scoreNum}점 달성!</Text>
+          <Text style={sm.title}>공유</Text>
+          <Text style={sm.subtitle}>{templateName} · {scoreNum}점</Text>
 
-          <View style={sm.divider} />
-
-          {/* Web Share (if available) */}
           {hasWebShare && (
-            <TouchableOpacity style={[sm.row, { backgroundColor: '#7c3aed' }]} onPress={handleWebShare} activeOpacity={0.8}>
-              <Text style={sm.rowIcon}>📤</Text>
-              <Text style={[sm.rowLabel, { color: '#fff' }]}>기기 기본 공유</Text>
-              <Text style={[sm.rowArrow, { color: '#fff' }]}>›</Text>
-            </TouchableOpacity>
+            <Pressable
+              style={({ hovered }: any) => [sm.primaryRow, hovered && sm.primaryRowHover]}
+              onPress={handleWebShare}
+            >
+              <View style={sm.primaryRowInner}>
+                <Text style={sm.primaryRowLabel}>기기 기본 공유</Text>
+                <Text style={sm.primaryRowSub}>시스템 공유 시트</Text>
+              </View>
+              <Text style={sm.primaryRowArrow}>→</Text>
+            </Pressable>
           )}
 
-          {/* Platform-specific options */}
+          <View style={{ height: 4 }} />
+
           {shareOptions.map((opt) => (
-            <TouchableOpacity
+            <Pressable
               key={opt.label}
-              style={[sm.row, { backgroundColor: opt.bg }]}
+              style={({ hovered }: any) => [
+                opt.accent ? sm.accentRow : sm.rowPro,
+                hovered && (opt.accent ? sm.accentRowHover : sm.rowProHover),
+              ]}
               onPress={opt.onPress}
-              activeOpacity={0.8}
             >
-              <Text style={sm.rowIcon}>{opt.icon}</Text>
-              <Text style={[sm.rowLabel, { color: opt.textColor }]}>{opt.label}</Text>
-              <Text style={[sm.rowArrow, { color: opt.textColor + 'aa' }]}>›</Text>
-            </TouchableOpacity>
+              <View style={sm.rowInner}>
+                <Text style={opt.accent ? sm.accentLabel : sm.rowLabelPro}>{opt.label}</Text>
+                <Text style={opt.accent ? sm.accentSub : sm.rowSubPro}>{opt.sub}</Text>
+              </View>
+              <Text style={opt.accent ? sm.accentArrow : sm.rowArrowPro}>→</Text>
+            </Pressable>
           ))}
 
-          <View style={sm.divider} />
-
-          <TouchableOpacity style={sm.cancelBtn} onPress={onClose}>
-            <Text style={sm.cancelText}>취소</Text>
-          </TouchableOpacity>
+          <Pressable style={sm.cancelBtnPro} onPress={onClose}>
+            <Text style={sm.cancelTextPro}>취소</Text>
+          </Pressable>
         </TouchableOpacity>
       </TouchableOpacity>
 
-      {/* Toast */}
       <Animated.View style={[sm.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
         <Text style={sm.toastText}>{toastMsg}</Text>
       </Animated.View>
@@ -635,49 +646,148 @@ function ShareModal({
   );
 }
 
+const PRO = {
+  bg: '#FAFAFA',
+  surface: '#FFFFFF',
+  ink: '#0A0A0A',
+  inkSub: '#3F3F46',
+  inkMuted: '#71717A',
+  border: '#E5E5E5',
+  borderStrong: '#D4D4D8',
+  fontSans: Platform.select({
+    web: '"Pretendard Variable",Pretendard,"Inter","SF Pro Text","Segoe UI",system-ui,-apple-system,sans-serif',
+    default: 'System',
+  }) as string,
+};
+
 const sm = StyleSheet.create({
   overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1, backgroundColor: 'rgba(10,10,10,0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#0f1020',
-    // @ts-ignore web
-    backgroundImage: 'radial-gradient(120% 100% at 50% 0%, #1e1b4b 0%, #0f1020 60%, #0a0b18 100%)',
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
+    backgroundColor: PRO.surface,
+    borderTopLeftRadius: 16, borderTopRightRadius: 16,
     paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12,
-    gap: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.45, shadowRadius: 28, elevation: 24,
+    gap: 8,
+    borderTopWidth: 1, borderColor: PRO.border,
+    // @ts-ignore web
+    boxShadow: '0 -12px 32px -12px rgba(10,10,10,0.18)',
+    maxWidth: 520,
+    width: '100%',
+    alignSelf: 'center',
   },
   handle: {
-    width: 44, height: 4, backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 2, alignSelf: 'center', marginBottom: 10,
+    width: 36, height: 4, backgroundColor: PRO.border,
+    borderRadius: 2, alignSelf: 'center', marginBottom: 14,
   },
-  title: { fontSize: 20, fontWeight: '900', color: '#ffffff', textAlign: 'center', letterSpacing: 0.3 },
-  subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.55)', textAlign: 'center' },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 4 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 14, paddingHorizontal: 18, borderRadius: 16,
-    minHeight: 56,
+  title: {
+    fontSize: 20, fontWeight: '700', color: PRO.ink,
+    textAlign: 'left', letterSpacing: -0.4,
+    paddingHorizontal: 4,
+    fontFamily: PRO.fontSans,
   },
-  rowIcon:  { fontSize: 22 },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '700' },
-  rowArrow: { fontSize: 22, fontWeight: '300' },
-  cancelBtn: {
-    alignItems: 'center', paddingVertical: 16, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  subtitle: {
+    fontSize: 13, color: PRO.inkMuted,
+    textAlign: 'left', paddingHorizontal: 4, paddingBottom: 10,
+    fontFamily: PRO.fontSans,
   },
-  cancelText: { fontSize: 15, fontWeight: '700', color: 'rgba(255,255,255,0.75)' },
+  primaryRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 10, backgroundColor: PRO.ink,
+    gap: 12,
+    // @ts-ignore web
+    transition: 'background-color 160ms ease',
+    // @ts-ignore web
+    cursor: 'pointer',
+  },
+  primaryRowHover: { backgroundColor: '#1F1F1F' },
+  primaryRowInner: { flex: 1, gap: 2 },
+  primaryRowLabel: {
+    fontSize: 14, fontWeight: '600', color: '#FFFFFF',
+    letterSpacing: -0.1, fontFamily: PRO.fontSans,
+  },
+  primaryRowSub: {
+    fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.6)',
+    fontFamily: PRO.fontSans,
+  },
+  primaryRowArrow: {
+    fontSize: 16, color: '#FFFFFF', fontWeight: '400',
+    fontFamily: PRO.fontSans,
+  },
+
+  rowPro: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: PRO.border,
+    backgroundColor: PRO.surface,
+    gap: 12,
+    // @ts-ignore web
+    transition: 'border-color 160ms ease, background-color 160ms ease',
+    // @ts-ignore web
+    cursor: 'pointer',
+  },
+  rowProHover: { borderColor: PRO.borderStrong, backgroundColor: '#F8F8F8' },
+  rowInner: { flex: 1, gap: 2 },
+  rowLabelPro: {
+    fontSize: 14, fontWeight: '600', color: PRO.ink,
+    letterSpacing: -0.1, fontFamily: PRO.fontSans,
+  },
+  rowSubPro: {
+    fontSize: 11, fontWeight: '500', color: PRO.inkMuted,
+    fontFamily: PRO.fontSans,
+  },
+  rowArrowPro: {
+    fontSize: 16, color: PRO.inkMuted, fontWeight: '400',
+    fontFamily: PRO.fontSans,
+  },
+
+  accentRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 10, backgroundColor: PRO.ink,
+    gap: 12, marginBottom: 2,
+    // @ts-ignore web
+    transition: 'background-color 160ms ease',
+    // @ts-ignore web
+    cursor: 'pointer',
+  },
+  accentRowHover: { backgroundColor: '#1F1F1F' },
+  accentLabel: {
+    fontSize: 14, fontWeight: '600', color: '#FFFFFF',
+    letterSpacing: -0.1, fontFamily: PRO.fontSans,
+  },
+  accentSub: {
+    fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.6)',
+    fontFamily: PRO.fontSans,
+  },
+  accentArrow: {
+    fontSize: 16, color: '#FFFFFF', fontWeight: '400',
+    fontFamily: PRO.fontSans,
+  },
+
+  cancelBtnPro: {
+    alignItems: 'center', paddingVertical: 14, marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1, borderColor: PRO.border,
+  },
+  cancelTextPro: {
+    fontSize: 13, fontWeight: '600', color: PRO.inkSub,
+    fontFamily: PRO.fontSans,
+  },
+
   toast: {
     position: 'absolute', bottom: 120, left: 20, right: 20,
-    backgroundColor: 'rgba(30,30,46,0.92)', borderRadius: 14,
-    paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center',
+    backgroundColor: PRO.ink, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 18, alignItems: 'center',
+    maxWidth: 480, alignSelf: 'center', width: 'auto',
   },
-  toastText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  toastText: {
+    color: '#FFFFFF', fontSize: 13, fontWeight: '600',
+    fontFamily: PRO.fontSans,
+  },
 });
 
 // ─── Compositing progress bar ─────────────────────────────────────────────────
