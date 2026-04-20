@@ -20,6 +20,7 @@ import { useJudgement, prewarmSpeech } from '../../../hooks/useJudgement';
 import { useRecording }              from '../../../hooks/useRecording';
 import { useSessionStore }           from '../../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../../utils/soundUtils';
+import { getBgmPlayer, getBgmTrackUrl } from '../../../utils/bgmLibrary';
 // prewarmMic 제거 — 별도 오디오 getUserMedia가 마이크 팝업 유발
 import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
 import type { JudgementTag }         from '../../../types/session';
@@ -1504,18 +1505,27 @@ export default function RecordScreen() {
         introShownRef.current = true;
         setShowIntro(true);
       }
-      const genreBGM: Record<string, BGMSpec['genre']> = {
-        kpop:'kpop', hiphop:'kpop', news:'news', english:'bright', kids:'fairy',
-        daily:'lofi', travel:'bright', fitness:'kpop', challenge:'kpop', promotion:'news',
-      };
-      const bgmGenre = genreBGM[activeTemplate?.genre ?? ''] ?? 'lofi';
+      // Real MP3 BGM — SoundHelix curated per-genre track
       try {
-        const audioCtx = initAudio();
+        const url = getBgmTrackUrl(activeTemplate?.genre ?? 'daily');
+        const player = getBgmPlayer();
+        player.play({ url, volume: 0.32, loop: true, fadeInMs: 1500 }).catch((e) => {
+          console.warn('[BGM] MP3 play failed, fallback to synth:', e);
+          try {
+            const audioCtx = initAudio();
+            if (bgmStopRef.current) bgmStopRef.current();
+            bgmStopRef.current = createGameBGM(audioCtx, { genre: 'lofi', bpm: 120, volume: 0.35 }, audioCtx.destination);
+          } catch {}
+        });
+        // Provide a stop handle
         if (bgmStopRef.current) bgmStopRef.current();
-        bgmStopRef.current = createGameBGM(audioCtx, { genre:bgmGenre, bpm:120, volume:0.35 }, audioCtx.destination);
-      } catch (e) { console.warn('[BGM] 초기화 실패:', e); }
+        bgmStopRef.current = () => player.stop();
+      } catch (e) {
+        console.warn('[BGM] 초기화 실패:', e);
+      }
     } else {
       if (bgmStopRef.current) { bgmStopRef.current(); bgmStopRef.current = null; }
+      try { getBgmPlayer().stop(); } catch {}
     }
   }, [state]);
 
