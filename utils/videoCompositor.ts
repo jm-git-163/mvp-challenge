@@ -1706,17 +1706,29 @@ function drawOutroFrame(
     ctx.fillText(tags, canvasW / 2, canvasH * 0.72);
     ctx.shadowBlur     = 0;
 
-    // 펄싱 CTA 버튼 스타일
-    const pulse = 0.9 + 0.1 * Math.sin(outroElapsed * 0.008);
+    // 펄싱 CTA — Claude ink + amber edge pill
+    const pulse = 0.92 + 0.08 * Math.sin(outroElapsed * 0.008);
     ctx.globalAlpha = hashAlpha * pulse;
-    ctx.fillStyle = 'rgba(255,215,0,0.95)';
-    rrPath(ctx, centerX - 130, canvasH * 0.78, 260, 52, 26);
+    // 바디 (ink)
+    ctx.fillStyle = '#1F1B16';
+    rrPath(ctx, centerX - 140, canvasH * 0.78, 280, 54, 27);
     ctx.fill();
-    ctx.font         = '800 22px sans-serif';
-    ctx.fillStyle    = '#000';
+    // 앰버 엣지
+    ctx.strokeStyle = '#CC785C';
+    ctx.lineWidth = 2;
+    rrPath(ctx, centerX - 140, canvasH * 0.78, 280, 54, 27);
+    ctx.stroke();
+    // 브랜드 도트
+    ctx.fillStyle = '#CC785C';
+    ctx.beginPath();
+    ctx.arc(centerX - 108, canvasH * 0.78 + 27, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // 텍스트 (크림 + 스페이싱)
+    ctx.font         = '800 15px sans-serif';
+    ctx.fillStyle    = '#F7F3EB';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('👉 SWIPE UP · FOLLOW', canvasW / 2, canvasH * 0.78 + 26);
+    ctx.fillText('CHALLENGE  STUDIO · FOLLOW', canvasW / 2 + 12, canvasH * 0.78 + 27);
     ctx.globalAlpha  = 1;
     ctx.restore();
   }
