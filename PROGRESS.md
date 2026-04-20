@@ -70,6 +70,14 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.3 `engine/recognition/speechRecognizer.ts` (2026-04-20)
+- webkitSpeechRecognition/SpeechRecognition 래퍼. 기본 `lang='ko-KR'`, continuous+interim.
+- docs/COMPATIBILITY §5 iOS 세션 끊김 대응: `isIOS=true`면 `onend`에서 `setTimeout(100)` 후 재시작.
+- `not-allowed`/`service-not-allowed` → 즉시 중단 (권한 거부 무한 루프 방지).
+- 연속 에러 `maxConsecutiveErrors(3)` 초과 → 중단.
+- 텍스트 유틸: `normalizeKorean`, `levenshtein`, `similarity`, `completion` — "Script" 미션 점수 공식 코어.
+- Vitest: **20/20 pass**.
+
 ### 1.2 `engine/recognition/audioAnalyser.ts` (2026-04-20)
 - `computeRMS`/`rmsToDbFS`/`smoothDbFS` 순수 함수 + attack/release 비대칭 스무딩.
 - `OnsetDetector`: 스펙트럴 플럭스 (half-wave rectify) + 이동 평균 대비 threshold + refractory 기간.
