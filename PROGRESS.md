@@ -70,6 +70,13 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.2 `engine/recognition/audioAnalyser.ts` (2026-04-20)
+- `computeRMS`/`rmsToDbFS`/`smoothDbFS` 순수 함수 + attack/release 비대칭 스무딩.
+- `OnsetDetector`: 스펙트럴 플럭스 (half-wave rectify) + 이동 평균 대비 threshold + refractory 기간.
+- `AudioAnalyser`: 프레임당 `{rms, dbFS, smoothedDbFS, isLoud, isOnset, level}` 반환.
+- "Loud Voice" 미션 · BGM 비트 폴백 감지 공용 코어.
+- Vitest: **12/12 pass**.
+
 ### 1.1 `engine/ar/oneEuroFilter.ts` (2026-04-20)
 - 1€ Filter (Casiez 2012) 구현. `minCutoff` + `beta` + `dCutoff` 파라미터.
 - 스칼라용 `OneEuroFilter` + N차원 벡터용 `OneEuroVectorFilter`.
