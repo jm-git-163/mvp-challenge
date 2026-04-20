@@ -34,8 +34,6 @@ export default function MainLayout() {
         name="record/index"
         options={{
           title: '촬영',
-          href: null,
-          tabBarButton: () => null,
           tabBarItemStyle: { display: 'none' },
         }}
       />
@@ -43,8 +41,6 @@ export default function MainLayout() {
         name="result/index"
         options={{
           title: '결과',
-          href: null,
-          tabBarButton: () => null,
           tabBarItemStyle: { display: 'none' },
         }}
       />
