@@ -1389,9 +1389,26 @@ export default function RecordScreen() {
   }, []); // eslint-disable-line
 
   useEffect(() => { if (!activeTemplate) router.back(); }, [activeTemplate]);
+  // Focused Commit C-1: route unmount 종합 cleanup
+  //   - voice/BGM 정지
+  //   - __permissionStream track 정지 (프리워밍 세션 회수)
+  //   - window global (__poseVideoEl / __compositorCanvas / __permissionStream) 해제
+  //   - errorClassifier 의 'navigation-cleanup-failed' 카테고리로 실패 로깅
   useEffect(() => () => {
-    resetVoice();
-    if (bgmStopRef.current) { bgmStopRef.current(); bgmStopRef.current = null; }
+    try { resetVoice(); } catch (e) { console.warn('[record] unmount cleanup: resetVoice', e); }
+    try {
+      if (bgmStopRef.current) { bgmStopRef.current(); bgmStopRef.current = null; }
+    } catch (e) { console.warn('[record] unmount cleanup: bgmStop', e); }
+    if (typeof window !== 'undefined') {
+      const w = window as any;
+      try {
+        const pre = w.__permissionStream as MediaStream | undefined;
+        if (pre && pre.getTracks) pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
+      } catch (e) { console.warn('[record] unmount cleanup: __permissionStream stop', e); }
+      try { w.__poseVideoEl = undefined; } catch {}
+      try { w.__permissionStream = undefined; } catch {}
+      try { w.__compositorCanvas = undefined; } catch {}
+    }
   }, [resetVoice]);
 
   useEffect(() => {

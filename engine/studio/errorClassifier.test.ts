@@ -53,6 +53,15 @@ describe('classifyError', () => {
   it('undefined → unknown', () => {
     expect(classifyError(undefined).category).toBe('unknown');
   });
+  it('play() 실패 → camera-play-failed', () => {
+    expect(classifyError(new Error('video.play() failed: autoplay')).category).toBe('camera-play-failed');
+  });
+  it('videoWidth 준비 안됨 → camera-not-ready', () => {
+    expect(classifyError(new Error('videoWidth=0 not ready')).category).toBe('camera-not-ready');
+  });
+  it('navigation cleanup 실패 → navigation-cleanup-failed', () => {
+    expect(classifyError(new Error('unmount cleanup failed')).category).toBe('navigation-cleanup-failed');
+  });
   it('debugDetail 은 원본 정보 포함', () => {
     const c = classifyError(err('NotAllowedError', 'denied by user'));
     expect(c.debugDetail).toContain('NotAllowedError');

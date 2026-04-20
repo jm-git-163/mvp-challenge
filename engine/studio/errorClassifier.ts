@@ -18,6 +18,9 @@ export type ErrorCategory =
   | 'security'       // 보안 정책(HTTPS 아님 등)
   | 'timeout'        // 타임아웃
   | 'aborted'        // 사용자 취소
+  | 'camera-play-failed'        // video.play() 실패 (autoplay 정책)
+  | 'camera-not-ready'          // videoWidth=0 등 메타데이터 미확보
+  | 'navigation-cleanup-failed' // 라우트 언마운트 시 리소스 정리 실패
   | 'internal'       // 예상 밖
   | 'unknown';
 
@@ -54,6 +57,15 @@ export function classifyError(err: unknown): ClassifiedError {
   }
   if (name === 'AbortError') {
     return cls('aborted', '요청이 취소됐습니다.', null, true, err);
+  }
+  if (msg.includes('play() failed') || msg.includes('autoplay') || msg.includes('NotAllowedError: play')) {
+    return cls('camera-play-failed', '카메라 재생을 시작할 수 없어요. 화면을 터치한 뒤 다시 시도해주세요.', '다시 시도', true, err);
+  }
+  if (msg.includes('videowidth') || msg.includes('not ready') || msg.includes('readystate')) {
+    return cls('camera-not-ready', '카메라가 아직 준비 중입니다. 잠시 후 다시 시도해주세요.', '다시 시도', true, err);
+  }
+  if (msg.includes('navigation cleanup') || msg.includes('unmount cleanup')) {
+    return cls('navigation-cleanup-failed', '이전 화면 정리 중 문제가 생겼어요. 홈으로 돌아갑니다.', '홈으로', true, err);
   }
   if (msg.includes('quota') || msg.includes('storage')) {
     return cls('storage', '저장 공간이 부족합니다.', '공간 확보', true, err);

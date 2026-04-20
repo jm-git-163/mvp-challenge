@@ -1005,6 +1005,28 @@ export default function ResultScreen() {
     }
   }, []);
 
+  // Focused Commit C-1: route unmount 종합 cleanup
+  //   - composedUri blob URL 해제 (goHome/doRetake 경로 외 뒤로가기도 커버)
+  //   - 잔존 window global (__poseVideoEl / __permissionStream / __compositorCanvas) 해제
+  //   - 재진입 시 MediaPipe·MediaStream·AudioContext 유출 방지
+  const composedUriRef = useRef<string | null>(null);
+  useEffect(() => { composedUriRef.current = composedUri; }, [composedUri]);
+  useEffect(() => () => {
+    try {
+      if (composedUriRef.current) URL.revokeObjectURL(composedUriRef.current);
+    } catch (e) { console.warn('[result] unmount cleanup: revokeObjectURL', e); }
+    if (typeof window !== 'undefined') {
+      const w = window as any;
+      try {
+        const pre = w.__permissionStream as MediaStream | undefined;
+        if (pre && pre.getTracks) pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
+      } catch (e) { console.warn('[result] unmount cleanup: __permissionStream stop', e); }
+      try { w.__poseVideoEl = undefined; } catch {}
+      try { w.__permissionStream = undefined; } catch {}
+      try { w.__compositorCanvas = undefined; } catch {}
+    }
+  }, []);
+
   // ▶ Auto-compose on mount: template(intro/overlays/BGM/outro) + recording → 세로형 쇼츠 MP4
   const autoComposedRef = useRef(false);
   useEffect(() => {

@@ -18,6 +18,12 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit C-1: route unmount 종합 cleanup (2026-04-20)
+- `engine/studio/errorClassifier.ts`: `camera-play-failed` / `camera-not-ready` / `navigation-cleanup-failed` 3개 카테고리 신규 + 매칭 분기 추가. 테스트 3건 추가.
+- `app/record/index.tsx` 언마운트 effect 확장: `resetVoice` + `bgmStop` 에 더해 `window.__permissionStream` track 정지·`__poseVideoEl` / `__compositorCanvas` / `__permissionStream` global 해제.
+- `app/result/index.tsx` 언마운트 effect 신규: `composedUri` blob revoke(뒤로가기 경로도 커버) + 동일 global 3종 해제. 재진입 시 MediaPipe/MediaStream/AudioContext 유출 방지.
+- Vitest **542/542 green** 목표(기존 539 + errorClassifier 3).
+
 ### Focused Commit 4: result 파이프라인 검증 + COEP 차단 해제 (2026-04-20)
 - **핵심 버그 발견/수정**: `vercel.json` 의 `Cross-Origin-Embedder-Policy: require-corp` + `Cross-Origin-Opener-Policy: same-origin` 헤더가 MediaPipe CDN(jsdelivr)·Google Storage 모델·SoundHelix BGM 등 **모든 크로스오리진 리소스 로드를 차단**하고 있었음. 저장소 전역 grep 결과 `SharedArrayBuffer`/`crossOriginIsolated` 사용처 0 → COEP 강제의 필요성 자체가 없었음. 헤더 제거 → MediaPipe/BGM 로드 복구.
 - `CORP: cross-origin` 만 유지(잔여 리소스가 외부 접근 허용되도록).
