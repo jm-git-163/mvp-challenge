@@ -31,6 +31,28 @@
 - `computeBackoffMs` / `retryOnNames('NetworkError', ...)` 헬퍼.
 - Vitest: **11/11 pass**.
 
+### 6.6 `engine/studio/visibilityController.ts`
+- docs/EDGE_CASES.md §2: 탭 백그라운드 / 트랙 ended 감지.
+- `VisibilityController.start/stop/bindTrack/on/isHidden`. VisibilityHost DI.
+- 이벤트: `hidden(tab_hidden) / visible / track_ended(video|audio)`.
+- 이미 ended 인 트랙 바인딩 시 즉시 통지. Vitest: **7/7 pass**.
+
+### 6.7 `engine/studio/unloadGuard.ts`
+- docs/EDGE_CASES.md §6: beforeunload 확인 다이얼로그.
+- `arm()` → preventDefault + returnValue='' 세팅, `disarm()` 으로 제거.
+- 중복 arm 방지. UnloadHost DI. Vitest: **5/5 pass**.
+
+### 6.8 `engine/studio/deviceProbe.ts`
+- 스토리지(navigator.storage.estimate) + 배터리(getBattery) + 방향/크기 종합.
+- `probeDevice(opts, deps)` → `DeviceReport{ freeBytes, storageLow, batteryPct, batteryCritical, landscape, tooSmall, blockers[], warnings[] }`.
+- 기본: expectedRecordingBytes=60MB, safetyFactor=3, batteryCriticalLevel=0.05, minInnerWidth=320.
+- API 예외/미지원 환경에서 안전(null). Vitest: **9/9 pass**.
+
+### 6.9 `engine/studio/brightnessProbe.ts`
+- Rec.709 luminance(0.2126R+0.7152G+0.0722B) 평균. step 서브샘플링(기본 1/64 연산).
+- `averageBrightness` / `averageLuma` / `isTooDark(th=0.18)`.
+- Vitest: **8/8 pass** — 총 **463/463 green**.
+
 ### 6.5 `engine/studio/presenceWatcher.ts`
 - 프레임 이탈 감지. DEFAULT: warningAfterMs=3000, pauseAfterMs=10000.
 - `observe(isPresent, nowMs)` → `PresenceEvent[]` (enter/warn/pause/resume).
