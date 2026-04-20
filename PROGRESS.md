@@ -70,6 +70,16 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.8 `engine/missions/scriptMission.ts` (2026-04-20)
+- SpeechRecognizer transcript 입력을 받아 CLAUDE §5 공식: `similarity*60 + completion*20 + timeScore*20`.
+- `similarity`/`completion`는 `speechRecognizer`의 텍스트 유틸 재사용.
+- `timeScore = min(1, targetReadMs / elapsedMs)`. `minTimeScore` 하한 지원.
+- Vitest: **7/7 pass**.
+
+### 1.9 Phase 1 closeout (2026-04-20)
+- `CHECKLIST_PHASE_1.md` 작성 — 7 미션 실기기 검증 + 회귀 grep 항목.
+- 전체 Vitest 스위트: **15 files, 168/168 pass**.
+
 ### 1.7 `engine/missions/poseHoldMission.ts` + `loudVoiceMission.ts` (2026-04-20)
 - **PoseHold**: 8-관절 각도 벡터 기반 유사도 + 최근 20프레임 std 기반 안정성.
   - hysteresis (enter 0.8 / exit 0.7 similarity) + `targetHoldMs` 3000ms.
