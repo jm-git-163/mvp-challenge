@@ -49,6 +49,20 @@
 - `setRecording(flag)` 토글로 상태 동기화. CLAUDE.md §3 FORBIDDEN #17 "alert/confirm/prompt 금지" 준수.
 - Vitest: **8/8 pass**. `[자동검증완료]`
 
+### 0.6 `engine/session/permissionGate.ts` (2026-04-20)
+- 권한 게이트를 **UI 프레임워크 무관 상태 머신**으로 구현 (Next.js/Expo/RN 어디서든 구독).
+- 상태 전이: idle → checking_compat → (compat_failed) → requesting_media → (media_denied/media_failed) → acquiring_wake → ready.
+- wake 실패는 진입 차단 아님 (경고로 fall-through).
+- `subscribe(cb)`로 React 컴포넌트가 상태 변화 구독. `run()` / `retry()` / `teardown()`.
+- `describeFailure()` 헬퍼: 상태→UI 문구 매핑.
+- Vitest: **10/10 pass**.
+
+### 0.7 Phase 0 closeout (2026-04-20)
+- `CHECKLIST_PHASE_0.md` 작성 — docs/TESTING.md Layer 3 실기기 체크리스트.
+- 기기 매트릭스: iOS 16.4+/15.x, Android Chrome/Samsung Internet, 데스크톱 Safari/Chrome/Edge/Firefox.
+- 금지 사항 회귀 grep 항목 포함 (`rg 'getUserMedia' engine/` = 1).
+- 전체 Vitest 스위트: **5 files, 56/56 pass**.
+
 ### BLOCKER (Phase 0)
 - (없음)
 
