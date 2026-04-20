@@ -64,7 +64,9 @@
       "Bash(tee /tmp/vercel-deploy.log)",
       "Bash(git commit -m 'feat\\(home+pose\\): Claude studio paper hero + robust squat fallback *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://mvp-ivory-kappa.vercel.app/)",
-      "Bash(git commit -m 'feat: central Claude design tokens + squat counter ankle-occluded gate + global theme migration *)"
+      "Bash(git commit -m 'feat: central Claude design tokens + squat counter ankle-occluded gate + global theme migration *)",
+      "Bash(curl -s -o /dev/null -w \"home=%{http_code}\\\\n\" https://mvp-ivory-kappa.vercel.app/)",
+      "Bash(git commit -m 'feat\\(profile+result\\): migrate to Claude design tokens *)"
     ]
   }
 }

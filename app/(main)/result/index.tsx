@@ -30,6 +30,7 @@ import { composeVideo, type CompositorProgress } from '../../../utils/videoCompo
 import { getVideoTemplate, VIDEO_TEMPLATES }     from '../../../utils/videoTemplates';
 import type { JudgementTag, FrameTag } from '../../../types/session';
 import type { MissionType } from '../../../types/template';
+import { Claude, ClaudeFont } from '../../../constants/claudeTheme';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1274,10 +1275,10 @@ export default function ResultScreen() {
 const st = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0b0d1a',
+    backgroundColor: Claude.paper,
     // @ts-ignore web gradient
     backgroundImage:
-      'radial-gradient(120% 80% at 50% -10%, #1e1b4b 0%, #0b0d1a 55%, #05060d 100%)',
+      'radial-gradient(120% 80% at 50% -10%, #FBF7EE 0%, #F7F3EB 55%, #EEE6D5 100%)',
   },
   scroll:  { flex: 1 },
   content: { paddingTop: 8, paddingBottom: 96, gap: 16 },
@@ -1289,29 +1290,29 @@ const st = StyleSheet.create({
   },
   backBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderWidth: 1, borderColor: Claude.hairline,
     alignItems: 'center', justifyContent: 'center',
-    // @ts-ignore
-    backdropFilter: 'blur(12px)',
   },
-  backText:     { fontSize: 22, color: '#fff', fontWeight: '700' },
+  backText:     { fontSize: 22, color: Claude.ink, fontWeight: '700' },
   headerCenter: { flex: 1, alignItems: 'center', gap: 2 },
-  headerTitle:  { fontSize: 20, fontWeight: '900', color: '#f8fafc', textAlign: 'center', letterSpacing: 0.2 },
-  headerSub:    { fontSize: 12, color: 'rgba(255,255,255,0.55)', letterSpacing: 0.3 },
+  headerTitle:  { fontSize: 22, fontWeight: '800', color: Claude.ink, textAlign: 'center', letterSpacing: -0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
+  headerSub:    { fontSize: 11, color: Claude.inkFaint, letterSpacing: 1.2, fontWeight: '700' },
 
   // Score card
   scoreCard: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 28,
+    backgroundColor: Claude.paper,
+    borderRadius: 22,
     overflow: 'hidden',
     borderTopWidth: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: Claude.hairline,
+    shadowColor: '#3F2A1F', shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22, shadowRadius: 26, elevation: 8,
     // @ts-ignore web
-    backdropFilter: 'blur(20px)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.35, shadowRadius: 32, elevation: 8,
+    boxShadow: '0 20px 40px -18px rgba(63,42,31,0.4), inset 0 1px 0 rgba(255,255,255,0.7)',
   },
   scoreStripe: { height: 4, width: '100%' },
   scoreBody: {
@@ -1331,35 +1332,39 @@ const st = StyleSheet.create({
   // Tag distribution
   tagRow: { flexDirection: 'row', gap: 10, width: '100%', marginTop: 4 },
   tagCard: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16,
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 14,
     alignItems: 'center', paddingVertical: 16,
     borderTopWidth: 3,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: Claude.hairline,
   },
-  tagCount: { fontSize: 30, fontWeight: '900', color: '#fff' },
-  tagName:  { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '700', marginTop: 4, letterSpacing: 1 },
+  tagCount: { fontSize: 30, fontWeight: '800', color: Claude.ink,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
+  tagName:  { color: Claude.inkFaint, fontSize: 10, fontWeight: '800', marginTop: 4, letterSpacing: 1.2 },
 
-  // Sections — glassmorphic
+  // Sections — paper cards
   section: {
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 20,
     padding: 20,
     gap: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
+    borderColor: Claude.hairline,
+    shadowColor: '#3F2A1F', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15, shadowRadius: 20, elevation: 3,
     // @ts-ignore web
-    backdropFilter: 'blur(16px)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25, shadowRadius: 20, elevation: 3,
+    boxShadow: '0 14px 30px -16px rgba(63,42,31,0.35)',
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#f1f5f9', letterSpacing: 0.3 },
+  sectionTitle: { fontSize: 17, fontWeight: '800', color: Claude.ink, letterSpacing: -0.2,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
 
   // Mission results
   missionList: { gap: 8 },
 
   // Badges
-  noBadge:  { color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center', paddingVertical: 4 },
-  badgeHint: { color: '#c4b5fd', fontSize: 13, fontWeight: '700' },
+  noBadge:  { color: Claude.inkMuted, fontSize: 13, textAlign: 'center', paddingVertical: 4, fontWeight: '600' },
+  badgeHint: { color: Claude.amberDeep, fontSize: 13, fontWeight: '800' },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
 
   // Video section
@@ -1379,32 +1384,26 @@ const st = StyleSheet.create({
 
   // Compose CTA
   composeCta:   { gap: 12 },
-  composeDesc:  { color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  composeDesc:  { color: Claude.inkMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', fontWeight: '600' },
   composeBtn: {
-    // @ts-ignore web
-    background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-    backgroundColor: '#7c3aed',
-    paddingVertical: 18, borderRadius: 18,
+    backgroundColor: Claude.ink,
+    paddingVertical: 18, borderRadius: 999,
     alignItems: 'center', minHeight: 60, justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    shadowColor: '#7c3aed', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5, shadowRadius: 16, elevation: 8,
+    borderWidth: 1, borderColor: Claude.amber,
+    shadowColor: '#3F2A1F', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35, shadowRadius: 16, elevation: 8,
     // @ts-ignore web
-    boxShadow: '0 10px 28px rgba(124,58,237,0.45), 0 1px 0 rgba(255,255,255,0.18) inset',
+    boxShadow: '0 12px 26px -10px rgba(204,120,92,0.6), inset 0 1px 0 rgba(255,255,255,0.15)',
   },
   composeBtnDis: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    // @ts-ignore web
-    background: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(161,98,68,0.15)',
     shadowOpacity: 0,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Claude.hairline,
     // @ts-ignore web
     boxShadow: 'none',
   },
   composeBtnText: {
-    color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: 0.8,
-    // @ts-ignore web
-    textShadow: '0 2px 8px rgba(0,0,0,0.35)',
+    color: Claude.paper, fontSize: 15, fontWeight: '800', letterSpacing: 1.2,
   },
 
   // Error box
@@ -1420,14 +1419,12 @@ const st = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10 },
   downloadBtn: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
-    paddingVertical: 14, borderRadius: 14, alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderWidth: 1, borderColor: Claude.hairlineStrong,
+    paddingVertical: 14, borderRadius: 999, alignItems: 'center',
     minHeight: 50, justifyContent: 'center',
-    // @ts-ignore web
-    backdropFilter: 'blur(10px)',
   },
-  downloadText: { color: '#f1f5f9', fontSize: 14, fontWeight: '700' },
+  downloadText: { color: Claude.ink, fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
   shareBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 12,
     alignItems: 'center', minHeight: 50, justifyContent: 'center',

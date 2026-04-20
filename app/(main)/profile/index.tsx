@@ -20,6 +20,7 @@ import {
 import { useUserStore }   from '../../../store/userStore';
 import { fetchUserSessions, fetchUserProfile } from '../../../services/supabase';
 import type { UserSession } from '../../../types/session';
+import { Claude, ClaudeFont } from '../../../constants/claudeTheme';
 
 const GENRE_LABEL: Record<string, string> = {
   kpop: 'K-POP', hiphop: '힙합', fitness: '피트니스',
@@ -212,10 +213,10 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0b0d1a',
+    backgroundColor: Claude.paper,
     // @ts-ignore web
     backgroundImage:
-      'radial-gradient(120% 80% at 50% -10%, #2d1b4b 0%, #0b0d1a 55%, #05060d 100%)',
+      'radial-gradient(120% 80% at 50% -10%, #FBF7EE 0%, #F7F3EB 55%, #EEE6D5 100%)',
   },
   scroll: {
     padding: 20,
@@ -238,26 +239,27 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#e94560',
+    backgroundColor: Claude.ink,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: Claude.amber,
     // @ts-ignore web
-    backgroundImage: 'linear-gradient(135deg, #ec4899 0%, #7c3aed 100%)',
-    // @ts-ignore web
-    boxShadow: '0 10px 30px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
+    boxShadow: '0 14px 30px -12px rgba(63,42,31,0.55), inset 0 1px 0 rgba(255,255,255,0.15)',
   },
   avatarText: {
-    color: '#fff',
+    color: Claude.paper,
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 0.5,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   userId: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 12,
-    letterSpacing: 0.4,
+    color: Claude.inkFaint,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'] as any,
   },
   // ── 통계 ──
@@ -268,27 +270,30 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
     borderRadius: 16,
     alignItems: 'center',
     paddingVertical: 18,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: Claude.hairline,
     // @ts-ignore web
-    backdropFilter: 'blur(16px)',
+    boxShadow: '0 10px 24px -14px rgba(63,42,31,0.35)',
   },
   statValue: {
-    color: '#fff',
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: 0.3,
+    color: Claude.ink,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   statLabel: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 11,
+    color: Claude.inkFaint,
+    fontSize: 10,
     marginTop: 4,
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   // ── 섹션 ──
@@ -297,9 +302,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: Claude.ink,
+    fontSize: 18,
+    fontWeight: '800',
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   // ── 장르 칩 ──
   chipRow: {
@@ -308,17 +315,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    backgroundColor: 'rgba(236,72,153,0.12)',
+    backgroundColor: 'rgba(204,120,92,0.12)',
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(236,72,153,0.45)',
+    borderColor: Claude.hairlineStrong,
   },
   chipText: {
-    color: '#f9a8d4',
+    color: Claude.amberDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0.3,
   },
   // ── 성공률 바 ──
@@ -328,52 +335,55 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rateId: {
-    color: '#aaa',
+    color: Claude.inkMuted,
     fontSize: 11,
     width: 80,
+    fontWeight: '600',
   },
   rateTrack: {
     flex: 1,
     height: 7,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(161,98,68,0.14)',
     borderRadius: 4,
     overflow: 'hidden',
   },
   rateBar: {
     height: '100%',
-    backgroundColor: '#e94560',
+    backgroundColor: Claude.amber,
     borderRadius: 4,
     // @ts-ignore web
-    backgroundImage: 'linear-gradient(90deg, #7c3aed, #ec4899)',
+    backgroundImage: `linear-gradient(90deg, ${Claude.amberDeep}, ${Claude.amber})`,
   },
   ratePct: {
-    color: '#fff',
+    color: Claude.ink,
     fontSize: 11,
     width: 32,
     textAlign: 'right',
+    fontWeight: '800',
   },
   // ── 세션 목록 ──
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.55)',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Claude.hairline,
   },
   sessionInfo: {
     gap: 2,
   },
   sessionDate: {
-    color: '#fff',
+    color: Claude.ink,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   sessionMeta: {
-    color: '#888',
+    color: Claude.inkFaint,
     fontSize: 11,
+    fontWeight: '600',
   },
   sessionScore: {
     fontSize: 20,
@@ -384,29 +394,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: 'rgba(251,146,60,0.1)',
+    backgroundColor: 'rgba(204,120,92,0.1)',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: 'rgba(251,146,60,0.4)',
+    borderColor: Claude.hairlineStrong,
     marginBottom: 24,
     // @ts-ignore web
-    backdropFilter: 'blur(12px)',
-    // @ts-ignore web
-    boxShadow: '0 8px 20px rgba(251,146,60,0.15)',
+    boxShadow: '0 10px 22px -14px rgba(204,120,92,0.5)',
   },
   streakEmoji: { fontSize: 34 },
-  streakTitle: { color: '#fed7aa', fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
-  streakSub:   { color: 'rgba(254,215,170,0.7)', fontSize: 12, marginTop: 2 },
+  streakTitle: { color: Claude.ink, fontSize: 15, fontWeight: '800', letterSpacing: 0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
+  streakSub:   { color: Claude.inkMuted, fontSize: 12, marginTop: 2, fontWeight: '600' },
   emptyText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: Claude.ink,
+    fontSize: 17,
+    fontWeight: '800',
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   emptySubtext: {
-    color: '#888',
+    color: Claude.inkMuted,
     fontSize: 13,
     textAlign: 'center',
+    fontWeight: '600',
   },
 });
