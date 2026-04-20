@@ -67,15 +67,16 @@ function getVolume(): number {
 }
 
 /**
- * 음성인식 권한을 녹화 전에 미리 얻기 위한 함수.
- * record/index.tsx에서 화면 진입 시 또는 시작 버튼 누를 때 호출.
+ * Previously this briefly started/stopped SpeechRecognition to prewarm
+ * the permission dialog. That start→stop→start cycle actually TRIGGERS
+ * a second permission popup in Chrome — exactly what we wanted to avoid.
+ * Now it's a no-op: the real voice_read mission starts recognition once
+ * and keeps it running continuously across missions.
  */
 export function prewarmSpeech(): void {
   const sr = getGlobalSpeechRecognizer();
-  if (!sr.isSupported() || sr.isListening() || _voiceActive) return;
-  // 아주 짧게 시작해서 권한 다이얼로그를 녹화 전에 처리
-  const stop = sr.listen('ko', () => {}, () => {}, 1500);
-  setTimeout(stop, 1200);
+  if (!sr.isSupported()) return;
+  // Intentionally do nothing — avoid double-start popup.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,7 +231,10 @@ export function useJudgement(): {
                 const target = _currentTarget;
                 if (target && interim) {
                   const sim = textSimilarity(target, interim);
-                  const newScore = Math.max(voiceScoreRef.current, sim * 0.8 + 0.10 * 0.2);
+                  // Forgiving scoring: Web Speech often mis-transcribes 1-2 jamo.
+                  // Lift by ~15% then clamp; interim keeps monotonic max.
+                  const lifted = Math.min(1, sim * 1.15 + 0.05);
+                  const newScore = Math.max(voiceScoreRef.current, lifted);
                   voiceScoreRef.current    = Math.min(1, newScore);
                   voiceAccuracyRef.current = sim;
                   setVoiceAccuracy(sim);
@@ -240,13 +244,15 @@ export function useJudgement(): {
               _finalCb = (final: string) => {
                 _voiceActive = false;
                 const target = _currentTarget;
-                // 정직한 점수: 목표 없으면 발화 여부로 0/0.3, 목표 있으면 유사도 그대로
-                const sim = target ? textSimilarity(target, final) : (final.trim() ? 0.3 : 0);
-                voiceScoreRef.current      = sim;
-                voiceAccuracyRef.current   = sim;
+                const rawSim = target ? textSimilarity(target, final) : (final.trim() ? 0.3 : 0);
+                // Forgiving final score — users who clearly said the line
+                // shouldn't be punished for STT jamo quirks.
+                const lifted = target ? Math.min(1, rawSim * 1.15 + 0.05) : rawSim;
+                voiceScoreRef.current      = lifted;
+                voiceAccuracyRef.current   = rawSim;
                 voiceTranscriptRef.current = final;
                 setVoiceTranscript(final);
-                setVoiceAccuracy(sim);
+                setVoiceAccuracy(rawSim);
               };
 
               _progressCb = (similarity: number) => {
@@ -273,7 +279,8 @@ export function useJudgement(): {
                 const target = _currentTarget;
                 if (target && interim) {
                   const sim = textSimilarity(target, interim);
-                  const newScore = Math.max(voiceScoreRef.current, sim * 0.8 + 0.10 * 0.2);
+                  const lifted = Math.min(1, sim * 1.15 + 0.05);
+                  const newScore = Math.max(voiceScoreRef.current, lifted);
                   voiceScoreRef.current    = Math.min(1, newScore);
                   voiceAccuracyRef.current = sim;
                   setVoiceAccuracy(sim);
@@ -282,12 +289,13 @@ export function useJudgement(): {
               _finalCb = (final: string) => {
                 _voiceActive = false;
                 const target = _currentTarget;
-                const sim = target ? textSimilarity(target, final) : (final.trim() ? 0.3 : 0);
-                voiceScoreRef.current      = sim;
-                voiceAccuracyRef.current   = sim;
+                const rawSim = target ? textSimilarity(target, final) : (final.trim() ? 0.3 : 0);
+                const lifted = target ? Math.min(1, rawSim * 1.15 + 0.05) : rawSim;
+                voiceScoreRef.current      = lifted;
+                voiceAccuracyRef.current   = rawSim;
                 voiceTranscriptRef.current = final;
                 setVoiceTranscript(final);
-                setVoiceAccuracy(sim);
+                setVoiceAccuracy(rawSim);
               };
 
             } else if (!sr.isSupported()) {
