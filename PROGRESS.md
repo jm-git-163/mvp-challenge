@@ -68,6 +68,32 @@
 
 ---
 
+## Phase 3 — 녹화 파이프라인 (기본)
+
+### 3.1 `engine/recording/codecNegotiator.ts` (2026-04-20)
+- `MIME_CANDIDATES` 순회해 첫 지원 코덱 선택 (CLAUDE §3 #16: 코덱 하드코딩 금지).
+- `BITRATE_BY_TIER`: high(3.5M) / mid(2M) / low(1M).
+- `estimateTier(nav)`: deviceMemory + hardwareConcurrency 기반, iOS(정보 없음) 폴백.
+- `isTypeSupported` 예외 안전.
+- Vitest: **12/12 pass**.
+
+### 3.2 `engine/recording/recorder.ts` (2026-04-20)
+- `MediaRecorder` 래퍼. `start(stream, codec)` → `pause`/`resume` → `stop(): Promise<Blob>`.
+- 청크 누적, 빈 Blob 무시, `onerror` → `state='error'` + Promise reject.
+- `subscribe(cb)` 이벤트 구독.
+- MediaRecorder 생성자 + Blob 생성자 DI로 node 환경 테스트 가능.
+- Vitest: **8/8 pass**.
+
+### 3.3 `engine/recording/audioMixer.ts` (2026-04-20)
+- mic / bgm / sfx 3-버스 구조 + `MediaStreamAudioDestinationNode` 출력.
+- 발화 덕킹: `setVoiceActive(true)` → `setTargetAtTime` attack 0.08s, release 0.3s.
+- `playBgm(buffer, loop)` / `playSfx(buffer)` 헬퍼.
+- 동일 상태 재설정은 no-op.
+- `AudioContextLike` 인터페이스 주입 → node mock으로 검증.
+- Vitest: **9/9 pass**.
+
+---
+
 ## Phase 2 — 점수 엔진
 
 ### 2.1 `engine/scoring/scorer.ts` (2026-04-20)
