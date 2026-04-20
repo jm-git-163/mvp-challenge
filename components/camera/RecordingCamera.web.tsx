@@ -562,9 +562,41 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           // 전역 노출: poseUtils(포즈감지) + useJudgement(볼륨감지) 에서 접근
           (window as any).__cameraStream = stream;
           if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play().catch(() => {});
-            (window as any).__poseVideoEl = videoRef.current;
+            const vid = videoRef.current;
+            vid.srcObject = stream;
+            // Focused Commit B-1: __poseVideoEl 을 readyState>=2 & videoWidth>0 확보 후 세팅.
+            //   - 기존 fire-and-forget play() 는 iOS Safari/Chrome 의 autoplay 정책에서 거부되면
+            //     videoWidth=0 인 채로 pose 감지가 돌아 빈 프레임만 발생.
+            //   - loadedmetadata 대기 + play() await + 폴백으로 'camera-play-failed' 에러 마킹.
+            try {
+              await vid.play();
+            } catch (playErr) {
+              console.warn('[RecordingCamera] video.play() failed (autoplay):', playErr);
+              // 사용자 제스처 후 재시도: 첫 터치에서 play 재시도
+              const retryOnce = () => {
+                vid.play().catch(() => {});
+                window.removeEventListener('pointerdown', retryOnce);
+                window.removeEventListener('touchstart', retryOnce);
+              };
+              window.addEventListener('pointerdown', retryOnce, { once: true });
+              window.addEventListener('touchstart',  retryOnce, { once: true });
+            }
+            // readyState>=2 & 유효한 videoWidth 까지 폴링(최대 ~3초)
+            const waitReady = async (): Promise<boolean> => {
+              for (let i = 0; i < 30; i++) {
+                if (cancelled) return false;
+                if (vid.readyState >= 2 && vid.videoWidth > 0) return true;
+                await new Promise((r) => setTimeout(r, 100));
+              }
+              return false;
+            };
+            const ok = await waitReady();
+            if (cancelled) return;
+            if (ok) {
+              (window as any).__poseVideoEl = vid;
+            } else {
+              console.warn('[RecordingCamera] video not ready after 3s (videoWidth=0)');
+            }
           }
           setDenied(false);
           setReady(true);

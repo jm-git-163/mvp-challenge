@@ -217,13 +217,11 @@ export class SpeechRecognizer {
         this.notify();
         return;
       }
-      if (this.isIOS) {
-        // 100ms 지연 재시작 (iOS 연속 start() 거부 우회)
-        this.setTimeoutFn(() => { if (this.shouldRun) this.spawn(); }, 100);
-      } else {
-        this.state = 'ended';
-        this.notify();
-      }
+      // Focused Commit B-3: iOS 만 재시작하던 걸 모든 브라우저로 확장.
+      //   - Chrome Desktop/Android Chrome 도 continuous=true 에서 조용히 onend 후 멈추는 경우 존재.
+      //   - shouldRun 이 유지되는 한 150ms 뒤 spawn. transcript/listeners 는 보존 (this. 스코프 유지).
+      const delay = this.isIOS ? 100 : 150;
+      this.setTimeoutFn(() => { if (this.shouldRun) this.spawn(); }, delay);
     };
 
     try {

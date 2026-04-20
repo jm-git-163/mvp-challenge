@@ -18,6 +18,12 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit B-1/2/3: 크로스브라우저 인식 안정화 (2026-04-20)
+- **B-1** `components/camera/RecordingCamera.web.tsx`: fire-and-forget `play()` 제거. `await play()` + 실패 시 pointerdown/touchstart once 이벤트로 재시도 스케줄. `__poseVideoEl` 은 `readyState>=2 && videoWidth>0` 폴링(100ms × 30회 = 3초)에서 확보된 뒤에만 세팅 → pose 감지가 빈 프레임으로 돌아 zero-landmark 를 생성하던 현상 차단.
+- **B-2** `app/_layout.tsx`: `isAppleTouchDevice()` (UA iPhone|iPad|iPod + iPadOS MacIntel+touch) 감지. iOS/iPadOS 는 preflight `getUserMedia` 를 건너뜀 — user-gesture 없는 호출이 영구 락을 유발하던 iOS Safari 이슈 회피. 안드로이드·데스크톱은 기존대로 미리 획득.
+- **B-3** `engine/recognition/speechRecognizer.ts`: iOS 전용 onend 재시작을 모든 플랫폼으로 확장 (iOS 100ms / 기타 150ms). Chrome Desktop/Android Chrome 이 continuous=true 에서 조용히 세션을 끊는 사례 커버. 테스트 갱신(`non-iOS: onend → 150ms 뒤 spawn`).
+- Vitest **542/542 green** 유지.
+
 ### Focused Commit C-2/3/4: UnloadGuard 자동화 + ErrorBoundary 복구 + 홈 네비 강건화 (2026-04-20)
 - **C-2** `app/record/index.tsx`: `UnloadGuard` 인스턴스 ref + `state==='recording'` 에서만 `arm()`, 그 외 `disarm()` 자동 전환. 언마운트 시 반드시 `disarm()` 으로 유령 다이얼로그·메모리 누수 차단.
 - **C-3** `components/ui/ErrorBoundary.tsx`: `getDerivedStateFromError` 가 `classifyError` 호출 → `category`/`userTitle` 상태 저장. `navigation-cleanup-failed` 일 때는 "홈으로" 버튼만 노출, `_forceHome()` 이 `__permissionStream` track 정지 + 3 globals 해제 + `window.location.href='/?_b=TS'` 하드 네비.

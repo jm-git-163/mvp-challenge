@@ -8,8 +8,27 @@ import { Claude } from '../constants/claudeTheme';
 
 // ── 사이트 최초 진입 시 카메라+마이크 권한 1회 확보 ──────────────────────────────
 // 이후 챌린지/미션별로 팝업이 뜨지 않도록 미리 요청
+//
+// Focused Commit B-2: iOS Safari 는 user-gesture 없이 getUserMedia 호출 시
+//   즉시 AbortError/SecurityError 로 거부되며, 이후 사용자 제스처에서도 팝업 자체가
+//   나타나지 않는 상태로 락이 걸림. → iOS/iPadOS 에서는 preflight 를 건너뛰고
+//   실제 챌린지 진입 시점(터치 이벤트)에만 요청. 안드로이드·데스크톱은 기존대로.
+function isAppleTouchDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/i.test(ua)) return true;
+  // iPadOS 13+ 은 MacIntel 로 위장 + touch 지원
+  const isMac = /Macintosh/i.test(ua);
+  const hasTouch = typeof (navigator as any).maxTouchPoints === 'number' && (navigator as any).maxTouchPoints > 1;
+  return isMac && hasTouch;
+}
+
 async function requestPermissionsOnce(): Promise<void> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices) return;
+  if (isAppleTouchDevice()) {
+    // iOS: 사용자 제스처 전 preflight 금지
+    return;
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },

@@ -136,13 +136,17 @@ describe('SpeechRecognizer lifecycle', () => {
     expect(r.getState()).toBe('running');
   });
 
-  it('non-iOS: onend → 재시작 없이 ended 상태', () => {
+  it('non-iOS: onend → 150ms 뒤 spawn 으로 자동 재시작 (B-3)', () => {
     const { Ctor, instances } = makeFakeCtor();
-    const r = new SpeechRecognizer({}, { ctor: Ctor, isIOS: false });
+    const r = new SpeechRecognizer(
+      {},
+      { ctor: Ctor, isIOS: false, setTimeout: (cb) => { cb(); return 0; } },
+    );
     r.start();
     (instances[0] as unknown as { emitEnd: () => void }).emitEnd();
-    expect(r.getState()).toBe('ended');
-    expect(instances.length).toBe(1);
+    // shouldRun 유지되므로 새 인스턴스 spawn
+    expect(instances.length).toBe(2);
+    expect(r.getState()).toBe('running');
   });
 
   it('not-allowed 에러 → shouldRun=false, error 상태', () => {
