@@ -4,6 +4,22 @@
 
 ---
 
+## Phase 5f — Canvas 2D PostProcess 폴백 (2026-04-20)
+
+### 5f-fallback `engine/effects/postProcess2d.ts`
+- PixiJS 승인 전까지 템플릿 postProcess 체인을 Canvas 2D 로 근사.
+- `buildCssFilter(steps)` → bloom(brightness+blur) / saturation / bokeh(blur) / lut_mono(grayscale+contrast).
+- `applyProceduralOverlays` → vignette(radial gradient) / crt_scanlines(2px stride) / film_grain(픽셀 노이즈).
+- `applyChromaticAberration(src→dst, offsetPx)` → 채널 offset drawImage + lighten 합성.
+- `makeSeededRng(seed)` xorshift32 결정적 난수 (테스트·재현 보장).
+- onsetBoost: onset(0~1) × boost 로 일시 강도 증폭.
+- ⚠️ Pixi 대비 품질 제한 (bloom tonemap 없음, CPU 3D LUT 미지원). PixiJS 승인 시 본 파일은 SSR/폴백 전용.
+- Vitest: **12/12 pass** — 전체 **517/517 green**.
+
+> **BLOCKER 5f 부분 해제**: 템플릿 postProcess 스펙이 실제 렌더까지 연결됨. Pixi 도입은 여전히 승인 대기 (고급 bloom/LUT/DoF 필요시).
+
+---
+
 ## Phase 7 — 결과·배포·성능 엔진 (2026-04-20)
 
 ### 7.1 `engine/result/shareSheet.ts`
