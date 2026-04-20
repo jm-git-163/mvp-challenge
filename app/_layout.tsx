@@ -69,6 +69,8 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(main)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)"  options={{ headerShown: false }} />
+        <Stack.Screen name="record/index" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="result/index" options={{ headerShown: false, animation: 'fade' }} />
       </Stack>
     </ErrorBoundary>
   );

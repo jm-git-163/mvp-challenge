@@ -11,21 +11,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import RecordingCamera, { type RecordingCameraHandle } from '../../../components/camera/RecordingCamera';
-import TimingBar              from '../../../components/ui/TimingBar';
-import JudgementBurst         from '../../../components/mission/JudgementBurst';
+import RecordingCamera, { type RecordingCameraHandle } from '../../components/camera/RecordingCamera';
+import TimingBar              from '../../components/ui/TimingBar';
+import JudgementBurst         from '../../components/mission/JudgementBurst';
 
-import { usePoseDetection }          from '../../../hooks/usePoseDetection';
-import { useJudgement, prewarmSpeech } from '../../../hooks/useJudgement';
-import { useRecording }              from '../../../hooks/useRecording';
-import { useSessionStore }           from '../../../store/sessionStore';
-import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../../utils/soundUtils';
-import { getBgmPlayer, getBgmTrackUrl } from '../../../utils/bgmLibrary';
+import { usePoseDetection }          from '../../hooks/usePoseDetection';
+import { useJudgement, prewarmSpeech } from '../../hooks/useJudgement';
+import { useRecording }              from '../../hooks/useRecording';
+import { useSessionStore }           from '../../store/sessionStore';
+import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
+import { getBgmPlayer, getBgmTrackUrl } from '../../utils/bgmLibrary';
 // prewarmMic 제거 — 별도 오디오 getUserMedia가 마이크 팝업 유발
-import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
-import type { JudgementTag }         from '../../../types/session';
-import { Claude } from '../../../constants/claudeTheme';
-import type { TemplateIntro, TemplateOutro } from '../../../types/template';
+import { getTemplateByMissionId }    from '../../utils/videoTemplates';
+import type { JudgementTag }         from '../../types/session';
+import { Claude } from '../../constants/claudeTheme';
+import type { TemplateIntro, TemplateOutro } from '../../types/template';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1544,9 +1544,9 @@ export default function RecordScreen() {
 
   const navigateToResult = useCallback(() => {
     if (!videoUri) return;
-    if (!activeTemplate) { router.push({ pathname:'/(main)/result', params:{ videoUri } }); return; }
+    if (!activeTemplate) { router.push({ pathname:'/result', params:{ videoUri } }); return; }
     const vt = getTemplateByMissionId(activeTemplate.genre);
-    router.push({ pathname:'/(main)/result', params:{ videoUri, ...(vt ? { videoTemplateId:vt.id } : {}) } });
+    router.push({ pathname:'/result', params:{ videoUri, ...(vt ? { videoTemplateId:vt.id } : {}) } });
   }, [videoUri, activeTemplate, router]);
 
   const handleFrame = useCallback(async () => {}, []);

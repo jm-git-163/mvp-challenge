@@ -341,7 +341,7 @@ export default function HomeScreen() {
   const handleSelect = useCallback(
     (t: Template) => {
       startSession(t);
-      router.push('/(main)/record');
+      router.push('/record');
     },
     [startSession, router],
   );

@@ -20,17 +20,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSessionStore } from '../../../store/sessionStore';
-import { useUserStore }    from '../../../store/userStore';
+import { useSessionStore } from '../../store/sessionStore';
+import { useUserStore }    from '../../store/userStore';
 import {
   createSession, upsertUserProfile, fetchUserProfile,
-} from '../../../services/supabase';
-import { requestAutoEdit }  from '../../../services/api';
-import { composeVideo, type CompositorProgress } from '../../../utils/videoCompositor';
-import { getVideoTemplate, VIDEO_TEMPLATES }     from '../../../utils/videoTemplates';
-import type { JudgementTag, FrameTag } from '../../../types/session';
-import type { MissionType } from '../../../types/template';
-import { Claude, ClaudeFont } from '../../../constants/claudeTheme';
+} from '../../services/supabase';
+import { requestAutoEdit }  from '../../services/api';
+import { composeVideo, type CompositorProgress } from '../../utils/videoCompositor';
+import { getVideoTemplate, VIDEO_TEMPLATES }     from '../../utils/videoTemplates';
+import type { JudgementTag, FrameTag } from '../../types/session';
+import type { MissionType } from '../../types/template';
+import { Claude, ClaudeFont } from '../../constants/claudeTheme';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -972,13 +972,13 @@ export default function ResultScreen() {
   const goHome = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
     reset();
-    router.replace('/(main)/home');
+    router.replace('/(main)/home');   // home is still inside (main)
   }, [reset, composedUri, router]);
 
   const doRetake = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
     if (activeTemplate) startSession(activeTemplate);
-    router.replace('/(main)/record');
+    router.replace('/record');
   }, [activeTemplate, startSession, composedUri, router]);
 
   const hPad = Math.min(20, (width - 360) / 2 + 16);

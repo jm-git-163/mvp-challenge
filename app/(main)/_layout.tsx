@@ -53,22 +53,6 @@ export default function MainLayout() {
           tabBarLabel: '프로필',
         }}
       />
-      <Tabs.Screen
-        name="record/index"
-        options={{
-          title: '촬영',
-          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
-          tabBarButton: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="result/index"
-        options={{
-          title: '결과',
-          tabBarItemStyle: { display: 'none', width: 0, height: 0 },
-          tabBarButton: () => null,
-        }}
-      />
     </Tabs>
   );
 }
