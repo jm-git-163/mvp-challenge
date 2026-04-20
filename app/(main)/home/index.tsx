@@ -919,8 +919,10 @@ export default function HomeScreen() {
     selectedGenre !== 'all' ? { genre: selectedGenre as Template['genre'] } : undefined,
   );
 
-  const numCols   = width >= 700 ? 2 : 1;
-  const cardWidth = numCols === 2 ? (width - 56) / 2 : width - 32;
+  // Cap content width on desktop — prevents "lonely column on the left" bug
+  const contentW = Math.min(width, 1040);
+  const numCols   = contentW >= 700 ? 2 : 1;
+  const cardWidth = numCols === 2 ? (contentW - 56) / 2 : contentW - 32;
 
   const handleSelect = useCallback(
     (t: Template) => {
@@ -1131,7 +1133,13 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  listContent: { paddingBottom: 80, backgroundColor: 'transparent' },
+  listContent: {
+    paddingBottom: 80,
+    backgroundColor: 'transparent',
+    maxWidth: 1040,
+    width: '100%',
+    alignSelf: 'center',
+  },
   colWrap: { paddingHorizontal: 16, gap: 16, marginBottom: 16 },
 
   // Loading
