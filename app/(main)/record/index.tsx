@@ -23,6 +23,7 @@ import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } fro
 // prewarmMic 제거 — 별도 오디오 getUserMedia가 마이크 팝업 유발
 import { getTemplateByMissionId }    from '../../../utils/videoTemplates';
 import type { JudgementTag }         from '../../../types/session';
+import { Claude } from '../../../constants/claudeTheme';
 import type { TemplateIntro, TemplateOutro } from '../../../types/template';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
@@ -1757,15 +1758,15 @@ const r = StyleSheet.create({
     // @ts-ignore web
     backdropFilter:'blur(20px)', borderRadius:28, padding:28, alignItems:'center', gap:10, zIndex:20, borderWidth:1, borderColor:'rgba(255,255,255,0.1)' },
   infoEmoji:    { fontSize:60 },
-  infoTitle:    { color:'#fff', fontSize:24, fontWeight:'900', textAlign:'center',
+  infoTitle:    { color:'#fff', fontSize:24, fontWeight:'800', textAlign:'center', letterSpacing:-0.3,
     // @ts-ignore web
-    textShadow:'0 2px 12px rgba(124,58,237,0.6)' },
+    textShadow:'0 2px 12px rgba(204,120,92,0.55)' },
   infoMeta:     { color:'#94a3b8', fontSize:13, fontWeight:'600' },
   infoScene:    { color:'#cbd5e1', fontSize:13, textAlign:'center', lineHeight:20, fontStyle:'italic' },
-  introBadge:   { backgroundColor:'rgba(124,58,237,0.2)', borderRadius:20, paddingHorizontal:16, paddingVertical:6, borderWidth:1, borderColor:'rgba(124,58,237,0.5)' },
-  introBadgeText:{ color:'#c4b5fd', fontSize:12, fontWeight:'700' },
-  selfieChip:   { backgroundColor:'rgba(124,58,237,0.2)', borderRadius:12, paddingHorizontal:14, paddingVertical:6, borderWidth:1, borderColor:'rgba(124,58,237,0.4)' },
-  selfieText:   { color:'#a78bfa', fontSize:12, fontWeight:'700' },
+  introBadge:   { backgroundColor:'rgba(204,120,92,0.25)', borderRadius:999, paddingHorizontal:16, paddingVertical:6, borderWidth:1, borderColor:Claude.amber },
+  introBadgeText:{ color:'#F7E4D9', fontSize:11, fontWeight:'800', letterSpacing:1.2 },
+  selfieChip:   { backgroundColor:'rgba(204,120,92,0.22)', borderRadius:999, paddingHorizontal:14, paddingVertical:6, borderWidth:1, borderColor:Claude.amber },
+  selfieText:   { color:'#F7E4D9', fontSize:12, fontWeight:'800', letterSpacing:0.4 },
   flipBtnIdle:  { marginTop:4, backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:22, paddingVertical:12, borderRadius:20, borderWidth:1, borderColor:'rgba(255,255,255,0.2)', minHeight:46, justifyContent:'center' },
   flipBtnIdleText:{ color:'#e2e8f0', fontSize:13, fontWeight:'700' },
   timingBarWrap:{ position:'absolute', bottom:100, left:0, right:0, zIndex:10 },
@@ -1776,16 +1777,15 @@ const r = StyleSheet.create({
   stopIcon:     { width:26, height:26, backgroundColor:'#ef4444', borderRadius:6 },
   stopHint:     { color:'rgba(255,255,255,0.4)', fontSize:11, fontWeight:'500' },
   startArea:    { position:'absolute', bottom:28, alignSelf:'center', width:'90%', alignItems:'center', gap:14, zIndex:35 },
-  startBtn:     { width:'100%', paddingVertical:20, borderRadius:28, alignItems:'center', justifyContent:'center', minHeight:64,
+  startBtn:     { width:'100%', paddingVertical:20, borderRadius:999, alignItems:'center', justifyContent:'center', minHeight:64,
+    backgroundColor:Claude.ink, borderWidth:1, borderColor:Claude.amber,
     // @ts-ignore web
-    background:'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-    backgroundColor:'#7c3aed', overflow:'hidden', position:'relative' },
+    boxShadow:'0 14px 30px -10px rgba(204,120,92,0.7), inset 0 1px 0 rgba(255,255,255,0.15)',
+    overflow:'hidden', position:'relative' },
   startGlow:    { position:'absolute', inset:0 as any,
     // @ts-ignore web
-    boxShadow:'inset 0 1px 0 rgba(255,255,255,0.2)' },
-  startBtnText: { color:'#fff', fontSize:20, fontWeight:'900', letterSpacing:1,
-    // @ts-ignore web
-    textShadow:'0 2px 8px rgba(0,0,0,0.3)', zIndex:1 },
+    boxShadow:'inset 0 1px 0 rgba(247,228,217,0.25)' },
+  startBtnText: { color:Claude.paper, fontSize:17, fontWeight:'800', letterSpacing:1.8, zIndex:1 },
   cancelBtn:    { paddingVertical:10 },
   cancelText:   { color:'rgba(255,255,255,0.45)', fontSize:14, fontWeight:'500' },
   kbdHint:      { color:'rgba(255,255,255,0.35)', fontSize:11, fontWeight:'600', letterSpacing:0.5, marginTop:-2 },
