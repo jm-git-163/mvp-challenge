@@ -57,6 +57,13 @@ const GENRES = [
   { label: '영어',    value: 'english' },
 ];
 
+// Extra genre labels shown on cards even when not in the filter chip row
+const GENRE_LABEL_MAP: Record<string, string> = {
+  all: '전체', kpop: 'K-POP', fitness: '피트니스', news: '뉴스',
+  daily: '일상', travel: '여행', kids: '동화', hiphop: '힙합',
+  english: '영어', promotion: '프로모션', challenge: '챌린지',
+};
+
 const DIFF_LABELS = ['', '입문', '보통', '상급'];
 
 const MISSION_LABEL: Record<string, string> = {
@@ -76,7 +83,7 @@ interface CardProps {
 
 function ChallengeCard({ item: t, width, onPress }: CardProps) {
   const [hovered, setHovered] = useState(false);
-  const genreLabel = GENRES.find(g => g.value === t.genre)?.label ?? t.genre;
+  const genreLabel = GENRE_LABEL_MAP[t.genre] ?? t.genre;
   const diffLabel  = DIFF_LABELS[t.difficulty] ?? '';
   const missionSummary = useMemo(() => {
     const types = [...new Set(t.missions.map(m => m.type))];
