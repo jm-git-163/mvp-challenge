@@ -12,6 +12,12 @@
 - `package.json` `pretest` 훅으로 자동 실행. `vitest.config.ts` include 에 `scripts/**/*.test.{ts,js}` 추가.
 - Vitest: lint-routes 유닛 10/10 + 기존 517 유지 → **527/527 green**.
 
+### P1-B MediaPipe 로드 상태기 + retry (2026-04-20)
+- `engine/recognition/mediaPipeLoader.ts` 신규: DI 로 `importMediaPipe` 주입 가능, `PoseLoadStatus` 5상태 머신(`idle|loading|ready-real|ready-mock|error`), AbortSignal 3지점 체크, 프로덕션 mock 폴백 금지(`allowMockFallback=isDev`).
+- `resolvePoseConfig(env, isDev)` — `EXPO_PUBLIC_MEDIAPIPE_BASE` / `EXPO_PUBLIC_MEDIAPIPE_MODEL_URL` 외부화.
+- `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
+- 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
+
 ---
 
 ## Phase 5f — Canvas 2D PostProcess 폴백 (2026-04-20)
