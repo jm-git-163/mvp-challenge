@@ -66,6 +66,12 @@
 ### BLOCKER (Phase 0)
 - (없음)
 
+### BLOCKER (Phase 5f — PixiJS 포스트프로세스)
+- **현황**: 미진행. CLAUDE.md §11 — "PixiJS 도입은 사용자 승인 필요" 항목.
+- **이유**: 현재 package.json에 PixiJS 없음. 자율 모드로도 의존성 추가는 금지 대상.
+- **우회**: Phase 5i 템플릿 구현에서 `postProcess` 체인은 스펙으로만 보관하고, 렌더는 Canvas 2D 기본 필터(ctx.filter) 폴백으로 시뮬레이션. Safari 호환성 한계는 기록.
+- **사용자 조치**: 아침에 PixiJS v8 도입 승인하면 Phase 5f 재개.
+
 ---
 
 ## Phase 3 — 녹화 파이프라인 (기본)
