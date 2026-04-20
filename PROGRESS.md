@@ -32,6 +32,15 @@
 - 싱글톤 `getMediaSession()` + 테스트용 `__resetMediaSessionForTests()`.
 - Vitest: **15/15 pass**. `[자동검증완료]`
 
+### 0.4 `engine/session/wakeLock.ts` (2026-04-20)
+- docs/COMPATIBILITY §4 Wake Lock 관리자.
+- `WakeLockManager`: `acquire()`, `release()`, `getKind()`, `isActive()`.
+- 3단계 경로: native (navigator.wakeLock) → polyfill (NoSleep.js 주입) → none.
+- `visibilitychange` 리스너 자동 등록 — 탭 백그라운드→포그라운드 복귀 시 `desired`면 자동 재취득 (native wake lock은 백그라운드 진입 시 브라우저가 해제).
+- CLAUDE.md §3 FORBIDDEN #12: "Wake Lock 없이 녹화 시작 금지" — 녹화기는 이 매니저 acquire 성공을 선행 조건으로.
+- 싱글톤 + 테스트 리셋 API.
+- Vitest: **6/6 pass**. `[자동검증완료]`
+
 ### BLOCKER (Phase 0)
 - (없음)
 
