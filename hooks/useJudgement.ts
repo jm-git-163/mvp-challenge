@@ -154,14 +154,18 @@ export function useJudgement(): {
       let squatPhaseOut: 'up' | 'down' | 'unknown' = squatPhaseRef.current;
       let kneeAngleOut = lastKneeAngle.current;
 
-      // 스쿼트 카운터는 한쪽 다리(hip/knee/ankle 3개)라도 신뢰도 >0.25 면 작동
-      // 책상 카메라에서 한쪽만 잘 잡히는 상황 대응
-      const legOk = (h: number, k: number, a: number) =>
-        (landmarks[h]?.score ?? landmarks[h]?.visibility ?? 0) > 0.25 &&
-        (landmarks[k]?.score ?? landmarks[k]?.visibility ?? 0) > 0.25 &&
-        (landmarks[a]?.score ?? landmarks[a]?.visibility ?? 0) > 0.25;
-      const squatLmOk = landmarks.length >= 17 &&
-        (legOk(11, 13, 15) || legOk(12, 14, 16));
+      // 스쿼트 카운터 — 발목이 프레임 밖이어도 hip+knee+shoulder(상체 폴백)만
+      // 보이면 detectSquat 내부 ratio 폴백으로 카운트 가능하게 게이트 완화.
+      const conf = (i: number) =>
+        (landmarks[i]?.score ?? landmarks[i]?.visibility ?? 0);
+      const fullLeg = (h: number, k: number, a: number) =>
+        conf(h) > 0.25 && conf(k) > 0.25 && conf(a) > 0.25;
+      const torsoLeg = (s: number, h: number, k: number) =>
+        conf(s) > 0.25 && conf(h) > 0.25 && conf(k) > 0.25;
+      const squatLmOk = landmarks.length >= 17 && (
+        fullLeg(11, 13, 15) || fullLeg(12, 14, 16) ||
+        torsoLeg(5, 11, 13) || torsoLeg(6, 12, 14)
+      );
       if (template && template.genre === 'fitness' && squatLmOk) {
         const sq = detectSquat(landmarks);
         kneeAngleOut = sq.kneeAngle;
@@ -301,11 +305,11 @@ export function useJudgement(): {
             // 최소 10개 keypoint가 신뢰도 0.3 이상일 때만 "실제 검출"로 인정
             const hasRealLandmarks = landmarks.length >= 17 &&
               landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.3).length >= 10;
-            if (template && template.genre === 'fitness' && hasRealLandmarks && kneeAngleOut < 130) {
+            if (template && template.genre === 'fitness' && hasRealLandmarks && kneeAngleOut < 140) {
               const sqScore =
-                kneeAngleOut < 90  ? 1.00 :
-                kneeAngleOut < 110 ? 0.88 :
-                kneeAngleOut < 130 ? 0.72 : 0.50;
+                kneeAngleOut < 95  ? 1.00 :
+                kneeAngleOut < 115 ? 0.85 :
+                kneeAngleOut < 135 ? 0.65 : 0.45;
               score = sqScore;
             } else {
               // 실제 검출 없음 → 점수 0

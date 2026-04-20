@@ -24,6 +24,7 @@ import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import { VIDEO_TEMPLATES, getTemplateByMissionId } from '../../../utils/videoTemplates';
 import type { Template, MissionType } from '../../../types/template';
+import { Claude, ClaudeFont } from '../../../constants/claudeTheme';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -377,21 +378,21 @@ const sp = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     justifyContent: 'center',
-    backgroundColor: '#0d0d14',
+    backgroundColor: 'transparent',
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: Claude.hairline,
   },
   icon:  { fontSize: 13 },
-  label: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '600' },
+  label: { color: Claude.inkMuted, fontSize: 12, fontWeight: '700' },
 });
 
 // ─── Genre Filter ─────────────────────────────────────────────────────────────
@@ -445,10 +446,8 @@ function GenreFilter({ selected, onSelect }: GenreFilterProps) {
                         boxShadow: `0 6px 18px ${colors[0]}66, 0 1px 0 rgba(255,255,255,0.2) inset`,
                       }
                     : {
-                        backgroundColor: 'rgba(255,255,255,0.055)',
-                        borderColor: 'rgba(255,255,255,0.1)',
-                        // @ts-ignore web
-                        backdropFilter: 'blur(10px)',
+                        backgroundColor: 'rgba(255,255,255,0.6)',
+                        borderColor: Claude.hairline,
                       },
                 ]}
               >
@@ -498,7 +497,7 @@ const gf = StyleSheet.create({
     // @ts-ignore web
     textShadow: '0 1px 4px rgba(0,0,0,0.35)',
   },
-  labelInactive:{ color: 'rgba(255,255,255,0.55)' },
+  labelInactive:{ color: Claude.inkMuted },
 });
 
 // ─── Featured Row ("지금 인기") ───────────────────────────────────────────────
@@ -561,8 +560,10 @@ const fr = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 12,
   },
-  title: { fontSize: 17, fontWeight: '800', color: '#ffffff' },
-  sub:   { fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: '500' },
+  title: { fontSize: 18, fontWeight: '800', color: Claude.ink,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
+  sub:   { fontSize: 12, color: Claude.inkFaint, fontWeight: '700', letterSpacing: 0.3 },
   scroll: { paddingHorizontal: 16, gap: 12, paddingBottom: 8 },
   card: {
     width: 150,
@@ -617,17 +618,17 @@ const fr = StyleSheet.create({
   cardBody: {
     padding: 10,
     gap: 3,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: Claude.paper,
   },
   cardName: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '800',
+    color: Claude.ink,
   },
   cardMeta: {
     fontSize: 10,
-    color: 'rgba(255,255,255,0.4)',
-    fontWeight: '500',
+    color: Claude.inkFaint,
+    fontWeight: '700',
   },
 });
 
@@ -744,18 +745,18 @@ function ChallengeCard({ item: t, cardWidth, onPress }: CardProps) {
 
 const cc = StyleSheet.create({
   wrap: {
-    borderRadius: 26,
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(22,22,31,0.88)',
+    backgroundColor: Claude.paper,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.45,
+    borderColor: Claude.hairline,
+    shadowColor: '#3F2A1F',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.18,
     shadowRadius: 24,
-    elevation: 10,
+    elevation: 6,
     // @ts-ignore web
-    boxShadow: '0 12px 40px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06) inset',
+    boxShadow: '0 16px 36px -18px rgba(63,42,31,0.45), inset 0 1px 0 rgba(255,255,255,0.7)',
     // @ts-ignore web — hover feedback
     transition: 'transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
     // @ts-ignore web
@@ -850,19 +851,22 @@ const cc = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 4,
     gap: 8,
-    backgroundColor: 'rgba(22,22,31,0.92)',
+    backgroundColor: Claude.paper,
   },
   title: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#ffffff',
-    lineHeight: 21,
-    letterSpacing: -0.2,
+    color: Claude.ink,
+    lineHeight: 22,
+    letterSpacing: -0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   subtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
-    fontWeight: '500',
+    fontSize: 11,
+    color: Claude.inkFaint,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   pillRow: {
     flexDirection: 'row',
@@ -1044,9 +1048,9 @@ export default function HomeScreen() {
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0b0d1a',
+    backgroundColor: Claude.paper,
     // @ts-ignore web
-    backgroundImage: 'radial-gradient(140% 100% at 50% -10%, #1e1b4b 0%, #0b0d1a 55%, #05060d 100%)',
+    backgroundImage: 'radial-gradient(120% 90% at 50% -10%, #FBF7EE 0%, #F7F3EB 55%, #EEE6D5 100%)',
   },
   safeTop: { backgroundColor: 'transparent' },
 
@@ -1056,38 +1060,40 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: 'rgba(10,10,20,0.55)',
+    backgroundColor: 'rgba(247,243,235,0.85)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: Claude.hairline,
     // @ts-ignore web
     backdropFilter: 'blur(18px)',
   },
   headerLeft: { gap: 2 },
   headerLogo: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 0.5,
+    fontSize: 20,
+    fontWeight: '800',
+    color: Claude.ink,
+    letterSpacing: -0.3,
     // @ts-ignore web
-    textShadow: '0 0 20px rgba(124,58,237,0.6)',
+    fontFamily: ClaudeFont.serif,
   },
   headerSub: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.35)',
-    fontWeight: '500',
-    letterSpacing: 0.3,
+    fontSize: 10,
+    color: Claude.inkFaint,
+    fontWeight: '700',
+    letterSpacing: 1.6,
   },
   profileBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(124,58,237,0.15)',
+    backgroundColor: Claude.ink,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.35)',
+    borderColor: Claude.amber,
+    // @ts-ignore web
+    boxShadow: '0 4px 10px -4px rgba(31,27,22,0.5)',
   },
-  profileBtnText: { fontSize: 18 },
+  profileBtnText: { fontSize: 17, color: Claude.paper },
 
   featuredWrap: {
     backgroundColor: 'transparent',
@@ -1105,23 +1111,24 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: -0.2,
+    color: Claude.ink,
+    letterSpacing: -0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   sectionCountPill: {
-    backgroundColor: 'rgba(124,58,237,0.2)',
-    borderRadius: 12,
+    backgroundColor: Claude.ink,
+    borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.35)',
   },
   sectionCount: {
-    fontSize: 12,
-    color: '#a78bfa',
-    fontWeight: '700',
+    fontSize: 11,
+    color: Claude.paper,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
 
   listContent: { paddingBottom: 80, backgroundColor: 'transparent' },
@@ -1132,32 +1139,34 @@ const s = StyleSheet.create({
   skeleton: {
     width: '100%',
     height: 220,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 24,
+    backgroundColor: 'rgba(238,230,213,0.6)',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: Claude.hairline,
     // @ts-ignore web
     backgroundImage:
-      'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.14) 50%, rgba(255,255,255,0.04) 100%)',
+      'linear-gradient(90deg, rgba(238,230,213,0.2) 0%, rgba(204,120,92,0.18) 50%, rgba(238,230,213,0.2) 100%)',
     // @ts-ignore web
     backgroundSize: '200% 100%',
     // @ts-ignore web
     animation: 'skeletonSweep 1.4s ease-in-out infinite',
   },
-  loadingText: { color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 4 },
+  loadingText: { color: Claude.inkMuted, fontSize: 13, marginTop: 4, fontWeight: '600' },
 
   // Error / Empty
   center: { alignItems: 'center', paddingVertical: 48, gap: 12 },
-  errorText: { color: '#ef4444', fontSize: 14, textAlign: 'center' },
+  errorText: { color: Claude.danger, fontSize: 14, textAlign: 'center' },
   retryBtn: {
-    backgroundColor: '#7c3aed',
+    backgroundColor: Claude.ink,
     paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 999,
     minHeight: 50,
     justifyContent: 'center',
   },
-  retryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff' },
-  emptyDesc:  { fontSize: 13, color: 'rgba(255,255,255,0.35)' },
+  retryBtnText: { color: Claude.paper, fontWeight: '800', fontSize: 14, letterSpacing: 0.6 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: Claude.ink,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
+  emptyDesc:  { fontSize: 13, color: Claude.inkMuted, fontWeight: '600' },
 });

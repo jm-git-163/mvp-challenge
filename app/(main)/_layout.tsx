@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { Claude } from '../../constants/claudeTheme';
 
 export default function MainLayout() {
   return (
@@ -6,19 +7,19 @@ export default function MainLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0d0d14',
-          borderTopColor: 'rgba(255,255,255,0.06)',
+          backgroundColor: Claude.paper,
+          borderTopColor: Claude.hairline,
           borderTopWidth: 1,
-          height: 60,
+          height: 62,
           paddingBottom: 8,
           paddingTop: 4,
         },
-        tabBarActiveTintColor: '#7c3aed',
-        tabBarInactiveTintColor: 'rgba(255,255,255,0.35)',
+        tabBarActiveTintColor: Claude.amber,
+        tabBarInactiveTintColor: Claude.inkMuted,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '700',
-          letterSpacing: 0.3,
+          fontWeight: '800',
+          letterSpacing: 0.4,
         },
       }}
     >

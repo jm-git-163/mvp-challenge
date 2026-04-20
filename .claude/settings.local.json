@@ -61,7 +61,10 @@
       "Bash(dir \"C:\\\\Users\\\\user\\\\Desktop\\\\mvp\\\\dist\\\\_expo\\\\static\\\\js\\\\web\\\\\" /b)",
       "Bash(npm run *)",
       "Bash(node scripts/patch-dist.js)",
-      "Bash(tee /tmp/vercel-deploy.log)"
+      "Bash(tee /tmp/vercel-deploy.log)",
+      "Bash(git commit -m 'feat\\(home+pose\\): Claude studio paper hero + robust squat fallback *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://mvp-ivory-kappa.vercel.app/)",
+      "Bash(git commit -m 'feat: central Claude design tokens + squat counter ankle-occluded gate + global theme migration *)"
     ]
   }
 }

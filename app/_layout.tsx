@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useUserStore } from '../store/userStore';
 import { signInAnonymously, fetchUserProfile, getMockUserId } from '../services/supabase';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+import { Claude } from '../constants/claudeTheme';
 
 // ── 사이트 최초 진입 시 카메라+마이크 권한 1회 확보 ──────────────────────────────
 // 이후 챌린지/미션별로 팝업이 뜨지 않도록 미리 요청
@@ -56,10 +57,14 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle:      { backgroundColor: '#0f0e17' },
-          headerTintColor:  '#fff',
-          headerTitleStyle: { fontWeight: '700' },
-          contentStyle:     { backgroundColor: '#0f0e17' },
+          headerStyle:      { backgroundColor: Claude.shell },
+          headerTintColor:  Claude.paper,
+          headerTitleStyle: {
+            fontWeight: '700',
+            // @ts-ignore web
+            fontFamily: '"Tiempos Headline",Georgia,serif',
+          },
+          contentStyle:     { backgroundColor: Claude.shell },
         }}
       >
         <Stack.Screen name="(main)" options={{ headerShown: false }} />
