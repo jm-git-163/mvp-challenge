@@ -4,6 +4,41 @@
 
 ---
 
+## Phase 7 — 결과·배포·성능 엔진 (2026-04-20)
+
+### 7.1 `engine/result/shareSheet.ts`
+- 우선순위: navigator.share(files) → a[download] → clipboard.writeText.
+- `ShareOutcome`: shared / downloaded / copied / cancelled(AbortError) / failed.
+- DI: share / canShareFiles / triggerDownload / writeText / createObjectURL / revokeObjectURL.
+- `makeResultFilename(templateId, nowMs, ext)` → UTC 타임스탬프 기반 결정적 이름(`motiq_<id>_YYYYMMDD_HHMMSS.mp4`).
+- Vitest: **10/10 pass**.
+
+### 7.2 `engine/result/recordSummary.ts`
+- `summarizeResult(session, meta)` → headline(점수별 한국어) + missionLines(라벨·점수·가중 %) + shareText + starEmoji(⭐×n + ☆×rest).
+- MISSION_KO 매핑: squat/smile/gesture/pose_hold/loud_voice/script.
+- `humanBytes` 유틸.
+- Vitest: **6/6 pass**.
+
+### 7.3 `engine/studio/errorClassifier.ts`
+- 단일 `classifyError(err)` → `{ category, userTitle, actionLabel, recoverable, debugDetail }`.
+- 카테고리 12종: permission / notfound / busy / overconstrained / codec / network / storage / security / timeout / aborted / internal / unknown.
+- Error.name 우선, 이어서 메시지 키워드 스니핑.
+- Vitest: **14/14 pass**.
+
+### 7.4 `engine/studio/performanceBudget.ts`
+- `summarize(deltas, targetMs)` 순수 통계 → count/p50/p95/avg/droppedPct (drop = delta > 1.5×target).
+- `evaluate(deltas, budget)` → PerfReport with violations(한국어) + pass flag.
+- DEFAULT_BUDGET: 30fps / p95 50ms / 드롭 10%.
+- `PerfSampler(maxSamples=300)` FIFO + 10초 이상 갭 ignore(탭 suspend 복귀 대응).
+- `currentHeapUsedBytes()` Chromium `performance.memory` 래퍼.
+- Vitest: **12/12 pass** — 전체 **505/505 green**.
+
+### 7.5 `CHECKLIST_PHASE_7.md`
+- 결과 페이지 · Error Boundary · 실기기 7종 · 성능 · Lighthouse · 접근성 · 배포 체크.
+- 자동 검증 불가 항목을 사용자가 최종 확인하도록 chetkbox 형태로 나열.
+
+---
+
 ## Phase 6 — 통합 품질·엣지케이스 (2026-04-20)
 
 ### 6.1 `engine/studio/calibration.ts`
