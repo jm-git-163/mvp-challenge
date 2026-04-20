@@ -1325,7 +1325,7 @@ export default function RecordScreen() {
   const defaultFacing  = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
   const [facing, setFacing] = useState<'front'|'back'>(defaultFacing);
 
-  const { isReady, isRealPose, landmarks, error: poseError, setSquatMockMode } = usePoseDetection();
+  const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, resetVoice } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
@@ -1597,9 +1597,17 @@ export default function RecordScreen() {
                   {/* 포즈 미션이 필요한 장르에서만 표시 */}
                   {(activeTemplate?.genre === 'fitness' ||
                     activeTemplate?.missions.some(m => m.type === 'gesture' || m.type === 'timing' || m.type === 'expression')) && (
-                    <View style={[r.statusChip, isRealPose ? r.statusChipOk : r.statusChipWarn]}>
+                    <View style={[r.statusChip,
+                      poseStatus === 'ready-real' && isRealPose ? r.statusChipOk :
+                      poseStatus === 'ready-mock' ? r.statusChipWarn :
+                      poseStatus === 'error' ? r.statusChipWarn :
+                      r.statusChipWarn]}>
                       <Text style={r.statusChipText}>
-                        {isRealPose ? '🟢 포즈 감지 중' : (poseError ? '🔴 포즈 감지 실패' : '⏳ 포즈 모델 로딩...')}
+                        {poseStatus === 'ready-real' && isRealPose ? '🟢 포즈 감지 중'
+                          : poseStatus === 'ready-mock' ? '🟡 개발 모드 (모의 포즈)'
+                          : poseStatus === 'error' ? '🔴 포즈 엔진 실패'
+                          : poseStatus === 'loading' ? '⏳ 포즈 모델 다운로드 중'
+                          : '⏳ 대기 중'}
                       </Text>
                     </View>
                   )}
@@ -1726,6 +1734,24 @@ export default function RecordScreen() {
           {showOutro && activeTemplate.outro && (
             <OutroOverlay outro={activeTemplate.outro} score={finalScore} onDone={() => { setShowOutro(false); navigateToResult(); }} />
           )}
+
+          {/* 포즈 엔진 로드 실패 오버레이 — 녹화 시작 전에만 노출, 프로덕션에서는 조용히 mock 으로 넘어가지 않음 */}
+          {poseStatus === 'error' && isIdle && (
+            <View style={r.poseErrorOverlay} pointerEvents="auto">
+              <View style={r.poseErrorCard}>
+                <Text style={r.poseErrorTitle}>포즈 엔진을 불러오지 못했습니다</Text>
+                <Text style={r.poseErrorDetail}>{poseError ?? '네트워크 연결을 확인하고 다시 시도해주세요.'}</Text>
+                <View style={r.poseErrorRow}>
+                  <TouchableOpacity style={r.poseErrorBtnPrimary} onPress={retryPose}>
+                    <Text style={r.poseErrorBtnPrimaryText}>다시 시도</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={r.poseErrorBtnGhost} onPress={() => router.back()}>
+                    <Text style={r.poseErrorBtnGhostText}>취소</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </SafeAreaView>
     </View>
@@ -1743,6 +1769,15 @@ const r = StyleSheet.create({
   statusChipOk: { backgroundColor:'rgba(34,197,94,0.2)', borderColor:'rgba(34,197,94,0.6)' },
   statusChipWarn: { backgroundColor:'rgba(239,68,68,0.2)', borderColor:'rgba(239,68,68,0.6)' },
   statusChipText: { color:'#fff', fontSize:11, fontWeight:'700' },
+  poseErrorOverlay: { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.88)', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
+  poseErrorCard:    { width:'100%', maxWidth:360, backgroundColor:'#111', borderRadius:18, borderWidth:1, borderColor:'rgba(239,68,68,0.4)', padding:22, gap:14 },
+  poseErrorTitle:   { color:'#fff', fontSize:17, fontWeight:'900', textAlign:'center' },
+  poseErrorDetail:  { color:'rgba(255,255,255,0.72)', fontSize:13, lineHeight:18, textAlign:'center' },
+  poseErrorRow:     { flexDirection:'row', gap:10, marginTop:4 },
+  poseErrorBtnPrimary:      { flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#ef4444', alignItems:'center' },
+  poseErrorBtnPrimaryText:  { color:'#fff', fontSize:14, fontWeight:'900' },
+  poseErrorBtnGhost:        { flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'transparent', borderWidth:1, borderColor:'rgba(255,255,255,0.24)', alignItems:'center' },
+  poseErrorBtnGhostText:    { color:'#fff', fontSize:14, fontWeight:'700' },
   particle:{ position:'absolute', top:'10%', fontSize:30, zIndex:50,
     // @ts-ignore web
     animation:'float 1.6s ease-out forwards' },

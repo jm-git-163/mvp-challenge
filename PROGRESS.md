@@ -18,6 +18,12 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit 2: record UI 에 포즈 status+retry 노출 (2026-04-20)
+- `hooks/usePoseDetection.ts` (native) 도 `status`/`retry` 필드 추가 → web/native 인터페이스 통일.
+- `app/record/index.tsx` 에서 `poseStatus`·`retryPose` 구독. 상태 칩을 5상태(ready-real/ready-mock/error/loading/idle) 별로 KO 메시지 분기.
+- **에러 오버레이 신규**: `poseStatus==='error' && isIdle` 일 때 전체 화면 카드(`poseErrorOverlay`) 노출 — "다시 시도" 버튼이 `retryPose()` 호출, "취소" 버튼이 `router.back()`. 프로덕션에서 mock 폴백 조용 전환 완전 차단됨.
+- Vitest **539/539 green** 유지. TS 에러 내 파일 0건.
+
 ### P1-C 배포 설정 + patch-dist 검토 (2026-04-20)
 - `vercel.json`: `buildCommand`→`npm run build:web` (scripts.build:web 단일 경로), `installCommand`→`npm ci --legacy-peer-deps` 신규.
 - `scripts/patch-dist.js` 상단에 **"번들 JS 미변조" 검토 결과 명시**(read-only 해시 추출 + HTML head/body 삽입만). `q is not a function` 재발 가능성 제로 입증.

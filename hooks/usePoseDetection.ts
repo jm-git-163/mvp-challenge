@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import { normalizeLandmarks } from '../utils/poseUtils';
+import type { PoseLoadStatus } from '../engine/recognition/mediaPipeLoader';
 
 // ── 타입 (TF.js 없어도 컴파일 가능하도록 느슨하게) ──
 type PoseDetector = {
@@ -37,6 +38,10 @@ interface UsePoseDetectionReturn {
   landmarks: NormalizedLandmark[];
   detect: (base64Jpeg: string, width: number, height: number) => Promise<void>;
   error: string | null;
+  /** 로드 상태 (web hook 과 공통 인터페이스). native 는 error→'error', ready→'ready-real'. */
+  status: PoseLoadStatus;
+  /** 로드 실패 시 재시도 (native 에서는 no-op). */
+  retry: () => void;
   /** Deprecated — 더 이상 가짜 데이터를 생성하지 않음. 호환용 no-op */
   setSquatMockMode: (enabled: boolean) => void;
 }
@@ -138,6 +143,12 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   }, []); // eslint-disable-line
 
   const detect = useCallback(async (_base64Jpeg: string, _w: number, _h: number) => {}, []);
+  const retry  = useCallback(() => { /* native: TF.js 경로는 자동 폴백 없음 — no-op */ }, []);
 
-  return { isReady, isRealPose, landmarks, detect, error, setSquatMockMode };
+  const status: PoseLoadStatus =
+    error ? 'error'
+    : isReady ? 'ready-real'
+    : 'loading';
+
+  return { isReady, isRealPose, landmarks, detect, error, status, retry, setSquatMockMode };
 }
