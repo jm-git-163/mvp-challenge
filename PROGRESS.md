@@ -4,6 +4,41 @@
 
 ---
 
+## Phase 6 — 통합 품질·엣지케이스 (2026-04-20)
+
+### 6.1 `engine/studio/calibration.ts`
+- 촬영 시작 전 5종 체크: face_in_frame / body_in_frame / distance_ok / lighting_ok / microphone_live.
+- DEFAULT_THRESHOLDS: faceCenter tol 0.3, faceRatio 0.12~0.45, shoulder 0.18~0.55, minBrightness 0.18, minMicDbfs -55.
+- `evaluateCalibration(input, th)` → { kind, status: ok|fail|pending, message(한국어) }[].
+- `isCalibrationReady()` — 모든 required 체크 ok 시 true.
+- Vitest: **14/14 pass**.
+
+### 6.2 `engine/studio/countdown.ts`
+- 3-2-1 + GO 카운트다운 순수 상태기. tickMs=1000, goMs=500 기본.
+- `countdownState(elapsedMs)` → { phase, displayNumber, scale(0.6→1.1→1.0 pop), opacity(in/hold/out) }.
+- `countdownEvents()` — 햅틱/사운드 트리거용 경계 이벤트 배열.
+- Vitest: **10/10 pass**.
+
+### 6.3 `engine/studio/haptics.ts`
+- `navigator.vibrate` 래퍼 + 6종 패턴 (tick 15 / go 50 / success [20,40,20] / fail 80 / rep 25 / error [100,60,100]).
+- SSR-safe, iOS Safari 무음 폴백. `minIntervalMs(40)` 패턴별 throttle 로 rep 스팸 방지.
+- DI: `vibrate`/`now` 주입 가능 → 순수 테스트.
+- Vitest: **7/7 pass**.
+
+### 6.4 `engine/studio/retry.ts`
+- 지수 백오프 재시도 + AbortSignal 지원. 기본 maxAttempts=3, base=300ms, factor=2, jitter=0.3, cap=10s.
+- `withRetry(fn, policy, deps, signal)` — ctx.attempt 전달.
+- `computeBackoffMs` / `retryOnNames('NetworkError', ...)` 헬퍼.
+- Vitest: **11/11 pass**.
+
+### 6.5 `engine/studio/presenceWatcher.ts`
+- 프레임 이탈 감지. DEFAULT: warningAfterMs=3000, pauseAfterMs=10000.
+- `observe(isPresent, nowMs)` → `PresenceEvent[]` (enter/warn/pause/resume).
+- 복귀 후 다시 이탈 시 카운트 재시작. reset() 지원.
+- Vitest: **10/10 pass**.
+
+---
+
 ## Phase 5i — 레퍼런스 템플릿 3종 (2026-04-20)
 
 ### 5i.1 `data/templates/neon-arena.ts`
