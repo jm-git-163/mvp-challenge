@@ -204,11 +204,11 @@ function drawNewsScene(
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 11px sans-serif';
+  ctx.font = 'bold 11px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('CH NEWS', logoX + logoW / 2, logoY + 14);
   ctx.fillStyle = '#93c5fd';
-  ctx.font = '9px sans-serif';
+  ctx.font = '9px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.fillText('24/7 LIVE', logoX + logoW / 2, logoY + 28);
   ctx.restore();
 }
@@ -465,7 +465,7 @@ function drawTravelScene(
   const planeX = ((elapsed * 0.04) % (canvasW + 60)) - 30;
   const planeY = canvasH * 0.10 + Math.sin(elapsed * 0.001) * 8;
   ctx.save();
-  ctx.font = '22px sans-serif';
+  ctx.font = '22px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.globalAlpha = 0.7;
   ctx.fillText('✈️', planeX, planeY);
   ctx.globalAlpha = 1;
@@ -737,7 +737,7 @@ function drawMascot(
 
   // Emoji
   ctx.save();
-  ctx.font = `${size}px sans-serif`;
+  ctx.font = `${size}px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(emoji, x, finalY);
@@ -777,14 +777,14 @@ function drawLowerThird(
   // Name
   ctx.globalAlpha = alpha;
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = 'bold 18px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(name, barX + 12, barY + 8);
 
   // Title
   ctx.fillStyle = '#93c5fd';
-  ctx.font = '13px sans-serif';
+  ctx.font = '13px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.fillText(title, barX + 12, barY + 30);
 
   ctx.restore();
@@ -1125,7 +1125,7 @@ function drawClipFrame(
     ctx.globalAlpha = 0.9 + pulse * 0.1;
     ctx.fillStyle = '#c62828';
     rrPath(ctx, bx, by, 62, 22, 3); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText('● LIVE', bx + 7, by + 11);
     ctx.restore();
 
@@ -1147,7 +1147,7 @@ function drawClipFrame(
       const phase = elapsed * 0.005 + i * 1.57;
       const sparkAlpha = 0.5 + 0.5 * Math.sin(phase);
       ctx.save(); ctx.globalAlpha = sparkAlpha;
-      ctx.fillStyle = '#fbbf24'; ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fbbf24'; ctx.font = '16px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('★', sx as number, sy as number);
       ctx.restore();
     });
@@ -1157,7 +1157,7 @@ function drawClipFrame(
     const npx = cx + cw - 100; const npy = cy + 8;
     ctx.fillStyle = 'rgba(233,69,96,0.9)';
     rrPath(ctx, npx, npy, 95, 22, 4); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('♪ NOW PLAYING', npx + 47, npy + 11);
     ctx.restore();
 
@@ -1202,7 +1202,7 @@ function drawClipFrame(
     ctx.save(); ctx.globalAlpha = 0.85 + pulse * 0.15;
     ctx.fillStyle = '#ef4444';
     ctx.beginPath(); ctx.arc(cx + cw - 20, cy + 18, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText('REC', cx + cw - 28, cy + 18);
     ctx.restore();
 
@@ -1227,13 +1227,13 @@ function drawClipFrame(
     const lpx = cx + 12; const lpy = cy + 10;
     ctx.fillStyle = 'rgba(249,115,22,0.9)';
     rrPath(ctx, lpx, lpy, 90, 22, 4); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText('📍 CHALLENGE', lpx + 6, lpy + 11);
     ctx.restore();
     // Animated airplane watermark
     const apx = cx + ((elapsed * 0.025) % (cw + 30)) - 15;
     ctx.save(); ctx.globalAlpha = 0.15;
-    ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '18px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('✈', apx, cy + 28);
     ctx.restore();
 
@@ -1279,7 +1279,7 @@ function drawClipFrame(
     const cpx = cx + 10; const cpy = cy + 10;
     ctx.fillStyle = 'rgba(247,183,49,0.9)';
     rrPath(ctx, cpx, cpy, 72, 20, 3); ctx.fill();
-    ctx.fillStyle = '#0a0a0a'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#0a0a0a'; ctx.font = 'bold 11px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText('🎧 CYPHER', cpx + 5, cpy + 10);
     ctx.restore();
 
@@ -1297,7 +1297,7 @@ function drawClipFrame(
     ctx.save(); ctx.globalAlpha = 0.85 + pulse * 0.15;
     ctx.fillStyle = '#ef4444';
     ctx.beginPath(); ctx.arc(cx + cw - 20, cy + 18, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText('REC', cx + cw - 28, cy + 18);
     ctx.restore();
 
@@ -1316,7 +1316,7 @@ function drawClipFrame(
     corners.forEach(([sx, sy], i) => {
       const phase = elapsed * 0.004 + i * 0.8;
       ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(phase);
-      ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.font = '14px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       ctx.fillText('✨', sx as number, sy as number);
       ctx.restore();
     });
@@ -1474,7 +1474,7 @@ function drawIntroFrame(
   ctx.translate(centerX, centerY);
   ctx.scale(countScale, countScale);
   ctx.globalAlpha = alpha;
-  ctx.font        = `900 ${isGo ? 110 : 180}px sans-serif`;
+  ctx.font        = `900 ${isGo ? 110 : 180}px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif`;
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'middle';
   ctx.strokeStyle = 'rgba(0,0,0,0.85)';
@@ -1512,7 +1512,7 @@ function drawIntroFrame(
   ctx.arc(centerX - 96, badgeY, 4, 0, Math.PI * 2);
   ctx.fill();
   // 텍스트
-  ctx.font = '800 13px sans-serif';
+  ctx.font = '800 13px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.fillStyle = '#F7F3EB';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -1527,7 +1527,7 @@ function drawIntroFrame(
   ctx.globalAlpha = nameProg;
   // 이모지
   if (template.mascotEmoji) {
-    ctx.font = 'bold 56px sans-serif';
+    ctx.font = 'bold 56px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(template.mascotEmoji, centerX, nameY - 20);
   }
@@ -1548,7 +1548,7 @@ function drawIntroFrame(
   ctx.fillStyle = '#CC785C';
   ctx.fillRect(centerX - underW / 2, nameY + 72, underW, 2);
   // 메타 정보 (small caps)
-  ctx.font = '800 14px sans-serif';
+  ctx.font = '800 14px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   const metaLine = `${template.duration_ms / 1000} SECOND CHALLENGE`;
   ctx.fillText(metaLine, centerX, nameY + 85);
@@ -1642,7 +1642,7 @@ function drawOutroFrame(
   ctx.translate(centerX, centerY - 40);
   ctx.scale(trophyScale, trophyScale);
   ctx.globalAlpha = Math.min(1, progress * 2);
-  ctx.font        = '140px sans-serif';
+  ctx.font        = '140px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
   ctx.textAlign   = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = '#FFD700';
@@ -1687,7 +1687,7 @@ function drawOutroFrame(
     ctx.fillStyle = template.accentColor;
     rrPath(ctx, centerX - 140, centerY + 180, 280, 44, 22);
     ctx.fill();
-    ctx.font         = '800 20px sans-serif';
+    ctx.font         = '800 20px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
     ctx.fillStyle    = '#fff';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
@@ -1709,7 +1709,7 @@ function drawOutroFrame(
     ctx.fillStyle = 'rgba(204,120,92,0.7)';
     ctx.fillRect(centerX - 60, canvasH * 0.70, 120, 1);
     // 태그 라인 — 앰버 톤
-    ctx.font           = '700 16px sans-serif';
+    ctx.font           = '700 16px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
     ctx.fillStyle      = '#F7E4D9';
     ctx.textAlign      = 'center';
     ctx.textBaseline   = 'top';
@@ -1736,7 +1736,7 @@ function drawOutroFrame(
     ctx.arc(centerX - 108, canvasH * 0.78 + 27, 4, 0, Math.PI * 2);
     ctx.fill();
     // 텍스트 (크림 + 스페이싱)
-    ctx.font         = '800 15px sans-serif';
+    ctx.font         = '800 15px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
     ctx.fillStyle    = '#F7F3EB';
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
@@ -1765,7 +1765,7 @@ function drawTopZone(
 
   // Logo emoji on left
   if (zone.logoEmoji) {
-    ctx.font = '22px sans-serif';
+    ctx.font = '22px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(zone.logoEmoji, 12, zoneH * 0.38);
@@ -1773,14 +1773,14 @@ function drawTopZone(
 
   // Main text
   ctx.fillStyle = zone.textColor;
-  ctx.font = `${zone.bold ? 'bold ' : ''}${zone.fontSize ?? 20}px sans-serif`;
+  ctx.font = `${zone.bold ? 'bold ' : ''}${zone.fontSize ?? 20}px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(zone.text, canvasW / 2, zoneH * 0.36);
 
   // Subtext
   if (zone.subtext) {
-    ctx.font = `13px sans-serif`;
+    ctx.font = `13px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif`;
     ctx.fillStyle = zone.textColor;
     ctx.globalAlpha = 0.85;
     ctx.fillText(zone.subtext, canvasW / 2, zoneH * 0.70);
@@ -1805,7 +1805,7 @@ function drawBottomZone(
 
   ctx.fillStyle = zone.textColor;
   const fontSize = zone.fontSize ?? 15;
-  ctx.font = `${fontSize}px sans-serif`;
+  ctx.font = `${fontSize}px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif`;
   ctx.textBaseline = 'middle';
 
   if (zone.scrolling) {
@@ -1924,8 +1924,9 @@ function drawTextOverlay(
   const x = overlay.xPct * canvasW + offsetX;
   const y = overlay.yPct * canvasH + offsetY;
   const fontSize = overlay.fontSize;
-  const fontWeight = overlay.bold ? 'bold ' : '';
-  ctx.font = `${fontWeight}${fontSize}px sans-serif`;
+  const fontWeight = overlay.bold ? '900 ' : '600 ';
+  // Pro stack: Pretendard (Korean) → Inter (Latin) → system fallbacks
+  ctx.font = `${fontWeight}${fontSize}px "Pretendard Variable","Inter","Segoe UI",system-ui,-apple-system,sans-serif`;
   ctx.textBaseline = 'top';
 
   // Determine text align
@@ -1956,7 +1957,12 @@ function drawTextOverlay(
     ctx.strokeText(displayText, x, y);
   }
 
-  // Main text
+  // Main text — with drop shadow for legibility against video
+  if (!overlay.bgColor) {
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 1;
+  }
   ctx.fillStyle = overlay.color;
   ctx.fillText(displayText, x, y);
 
