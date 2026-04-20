@@ -67,3 +67,13 @@
 - (없음)
 
 ---
+
+## Phase 1 — 인식 엔진
+
+### 1.1 `engine/ar/oneEuroFilter.ts` (2026-04-20)
+- 1€ Filter (Casiez 2012) 구현. `minCutoff` + `beta` + `dCutoff` 파라미터.
+- 스칼라용 `OneEuroFilter` + N차원 벡터용 `OneEuroVectorFilter`.
+- 동일 타임스탬프 입력 방어, reset 지원.
+- Vitest: **7/7 pass** — 분산 감소·스텝 수렴·reset·차원 체크.
+
+---
