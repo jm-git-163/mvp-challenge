@@ -70,6 +70,16 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.7 `engine/missions/poseHoldMission.ts` + `loudVoiceMission.ts` (2026-04-20)
+- **PoseHold**: 8-관절 각도 벡터 기반 유사도 + 최근 20프레임 std 기반 안정성.
+  - hysteresis (enter 0.8 / exit 0.7 similarity) + `targetHoldMs` 3000ms.
+  - CLAUDE §5: `(sim*60 + stab*40) * holdRatio`. 안정성은 std 2°=1.0 / 20°=0.
+  - Vitest: **15/15 pass**.
+- **LoudVoice**: smoothedDbFS 입력 기반 활성/비활성 hysteresis (−20dB / −25dB).
+  - `targetSustainMs` 2000ms, dB 선형 매핑 (−40dB=0 / −10dB=1).
+  - CLAUDE §5: `dBScore*60 + sustainScore*40`.
+  - Vitest: **9/9 pass**.
+
 ### 1.6 `engine/missions/gestureMission.ts` (2026-04-20)
 - 다중 프롬프트 순차 진행 상태머신. 각 프롬프트당 `defaultTimeoutMs`(5000ms) + 최소 신뢰도 0.6.
 - 매칭 시점에 elapsed (응답속도) 기록. 타임아웃 시 실패 기록 후 진행.
