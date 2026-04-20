@@ -20,6 +20,18 @@
 - `runCompatibilityCheck(deps?)` — deps 주입으로 테스트 가능.
 - Vitest: **17/17 pass**. `[자동검증완료]`
 
+### 0.3 `engine/session/mediaSession.ts` (2026-04-20)
+- CLAUDE.md §3 FORBIDDEN #13 + §4.5 강제: 앱 전체 **단일 getUserMedia** 지점.
+- `MediaSession` 클래스: `acquire()`, `getStream()`, `release()`, `onEnded()`, `markStale()`.
+- 동시 `acquire()` in-flight promise dedupe → 동시 3회 호출해도 getUserMedia 1회.
+- `FALLBACK_CHAIN` 4단계: 720×1280@30 → 640×480@24 → facingMode only → `{video:true,audio:true}`.
+- `classifyError`: NotAllowed/Security=denied, NotFound=notfound, NotReadable=notreadable, Overconstrained=overconstrained.
+- denied/notfound → 즉시 throw (폴백 중단). notreadable/overconstrained → 다음 제약 재시도.
+- track `ended` 이벤트 → stale 마킹 + `onEnded('track-ended')` 통지 (USB 분리·권한 철회 복구).
+- `DEFAULT_CONSTRAINTS`: docs/COMPATIBILITY §3 그대로 (EC/NS/AGC 48kHz audio).
+- 싱글톤 `getMediaSession()` + 테스트용 `__resetMediaSessionForTests()`.
+- Vitest: **15/15 pass**. `[자동검증완료]`
+
 ### BLOCKER (Phase 0)
 - (없음)
 
