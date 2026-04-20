@@ -18,6 +18,13 @@
 - `hooks/usePoseDetection.web.ts` 리팩터: 로더 위임 + `status`/`retry()` 노출, 더 이상 프로덕션에서 조용히 mock 전환 안 됨.
 - 테스트 12/12: config 해석 4, load 성공/실패/mock-fallback/abort 7, describeStatus 1. → **539/539 green**.
 
+### Focused Commit 4: result 파이프라인 검증 + COEP 차단 해제 (2026-04-20)
+- **핵심 버그 발견/수정**: `vercel.json` 의 `Cross-Origin-Embedder-Policy: require-corp` + `Cross-Origin-Opener-Policy: same-origin` 헤더가 MediaPipe CDN(jsdelivr)·Google Storage 모델·SoundHelix BGM 등 **모든 크로스오리진 리소스 로드를 차단**하고 있었음. 저장소 전역 grep 결과 `SharedArrayBuffer`/`crossOriginIsolated` 사용처 0 → COEP 강제의 필요성 자체가 없었음. 헤더 제거 → MediaPipe/BGM 로드 복구.
+- `CORP: cross-origin` 만 유지(잔여 리소스가 외부 접근 허용되도록).
+- 코드 흐름 정적 검증: `/record` → `router.push('/result', { videoUri, videoTemplateId })` → `videoTemplate = getVideoTemplate('vt-kpop')` → `composeVideo(template, clips)` → MediaRecorder(MP4 우선 폴백체인) → `composedBlob` → `<a download>` 트리거. 경로 상 치명 버그 없음.
+- Vitest **539/539 green**.
+- **라이브 확인 필요**: 실제 K-POP 카드 탭 → 녹화 → 결과 → 다운로드 완주는 Vercel 재배포 후 사용자 체크.
+
 ### Focused Commit 3: neon-arena BGM 실재화 (2026-04-20)
 - `scripts/generate-placeholder-bgm.js` 신규: 순수 Math 합성(킥+서브베이스+아르페지오+패드) → `public/bgm/synthwave-128.wav` (1.7MB, 20초 128BPM) + `.beats.json` (43 beats, 11 downbeats). 외부 라이선스 0.
 - `package.json`: `gen:bgm` 스크립트 추가.
