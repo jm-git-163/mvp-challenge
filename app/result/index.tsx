@@ -1052,7 +1052,8 @@ export default function ResultScreen() {
 
   // Handlers
   const handleCompose = useCallback(async () => {
-    if (!videoTemplate || !rawVideoUri) return;
+    const t = layeredTemplate || videoTemplate;
+    if (!t || !rawVideoUri) return;
     setComposing(true);
     setComposeError(null);
     setProgress({ phase: '준비 중...', percent: 0 });
@@ -1064,7 +1065,7 @@ export default function ResultScreen() {
         blob,
         duration_ms: slot.end_ms - slot.start_ms,
       }));
-      const resultBlob = await composeVideo(videoTemplate, clips, p => setProgress(p));
+      const resultBlob = await composeVideo(t as any, clips, p => setProgress(p));
       const composedUrl = URL.createObjectURL(resultBlob);
       setComposedBlob(resultBlob);
       setComposedUri(composedUrl);

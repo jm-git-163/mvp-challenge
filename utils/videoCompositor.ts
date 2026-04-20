@@ -9,6 +9,7 @@ import {
   BgmSpec,
   ClipArea,
 } from './videoTemplates';
+import type { Template as LayeredTemplate } from '../engine/templates/schema';
 import {
   drawFilmGrain,
   drawLightLeak,
@@ -2175,14 +2176,53 @@ function drawStudioWrap(
 }
 
 // ---------------------------------------------------------------------------
+// Main compositor helpers
+// ---------------------------------------------------------------------------
+
+function layeredToLegacy(lt: LayeredTemplate): VideoTemplate {
+  const map: Record<string, string> = {
+    neon_cyberpunk: 'kpop',
+    cinematic_news: 'news',
+    pop_candy: 'vlog',
+    warm_asmr: 'english',
+    luxury_night: 'hiphop',
+  };
+  const style = map[lt.mood] || 'vlog';
+  const colors: Record<string, string> = {
+    kpop: '#e94560', news: '#1565c0', vlog: '#7c3aed', english: '#3498db', hiphop: '#f7b731',
+  };
+
+  return {
+    id: lt.id,
+    name: lt.title,
+    style: style as any,
+    accentColor: colors[style] || '#7c3aed',
+    duration_ms: lt.duration * 1000,
+    bgm: {
+      genre: style as any,
+      bpm: 128,
+      volume: lt.bgm.volume,
+    },
+    clip_slots: [
+      { id: 'main', start_ms: 5000, end_ms: lt.duration * 1000 - 3000 },
+    ],
+    text_overlays: [],
+    hashtags: [],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Main compositor
 // ---------------------------------------------------------------------------
 
 export async function composeVideo(
-  template: VideoTemplate,
+  templateOrLayered: VideoTemplate | LayeredTemplate,
   clips: RecordedClip[],
   onProgress: (p: CompositorProgress) => void,
 ): Promise<Blob> {
+  const template = ('mood' in templateOrLayered) 
+    ? layeredToLegacy(templateOrLayered)
+    : templateOrLayered;
   return new Promise<Blob>((resolve, reject) => {
     if (!clips || clips.length === 0) {
       reject(new Error('No clips provided'));

@@ -3,14 +3,13 @@
  * 웹 전용 — MediaPipe Tasks Vision PoseLandmarker.
  *
  * Phase 1-B: mediaPipeLoader (순수 모듈)로 로딩 로직 위임.
- *   - status 필드 노출: 'idle' | 'loading' | 'ready-real' | 'ready-mock' | 'error'
+ *   - status 필드 노출: 'idle' | 'loading' | 'ready-real' | 'error'
  *   - retry() 노출: 실패 후 재시도 (landmarker 정리 후 load 재실행)
  *   - 프로덕션에서는 mock 폴백 금지 (allowMockFallback=false)
  *   - BASE/MODEL URL 환경변수화 (EXPO_PUBLIC_MEDIAPIPE_BASE / _MODEL_URL)
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { NormalizedLandmark } from '../utils/poseUtils';
-import { generateMockPose, generateSquatMockPose } from '../utils/poseUtils';
 import {
   loadPoseLandmarker,
   resolvePoseConfig,
@@ -27,7 +26,6 @@ interface UsePoseDetectionReturn {
   error: string | null;
   status: PoseLoadStatus;
   retry: () => void;
-  setSquatMockMode: (enabled: boolean) => void;
 }
 
 const DETECT_INTERVAL_MS = 100;
@@ -51,14 +49,7 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
   const landmarkerRef    = useRef<PoseLandmarkerHandle | null>(null);
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mockTimerRef     = useRef(0);
-  const useMockRef       = useRef(false);
-  const squatMockRef     = useRef(false);
   const lastTimestampRef = useRef(0);
-
-  const setSquatMockMode = useCallback((enabled: boolean) => {
-    squatMockRef.current = enabled;
-  }, []);
 
   const retry = useCallback(() => {
     setError(null);
@@ -67,15 +58,6 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   }, []);
 
   const runDetection = useCallback(() => {
-    if (useMockRef.current) {
-      mockTimerRef.current += DETECT_INTERVAL_MS;
-      const pose = squatMockRef.current
-        ? generateSquatMockPose(mockTimerRef.current)
-        : generateMockPose(mockTimerRef.current);
-      setLandmarks(pose);
-      return;
-    }
-
     const landmarker = landmarkerRef.current as any;
     if (!landmarker) return;
 
@@ -133,18 +115,10 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
       if (out.status === 'ready-real' && out.handle) {
         landmarkerRef.current = out.handle;
-        useMockRef.current = false;
         setError(null);
         setStatus('ready-real');
         return;
       }
-      if (out.status === 'ready-mock') {
-        useMockRef.current = true;
-        setError(out.error?.message ?? 'MediaPipe unavailable — using mock pose');
-        setStatus('ready-mock');
-        return;
-      }
-      useMockRef.current = false;
       setError(out.error?.message ?? '포즈 엔진 로드 실패');
       setStatus('error');
     })();
@@ -160,7 +134,7 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
   // ── Detection loop ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (status !== 'ready-real' && status !== 'ready-mock') return;
+    if (status !== 'ready-real') return;
     intervalRef.current = setInterval(runDetection, DETECT_INTERVAL_MS);
     return () => {
       if (intervalRef.current !== null) {
@@ -171,13 +145,12 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   }, [status, runDetection]);
 
   return {
-    isReady: status === 'ready-real' || status === 'ready-mock',
+    isReady: status === 'ready-real',
     isRealPose,
     landmarks,
     detect: async () => {},
     error,
     status,
     retry,
-    setSquatMockMode,
   };
 }

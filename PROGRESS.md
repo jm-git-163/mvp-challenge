@@ -421,3 +421,12 @@
 - Vitest: **7/7 pass** — 분산 감소·스텝 수렴·reset·차원 체크.
 
 ---
+
+### Focused Commit 1 (Session 1): Pose mock 제거 + 레이어 렌더러 5종 (2026-04-20)
+- `hooks/usePoseDetection.web.ts`: `ready-mock` 분기 및 가짜 포즈 생성 로직 완전 삭제. 운영 환경에서의 불투명한 mock 사용 차단 (B-4 목표).
+- `engine/composition/layers/`: 신규 디렉터리에 5종 레이어 렌더러 구현 (`camera_feed`, `camera_frame`, `score_hud`, `timer_ring`, `mission_prompt`).
+- `utils/videoCompositor.ts`: `composeVideo` 가 신규 `LayeredTemplate` 을 직접 수용하도록 확장.
+- `app/result/index.tsx`: 챌린지 결과 합성 시 `layeredTemplate` 우선 사용하도록 연동.
+- Vitest: **550/550 green** 유지.
+
+---
