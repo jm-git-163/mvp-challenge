@@ -70,6 +70,13 @@
 
 ## Phase 1 — 인식 엔진
 
+### 1.6 `engine/missions/gestureMission.ts` (2026-04-20)
+- 다중 프롬프트 순차 진행 상태머신. 각 프롬프트당 `defaultTimeoutMs`(5000ms) + 최소 신뢰도 0.6.
+- 매칭 시점에 elapsed (응답속도) 기록. 타임아웃 시 실패 기록 후 진행.
+- CLAUDE §5: `meanConfidence*70 + responseSpeed*30`, 매칭률로 곱해 실패 반영.
+- fastResponseMs(800ms)=만점, slowResponseMs(4000ms)=0, 선형 보간.
+- Vitest: **11/11 pass**.
+
 ### 1.5 `engine/recognition/faceTypes.ts` + `engine/missions/smileMission.ts` (2026-04-20)
 - ARKit 표준 blendshape 추출 유틸: `smileIntensity=max(L,R)`, `jawOpen`, `browUp`, `blinkAmount`.
 - `SmileMission`: hysteresis (활성 0.5/비활성 0.35) + peak + bestSustainedMs 추적.
