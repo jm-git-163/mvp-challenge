@@ -84,6 +84,15 @@
 - MediaRecorder 생성자 + Blob 생성자 DI로 node 환경 테스트 가능.
 - Vitest: **8/8 pass**.
 
+### 3.4 `engine/recording/compositor.ts` (2026-04-20)
+- Phase 3용 **단순 컴포지터** — 본격 `LayerEngine`은 Phase 5로 연기 (CLAUDE.md 로드맵 준수).
+- `requestAnimationFrame` 루프 + `targetFps` 게이팅 (기본 30fps).
+- `addRenderer(r)` 체인 + unsubscribe, 렌더러 예외는 try/catch로 격리.
+- `RendererContext`: `{ ctx, width, height, tMs, frameIndex }` — 주입 가능한 canvas 컨텍스트.
+- `drawOnce()`: 녹화기가 강제로 한 프레임 그리는 용도.
+- `raf`/`cancelRaf`/`now` 전부 DI → node 환경에서 프레임 타이밍 검증 가능.
+- Vitest: **9/9 pass**.
+
 ### 3.3 `engine/recording/audioMixer.ts` (2026-04-20)
 - mic / bgm / sfx 3-버스 구조 + `MediaStreamAudioDestinationNode` 출력.
 - 발화 덕킹: `setVoiceActive(true)` → `setTargetAtTime` attack 0.08s, release 0.3s.
