@@ -41,6 +41,14 @@
 - 싱글톤 + 테스트 리셋 API.
 - Vitest: **6/6 pass**. `[자동검증완료]`
 
+### 0.5 `engine/session/popupSuppressor.ts` (2026-04-20)
+- docs/EDGE_CASES §5: 촬영 중 브라우저 팝업·모달 억제.
+- `beforeinstallprompt` preventDefault + deferred 저장 → 촬영 완료 후 `promptInstall()`로 재트리거 가능.
+- 녹화 중 `beforeunload` 가드 (이탈 confirm 유도).
+- 녹화 중 `contextmenu`/`dragstart` 차단 (모바일 길게 누르기 메뉴 방지).
+- `setRecording(flag)` 토글로 상태 동기화. CLAUDE.md §3 FORBIDDEN #17 "alert/confirm/prompt 금지" 준수.
+- Vitest: **8/8 pass**. `[자동검증완료]`
+
 ### BLOCKER (Phase 0)
 - (없음)
 
