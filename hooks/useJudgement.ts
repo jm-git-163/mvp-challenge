@@ -41,6 +41,18 @@ let _finalCb:   ((t: string) => void) | null = null;
 let _progressCb: ((s: number) => void) | null = null;
 let _voiceStopFn: (() => void) | null = null;
 
+// FIX-I8 (2026-04-21): webkit SpeechRecognition 볼륨 폴백.
+//   Android Chrome 에서 SR 이 starts/ends 는 쌓이는데 results 가 0 이 지속되는
+//   현상(구글 ASR 백엔드 조용히 실패) 때문에 voice_read 점수가 영구 0 에 갇힘.
+//   폴백: starts ≥ 3 AND results = 0 AND 마이크 볼륨이 임계 이상 지속 감지되면
+//   "발화는 했는데 엔진이 못 받아준" 상태로 간주하고 부분점수(최대 0.7) 부여.
+//   이건 정확도가 아닌 "참여도" 기반이며, 엔진 동작 시엔 발동 안 됨.
+let _voiceAboveThreshMs = 0;
+let _voiceLastElapsedMs = 0;
+const VOICE_RMS_THRESHOLD = 0.04;     // 0~1 정규화 RMS, 일반 실내 노이즈보다 조금 위
+const VOICE_FALLBACK_CAP  = 0.7;       // 부분점수 상한 70 점
+const VOICE_FALLBACK_FULL_MS = 8_000;  // 8초 누적 발화 → 상한 도달
+
 // Web Audio 볼륨 감지 (SpeechRecognition 실패 시 백업 스코어)
 let _audioCtx: AudioContext | null = null;
 let _analyser: AnalyserNode | null = null;
@@ -292,6 +304,26 @@ export function useJudgement(): {
             // Web Audio 볼륨: 점수에는 영향 없음, "발화 중" 감지 UI용
             setupAudioAnalyser();
 
+            // FIX-I8: 볼륨 누적 + SR 실패 시 폴백 스코어
+            {
+              const dt = Math.max(0, Math.min(500, elapsedMs - _voiceLastElapsedMs));
+              _voiceLastElapsedMs = elapsedMs;
+              const vol = getVolume();
+              if (vol > VOICE_RMS_THRESHOLD) _voiceAboveThreshMs += dt;
+
+              const sr0 = getGlobalSpeechRecognizer();
+              const diag = sr0.getDiagnostic();
+              const srStuck = diag.starts >= 3 && diag.results === 0;
+              if (srStuck && _voiceAboveThreshMs > 1_500) {
+                const ratio = Math.min(1, _voiceAboveThreshMs / VOICE_FALLBACK_FULL_MS);
+                const fallback = VOICE_FALLBACK_CAP * ratio;
+                if (fallback > voiceScoreRef.current) {
+                  voiceScoreRef.current = fallback;
+                  score = fallback;
+                }
+              }
+            }
+
             // ── 세션 레벨 인식 시작 (1회만) ────────────────────────────────
             const sr = getGlobalSpeechRecognizer();
 
@@ -444,6 +476,8 @@ export function useJudgement(): {
     _interimCb     = null;
     _finalCb       = null;
     _progressCb    = null;
+    _voiceAboveThreshMs = 0;
+    _voiceLastElapsedMs = 0;
 
     // 오디오 분석기 초기화
     if (_analyser) { _analyser.disconnect(); _analyser = null; }
