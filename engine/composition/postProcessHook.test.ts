@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   applyTemplatePostProcess,
   applyChromaticAberration2d,
+  applyLut2d,
   _resetChromaticOffscreen,
 } from './postProcessHook';
 
@@ -54,16 +55,21 @@ describe('applyTemplatePostProcess (Canvas 2D 폴백)', () => {
     expect(ctx.fillRect.mock.calls.length).toBeGreaterThan(10);
   });
 
-  it('미지원 kind (lut/bokeh 등) → 스킵만, throw 없음', () => {
+  it('미지원 kind (bokeh/pixelate/saturation) → 스킵만, throw 없음', () => {
     const ctx = makeCtx();
     expect(() => applyTemplatePostProcess(ctx, [
-      { kind: 'crt_scanlines', opacity: 0.2 },
-      { kind: 'lut', path: 'x' },
       { kind: 'bokeh', strength: 0.5 },
       { kind: 'pixelate', size: 4 },
       { kind: 'saturation', boost: 0.3 },
       { kind: 'unknown_kind', foo: 1 } as any,
     ], 0, {})).not.toThrow();
+  });
+
+  it('crt_scanlines: drawScanlines 헬퍼가 fillRect 다수 호출', () => {
+    const ctx = makeCtx();
+    applyTemplatePostProcess(ctx, [{ kind: 'crt_scanlines', intensity: 0.25 }], 0, {});
+    // 1920/2 = 960 줄 × fillRect 1회 → 충분히 큼
+    expect(ctx.fillRect.mock.calls.length).toBeGreaterThan(100);
   });
 
   it('beatIntensity=1 일 때 bloom alpha 부스트 적용 (drawImage 여전히 호출)', () => {
@@ -153,5 +159,73 @@ describe('applyChromaticAberration2d (Session-3 Candidate J)', () => {
     // base 3 + onset 4*1 = offset 7 — offscreen 복사 발생
     expect(offCtx.drawImage).toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+});
+
+describe('applyLut2d (Session-4 Candidate P)', () => {
+  function makeImgCtx(w: number, h: number, fill: [number, number, number]) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = fill[0]; data[i + 1] = fill[1]; data[i + 2] = fill[2]; data[i + 3] = 255;
+    }
+    const img = { data, width: w, height: h } as ImageData;
+    const put = vi.fn();
+    const ctx = {
+      canvas: { width: w, height: h },
+      getImageData: vi.fn(() => img),
+      putImageData: put,
+    } as any;
+    return { ctx, img, put };
+  }
+
+  it('intensity=0 → no-op (getImageData 호출 안함)', () => {
+    const { ctx } = makeImgCtx(2, 2, [128, 128, 128]);
+    applyLut2d(ctx, 2, 2, 'cinematic', 0);
+    expect(ctx.getImageData).not.toHaveBeenCalled();
+  });
+
+  it('mono preset + intensity=1 → R/G/B 모두 동일 (흑백)', () => {
+    const { ctx, img, put } = makeImgCtx(1, 1, [200, 100, 50]);
+    applyLut2d(ctx, 1, 1, 'mono', 1);
+    expect(put).toHaveBeenCalled();
+    const [r, g, b] = [img.data[0], img.data[1], img.data[2]];
+    expect(r).toBe(g);
+    expect(g).toBe(b);
+  });
+
+  it('warm preset: R 증가 + B 감소 방향 (intensity=1)', () => {
+    const { ctx, img } = makeImgCtx(1, 1, [100, 100, 100]);
+    applyLut2d(ctx, 1, 1, 'warm', 1);
+    expect(img.data[0]).toBeGreaterThan(100); // R up
+    expect(img.data[2]).toBeLessThan(100);    // B down
+  });
+
+  it('cool preset: B 증가 방향', () => {
+    const { ctx, img } = makeImgCtx(1, 1, [100, 100, 100]);
+    applyLut2d(ctx, 1, 1, 'cool', 1);
+    expect(img.data[2]).toBeGreaterThan(100);
+  });
+
+  it('getImageData throw (tainted canvas) → 조용히 skip', () => {
+    const ctx: any = {
+      canvas: { width: 10, height: 10 },
+      getImageData: vi.fn(() => { throw new Error('tainted'); }),
+      putImageData: vi.fn(),
+    };
+    expect(() => applyLut2d(ctx, 10, 10, 'cinematic', 0.5)).not.toThrow();
+    expect(ctx.putImageData).not.toHaveBeenCalled();
+  });
+
+  it('템플릿 체인: lut kind 가 applyTemplatePostProcess 에서 실행 (putImageData 호출)', () => {
+    const { ctx, put } = makeImgCtx(4, 4, [50, 50, 50]);
+    applyTemplatePostProcess(ctx, [{ kind: 'lut', preset: 'vintage', intensity: 0.8 }], 0, {});
+    expect(put).toHaveBeenCalled();
+  });
+
+  it('픽셀 값 0/255 clamp', () => {
+    const { ctx, img } = makeImgCtx(1, 1, [255, 255, 255]);
+    applyLut2d(ctx, 1, 1, 'warm', 1);
+    expect(img.data[0]).toBeLessThanOrEqual(255);
+    expect(img.data[0]).toBeGreaterThanOrEqual(0);
   });
 });

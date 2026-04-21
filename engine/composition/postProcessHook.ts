@@ -19,6 +19,7 @@
 import {
   drawVignette,
   drawFilmGrain,
+  drawScanlines,
   makeSeededRng,
   type PostFxInput,
 } from '../effects/postProcess2d';
@@ -137,6 +138,69 @@ function applyBloom2d(
   ctx.restore();
 }
 
+// ── Focused Session-4 Candidate P: LUT 프리셋 ───────────────────────────────
+export type LutPreset = 'cool' | 'warm' | 'cinematic' | 'vintage' | 'mono';
+
+/** r/g/b 채널별 게인 + 전체 오프셋 + 포화도(sat). 모두 [0,1] 혼합 대상. */
+interface LutKernel {
+  rGain: number; gGain: number; bGain: number;
+  rOff:  number; gOff:  number; bOff:  number;
+  sat:   number; // 1=원본, 0=흑백
+}
+
+const LUT_KERNELS: Record<LutPreset, LutKernel> = {
+  cool:      { rGain: 0.92, gGain: 1.00, bGain: 1.12, rOff:   0, gOff:   0, bOff:  +6, sat: 0.95 },
+  warm:      { rGain: 1.10, gGain: 1.00, bGain: 0.90, rOff:  +8, gOff:  +3, bOff:   0, sat: 1.05 },
+  cinematic: { rGain: 1.06, gGain: 0.96, bGain: 1.04, rOff:  +4, gOff:  -2, bOff:  +6, sat: 1.08 },
+  vintage:   { rGain: 1.08, gGain: 0.94, bGain: 0.82, rOff: +12, gOff:  +6, bOff: -10, sat: 0.85 },
+  mono:      { rGain: 1.00, gGain: 1.00, bGain: 1.00, rOff:   0, gOff:   0, bOff:   0, sat: 0.0  },
+};
+
+/**
+ * 선형 LUT 프리셋을 ImageData 에 적용. 전체 프레임 픽셀 루프라 비용이 있으므로
+ *   - 저사양 tier 에서는 templatePostProcess 상위에서 step 제거 권장.
+ *   - Canvas 2D 단일 인스턴스에서만 동작.
+ */
+export function applyLut2d(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  preset: LutPreset,
+  intensity: number,
+): void {
+  if (intensity <= 0.001) return;
+  const k = LUT_KERNELS[preset] ?? LUT_KERNELS.cinematic;
+  let img: ImageData;
+  try {
+    img = ctx.getImageData(0, 0, W, H);
+  } catch {
+    return; // tainted canvas (cross-origin) 또는 비지원
+  }
+  const data = img.data;
+  const t = intensity;
+  const inv = 1 - t;
+  const sat = k.sat;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    // gain + offset
+    let nr = r * k.rGain + k.rOff;
+    let ng = g * k.gGain + k.gOff;
+    let nb = b * k.bGain + k.bOff;
+    // saturation (around luma)
+    if (sat !== 1) {
+      const y = 0.2126 * nr + 0.7152 * ng + 0.0722 * nb;
+      nr = y + (nr - y) * sat;
+      ng = y + (ng - y) * sat;
+      nb = y + (nb - y) * sat;
+    }
+    // mix with original by intensity, clamp
+    data[i]     = Math.max(0, Math.min(255, r * inv + nr * t));
+    data[i + 1] = Math.max(0, Math.min(255, g * inv + ng * t));
+    data[i + 2] = Math.max(0, Math.min(255, b * inv + nb * t));
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
 export interface PostProcessState {
   beatIntensity?: number;
   [k: string]: unknown;
@@ -196,9 +260,22 @@ export function applyTemplatePostProcess(
           applyChromaticAberration2d(ctx, px);
           break;
         }
-        // 아래 항목은 세션 4+ PixiJS 전환 시 구현.
-        case 'crt_scanlines':
-        case 'lut':
+        case 'crt_scanlines': {
+          // Session-4 P: existing helper 를 그대로 후단에 연결.
+          const base = Number(step.intensity ?? 0.2);
+          drawScanlines(ctx, W, H, base);
+          break;
+        }
+        case 'lut': {
+          // Session-4 P: 경량 픽셀 변환 LUT.
+          //  - preset: 'cool' | 'warm' | 'cinematic' | 'vintage' | 'mono'
+          //  - intensity: 0~1 (0=원본 유지)
+          const preset = String(step.preset ?? 'cinematic') as LutPreset;
+          const intensity = Math.max(0, Math.min(1, Number(step.intensity ?? 0.5)));
+          applyLut2d(ctx, W, H, preset, intensity);
+          break;
+        }
+        // 아래 항목은 세션 5+ PixiJS 전환 시 구현.
         case 'bokeh':
         case 'pixelate':
         case 'saturation':
