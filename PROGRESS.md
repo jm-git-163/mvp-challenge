@@ -453,3 +453,4 @@
 - Focused Session-3 Candidate J: chromatic aberration 2D 폴백 (offscreen 소스복사, base/onset 반응, 663/663 green)
 - Focused Session-3 Candidate K: generateBeatsFromBpm 모듈+CLI + kpop-124/news-90 beats JSON 생성 (676/676 green)
 - Focused Session-4 Candidate L: speechBridge (wrapInterim/Final → liveState) + useJudgement 배선 (682/682 green)
+- Focused Session-4 Candidate M: attachBeatClockToLiveState 브릿지 (decay 180ms, DI timer, 690/690 green)
