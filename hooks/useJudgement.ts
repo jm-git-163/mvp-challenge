@@ -12,6 +12,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import { detectGesture, detectSquat }   from '../utils/poseUtils';
 import { getGlobalSpeechRecognizer, textSimilarity } from '../utils/speechUtils';
+import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
 import type { Mission } from '../types/template';
@@ -293,10 +294,13 @@ export function useJudgement(): {
 
               const totalMs = Math.max(30_000, ((template?.duration_sec ?? 60) + 5) * 1000);
 
+              // Focused Session-4 Candidate L: liveState 브릿지로 감싸 subtitle_track 레이어에 전달.
+              const bridgedInterim = wrapInterimCallback((t) => _interimCb?.(t));
+              const bridgedFinal   = wrapFinalCallback((t) => _finalCb?.(t));
               _voiceStopFn = sr.listen(
                 (mission.read_lang ?? 'ko') as 'ko' | 'en',
-                (t) => _interimCb?.(t),
-                (t) => _finalCb?.(t),
+                bridgedInterim,
+                bridgedFinal,
                 totalMs,
                 _currentTarget,
                 (s) => _progressCb?.(s),

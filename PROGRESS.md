@@ -452,3 +452,4 @@
 - Focused Session-3 Candidate I: squatCounter EMA/median3 스무딩 + outlier reject (maxAnglePerFrame), 기존 테스트 호환 유지 (658/658 green)
 - Focused Session-3 Candidate J: chromatic aberration 2D 폴백 (offscreen 소스복사, base/onset 반응, 663/663 green)
 - Focused Session-3 Candidate K: generateBeatsFromBpm 모듈+CLI + kpop-124/news-90 beats JSON 생성 (676/676 green)
+- Focused Session-4 Candidate L: speechBridge (wrapInterim/Final → liveState) + useJudgement 배선 (682/682 green)
