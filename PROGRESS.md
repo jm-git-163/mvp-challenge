@@ -460,3 +460,4 @@
 - Focused Session-4 Candidate R: result page 가 utils/shareHelpers (buildDownloadFilename/composeShareUrl/canUseWebShareFiles) 사용 (705/705 green)
 - Focused Session-4 Candidate Q: scripts/analyze-bgm.js (essentia.js + audio-decode) — RhythmExtractor2013 + OnsetRate. `npm run analyze:bgm -- --all` 로 실제 BGM 분석 (705/705 green)
 - Focused Session-5 Candidate S: 6개 실제 BGM mp3 essentia.js 분석 → .beats.json 커밋 (100/120/140/138/121 BPM)
+- Focused Session-5 Candidate T: createLandmarkSmoother (OneEuroFilter 랜드마크 일괄 래퍼, visibility 게이트, 714/714 green)
