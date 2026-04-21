@@ -1460,6 +1460,7 @@ export default function RecordScreen() {
         e.preventDefault();
         if (state === 'idle' && isReady && cameraRef.current) {
           initAudio();
+          try { prewarmSpeech(); } catch {}
           start(cameraRef.current);
         } else if (state === 'recording' && cameraRef.current) {
           stop(cameraRef.current);
@@ -1802,6 +1803,9 @@ export default function RecordScreen() {
                     onPress={() => {
                       if (!isReady) return;
                       initAudio();
+                      // FIX-F: 모바일 Chrome 은 user gesture 스택 안에서 바로
+                      // SpeechRecognition.start() 호출해야 함. useEffect 경로는 거부됨.
+                      try { prewarmSpeech(); } catch {}
                       if (cameraRef.current) start(cameraRef.current);
                     }}
                   >

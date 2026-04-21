@@ -78,7 +78,34 @@ function getVolume(): number {
 export function prewarmSpeech(): void {
   const sr = getGlobalSpeechRecognizer();
   if (!sr.isSupported()) return;
-  // Intentionally do nothing — avoid double-start popup.
+  if (_voiceActive) return;
+
+  // FIX-F (2026-04-21): 모바일 크롬 대응.
+  //   모바일 Chrome 은 webkitSpeechRecognition.start() 가 "사용자 제스처"
+  //   스택 안에서 호출되지 않으면 NotAllowedError / 무반응.
+  //   기존 구조: 녹화 버튼 클릭 → state=recording → useEffect → judge() → sr.listen()
+  //   useEffect 여러 틱 뒤에 실행되므로 모바일이 제스처 타임아웃 → 실패.
+  //   해결: 녹화 버튼 onPress 안에서 prewarmSpeech() 즉시 호출하여
+  //   제스처 스택 안에서 listen() 시작. judge() 는 _voiceActive=true 감지하고
+  //   start 스킵 (기존 else-if 분기 그대로 사용), 콜백만 교체.
+  _voiceActive = true;
+
+  const bridgedInterim = wrapInterimCallback((t: string) => _interimCb?.(t));
+  const bridgedFinal   = wrapFinalCallback((t: string) => _finalCb?.(t));
+
+  try {
+    _voiceStopFn = sr.listen(
+      'ko',
+      bridgedInterim,
+      bridgedFinal,
+      120_000, // 2분 — judge() 가 미션 진입 시 충분
+      _currentTarget,
+      (s: number) => _progressCb?.(s),
+    );
+  } catch (e) {
+    _voiceActive = false;
+    if (typeof console !== 'undefined') console.warn('[prewarmSpeech] listen failed:', e);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
