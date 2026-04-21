@@ -1340,7 +1340,12 @@ export default function RecordScreen() {
 
   const activeTemplate = useSessionStore(s => s.activeTemplate);
   const sessionKey     = useSessionStore(s => s.sessionKey);
-  const defaultFacing  = activeTemplate?.camera_mode === 'selfie' ? 'front' : 'back';
+  // FIX-K (2026-04-21): 모바일 UX 에서 유저가 자기 자세를 실시간으로 확인해야
+  //   스쿼트·표정·포즈 미션을 수행할 수 있다. 템플릿이 'normal' 로 기본 후면
+  //   카메라를 지정해도, 셀피로 돌리면 내 모습이 안 보여 미션 자체가 불가능.
+  //   따라서 **초기 카메라는 항상 전면(셀피)** 로 고정. 하단 🔄 버튼으로 유저가
+  //   명시적으로 후면 전환 가능.
+  const defaultFacing: 'front' | 'back' = 'front';
   const [facing, setFacing] = useState<'front'|'back'>(defaultFacing);
 
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
