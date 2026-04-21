@@ -7,15 +7,8 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// @xenova/transformers 모킹 — pipeline 호출 시 모의 ASR 함수 반환
-vi.mock('@xenova/transformers', () => {
-  const mockAsr = vi.fn(async (_pcm: Float32Array) => ({ text: '안녕하세요' }));
-  return {
-    pipeline: vi.fn(async () => mockAsr),
-    env: { useBrowserCache: false, useFSCache: false },
-    __mockAsr: mockAsr,
-  };
-});
+// FIX-I3: transformers 는 이제 CDN 에서 런타임 로드되므로 vi.mock 불필요.
+// 테스트는 loadWhisperPipeline 을 호출하지 않는 케이스만 커버.
 
 import { WhisperRecognizer } from './whisperRecognizer';
 
