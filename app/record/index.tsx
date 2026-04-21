@@ -1614,9 +1614,27 @@ export default function RecordScreen() {
   const hudMM = String(Math.floor(elapsedSec/60)).padStart(2,'0');
   const hudSS = String(elapsedSec%60).padStart(2,'0');
 
+  // FIX-E (2026-04-21): /record?debug=1 진단 HUD.
+  //   유저가 "노트북 크롬에서 진단페이지는 되는데 실제 record 는 안됨" 제보 → 통합 레이어 추적.
+  const debugOn = typeof window !== 'undefined' && /[?&]debug=1\b/.test(window.location.search);
+
   return (
     <View style={r.root}>
       <SafeAreaView style={r.safe} edges={['top','bottom']}>
+        {debugOn && (
+          <View pointerEvents="none" style={{
+            position:'absolute', top:4, left:4, right:4, zIndex:9999,
+            backgroundColor:'rgba(0,0,0,0.85)', padding:6, borderRadius:4,
+          }}>
+            <Text style={{ color:'#0f0', fontSize:10, fontFamily:'monospace' }}>
+              state={state} elapsed={elapsed}ms {'\n'}
+              poseStatus={poseStatus} isRealPose={String(isRealPose)} lm={landmarks.length}{'\n'}
+              mission={currentMission?.type ?? '-'} seq={currentMission?.seq ?? '-'} {'\n'}
+              voice="{(voiceTranscript||'').slice(0,50)}" squat={squatCount}{'\n'}
+              poseErr={poseError?.slice(0,60) ?? '-'}
+            </Text>
+          </View>
+        )}
         <View style={r.camWrap}>
           {/* VirtualBackgroundFrame removed — canvas handles all background compositing on web */}
             <RecordingCamera
