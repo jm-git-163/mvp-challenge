@@ -450,3 +450,4 @@
 - Focused Session-3 Candidate G: liveState 싱글톤 + renderLayeredFrame mergeLiveIntoState 배선 (speechTranscript/beatIntensity/missionState → 레이어 state, 623/623 green)
 - Focused Session-3 Candidate H: shareHelpers 순수 함수 추출 (extensionForBlob/sanitizeFilename/composeShareUrl/canUseWebShareFiles/buildHashtagCaption, 651/651 green)
 - Focused Session-3 Candidate I: squatCounter EMA/median3 스무딩 + outlier reject (maxAnglePerFrame), 기존 테스트 호환 유지 (658/658 green)
+- Focused Session-3 Candidate J: chromatic aberration 2D 폴백 (offscreen 소스복사, base/onset 반응, 663/663 green)
