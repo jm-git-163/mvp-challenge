@@ -190,6 +190,23 @@ export class SpeechRecognizer {
   isSupported(): boolean { return this.supported; }
   isListening(): boolean { return this._listening; }
 
+  // FIX-H (2026-04-21): UI 에서 실시간 진단할 수 있도록 상태 노출.
+  public lastError: string | null = null;
+  public lastTranscript: string = '';
+  public startCount = 0;
+  public endCount = 0;
+  public resultCount = 0;
+  getDiagnostic(): { listening: boolean; error: string | null; transcript: string; starts: number; ends: number; results: number } {
+    return {
+      listening: this._listening,
+      error: this.lastError,
+      transcript: this.lastTranscript,
+      starts: this.startCount,
+      ends: this.endCount,
+      results: this.resultCount,
+    };
+  }
+
   /**
    * 미션 변경 시 호출: 마이크 팝업 없이 누적 텍스트만 리셋
    * listen()은 계속 실행 중이므로 stop/start 하지 않음
@@ -233,6 +250,7 @@ export class SpeechRecognizer {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onresult = (e: any) => {
+      this.resultCount++;
       let interim = '';
       let newFinal = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -245,6 +263,7 @@ export class SpeechRecognizer {
         this._finalText = accumulated.trim();
       }
       const current = (accumulated + interim).trim();
+      this.lastTranscript = current;
       onInterim(current);
       if (this._targetText && onProgress) {
         onProgress(textSimilarity(this._targetText, current));
@@ -254,6 +273,7 @@ export class SpeechRecognizer {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onerror = (e: any) => {
       // 진단용 — 왜 인식이 멈추는지 콘솔에 기록
+      this.lastError = String(e?.error || e || 'unknown');
       try { console.warn('[speech] onerror:', e.error || e); } catch {}
       if (e.error === 'no-speech' || e.error === 'aborted') {
         // Chrome은 침묵이 길면 자동 종료 → onend에서 재시작됨 (listening 유지)
@@ -275,7 +295,9 @@ export class SpeechRecognizer {
 
     // onend: continuous 모드에서 중간에 끊기면 재시작
     // generation check으로 이전 stop()에 의한 onend가 잘못 재시작하는 것 방지
+    this.rec.onstart = () => { this.startCount++; this.lastError = null; };
     this.rec.onend = () => {
+      this.endCount++;
       if (this._listening && this._gen === myGen) {
         // Chrome InvalidStateError 회피: 100ms 지연 후 재시작
         setTimeout(() => {

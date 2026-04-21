@@ -17,6 +17,7 @@ import JudgementBurst         from '../../components/mission/JudgementBurst';
 
 import { usePoseDetection }          from '../../hooks/usePoseDetection';
 import { useJudgement, prewarmSpeech } from '../../hooks/useJudgement';
+import { getGlobalSpeechRecognizer } from '../../utils/speechUtils';
 import { useRecording }              from '../../hooks/useRecording';
 import { useSessionStore }           from '../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
@@ -1651,20 +1652,45 @@ export default function RecordScreen() {
   return (
     <View style={r.root}>
       <SafeAreaView style={r.safe} edges={['top','bottom']}>
-        {debugOn && (
-          <View pointerEvents="none" style={{
-            position:'absolute', top:4, left:4, right:4, zIndex:9999,
-            backgroundColor:'rgba(0,0,0,0.85)', padding:6, borderRadius:4,
-          }}>
-            <Text style={{ color:'#0f0', fontSize:10, fontFamily:'monospace' }}>
-              state={state} elapsed={elapsed}ms {'\n'}
-              poseStatus={poseStatus} isRealPose={String(isRealPose)} lm={landmarks.length}{'\n'}
-              mission={currentMission?.type ?? '-'} seq={currentMission?.seq ?? '-'} {'\n'}
-              voice="{(voiceTranscript||'').slice(0,50)}" squat={squatCount}{'\n'}
-              poseErr={poseError?.slice(0,60) ?? '-'}
-            </Text>
-          </View>
-        )}
+        {debugOn && (() => {
+          let srDiag: any = null;
+          try { srDiag = getGlobalSpeechRecognizer().getDiagnostic(); } catch {}
+          return (
+            <View pointerEvents="none" style={{
+              position:'absolute', top:4, left:4, right:4, zIndex:9999,
+              backgroundColor:'rgba(0,0,0,0.88)', padding:6, borderRadius:4,
+            }}>
+              <Text style={{ color:'#0f0', fontSize:10, fontFamily:'monospace' }}>
+                state={state} elapsed={elapsed}ms{'\n'}
+                pose={poseStatus} real={String(isRealPose)} lm={landmarks.length} sq={squatCount}{'\n'}
+                mission={currentMission?.type ?? '-'} seq={currentMission?.seq ?? '-'}{'\n'}
+                sr.listen={String(srDiag?.listening)} starts={srDiag?.starts ?? 0} ends={srDiag?.endCount ?? srDiag?.ends ?? 0} results={srDiag?.results ?? 0}{'\n'}
+                sr.err={srDiag?.error ?? '-'}{'\n'}
+                sr.raw="{(srDiag?.transcript ?? '').slice(0,50)}"{'\n'}
+                voiceState="{(voiceTranscript||'').slice(0,50)}"
+              </Text>
+            </View>
+          );
+        })()}
+        {/* FIX-H: 항상 보이는 음성 상태 스트립 (voice_read 미션 중 / recording 상태). */}
+        {state === 'recording' && activeTemplate?.missions.some(m => m.type === 'voice_read') && (() => {
+          let srDiag: any = null;
+          try { srDiag = getGlobalSpeechRecognizer().getDiagnostic(); } catch {}
+          const ok = srDiag?.listening && !srDiag?.error;
+          return (
+            <View pointerEvents="none" style={{
+              position:'absolute', top:debugOn?80:8, left:8, right:8, zIndex:9998,
+              backgroundColor: ok ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)',
+              padding:6, borderRadius:6,
+            }}>
+              <Text style={{ color:'#fff', fontSize:11, fontFamily:'monospace' }}>
+                🎙️ {ok ? '듣는중' : '문제'} · results={srDiag?.results ?? 0} · starts={srDiag?.starts ?? 0}
+                {srDiag?.error ? ` · err=${srDiag.error}` : ''}
+                {srDiag?.transcript ? `\n"${srDiag.transcript.slice(0,60)}"` : ''}
+              </Text>
+            </View>
+          );
+        })()}
         <View style={r.camWrap}>
           {/* VirtualBackgroundFrame removed — canvas handles all background compositing on web */}
             <RecordingCamera
