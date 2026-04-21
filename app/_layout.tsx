@@ -10,6 +10,18 @@ import { Claude } from '../constants/claudeTheme';
 //   최신 Chrome/Android 는 user gesture 밖의 호출을 조용히 거부 → 팝업 자체가 뜨지 않음.
 //   권한 요청은 app/(main)/home 의 템플릿 카드 onPress 에서 수행 (user gesture 스택 안).
 
+// FIX-I2 (2026-04-21): URL `?stt=whisper|webkit` 를 앱 루트에서 즉시 localStorage 에
+//   저장. record 페이지에서만 읽던 기존 로직은 activeTemplate=null 로 bail 하면
+//   플래그가 저장되지 않아, 홈 경로에서 템플릿을 눌러도 여전히 webkit 이었음.
+function persistSttFlagFromUrl(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const m = window.location.search.match(/[?&]stt=(whisper|webkit)\b/);
+    if (m) window.localStorage.setItem('motiq_stt', m[1]);
+  } catch {}
+}
+persistSttFlagFromUrl();
+
 export default function RootLayout() {
   const { setUserId, setProfile } = useUserStore();
 
