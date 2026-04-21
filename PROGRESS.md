@@ -448,3 +448,4 @@
 - Focused Session-2 Candidate C: subtitle_track 렌더러 (broadcast/bubble/minimal 3 스타일, word-wrap, 603/603 green)
 - Focused Session-2 Candidate D: kinetic_text 렌더러 (pop/drop/spin 3 모드, stagger 등장, 613/613 green)
 - Focused Session-3 Candidate G: liveState 싱글톤 + renderLayeredFrame mergeLiveIntoState 배선 (speechTranscript/beatIntensity/missionState → 레이어 state, 623/623 green)
+- Focused Session-3 Candidate H: shareHelpers 순수 함수 추출 (extensionForBlob/sanitizeFilename/composeShareUrl/canUseWebShareFiles/buildHashtagCaption, 651/651 green)
