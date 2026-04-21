@@ -1271,6 +1271,22 @@ function VoiceTranscriptOverlay({ transcript, readText }: { transcript:string; r
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: transcript ? 1 : 0.6, duration:250, useNativeDriver:true }).start();
   }, [!!transcript]);
+  // FIX-J3: SR 스톨 감지 — transcript 가 비었는데 starts≥3 & results=0 이면
+  //   "엔진 응답 없음" 안내. 자막을 날조하지 않고 상태만 명시.
+  const [srStalled, setSrStalled] = useState(false);
+  useEffect(() => {
+    if (transcript) { setSrStalled(false); return; }
+    const id = setInterval(() => {
+      try {
+        const diag = getGlobalSpeechRecognizer().getDiagnostic();
+        setSrStalled(diag.starts >= 3 && diag.results === 0);
+      } catch {}
+    }, 1000);
+    return () => clearInterval(id);
+  }, [transcript]);
+  const emptyMsg = srStalled
+    ? '🔊 목소리 감지됨 · 음성 인식 엔진 응답 없음 (계속 말씀하세요)'
+    : '지금 말해주세요...';
   return (
     <Animated.View style={[vtv.wrap, { opacity:fadeAnim }]}>
       {readText && (
@@ -1281,7 +1297,7 @@ function VoiceTranscriptOverlay({ transcript, readText }: { transcript:string; r
       )}
       <View style={[vtv.transcriptBox, transcript ? vtv.transcriptActive : vtv.transcriptEmpty]}>
         <Text style={vtv.micIcon}>🎤</Text>
-        <Text style={vtv.transcriptText} numberOfLines={3}>{transcript || '지금 말해주세요...'}</Text>
+        <Text style={vtv.transcriptText} numberOfLines={3}>{transcript || emptyMsg}</Text>
         {!transcript && (
           <View style={vtv.dotRow}>
             {[0,1,2].map(i => <View key={i} style={[vtv.dot, { opacity:0.3+i*0.25 }]} />)}
