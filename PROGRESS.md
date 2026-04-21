@@ -466,3 +466,4 @@
 - Focused Session-5 Candidate W: layers/particle_burst (pulseSeq/beat/manual 트리거, gravity/lifeMs/shape, 747/747 green)
 - Focused Session-5 Candidate X: layers/news_ticker (가로 스크롤 브로드캐스트 띠, labelText/accent/missionState.ticker 폴백, 760/760 green)
 - MOBILE FIX-A+B: speech 인식이 isRealPose 에 묶여 MediaPipe 실패 시 자막·미션 타임라인까지 죽던 버그 해소 + mediaPipeLoader GPU→CPU 자동 폴백 (중저가 안드로이드/Edge 대응, 762/762 green)
+- MOBILE FIX-D: /debug/diagnose 진단 페이지 — getUserMedia·MediaPipe·SpeechRecognition·AudioLevel 4종 실시간 상태를 한 화면에 표시. 유저 디바이스에서 어느 서브시스템이 죽었는지 즉시 특정 가능.
