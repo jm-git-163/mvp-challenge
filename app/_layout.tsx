@@ -6,49 +6,14 @@ import { signInAnonymously, fetchUserProfile, getMockUserId } from '../services/
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Claude } from '../constants/claudeTheme';
 
-// ── 사이트 최초 진입 시 카메라+마이크 권한 1회 확보 ──────────────────────────────
-// 이후 챌린지/미션별로 팝업이 뜨지 않도록 미리 요청
-//
-// Focused Commit B-2: iOS Safari 는 user-gesture 없이 getUserMedia 호출 시
-//   즉시 AbortError/SecurityError 로 거부되며, 이후 사용자 제스처에서도 팝업 자체가
-//   나타나지 않는 상태로 락이 걸림. → iOS/iPadOS 에서는 preflight 를 건너뛰고
-//   실제 챌린지 진입 시점(터치 이벤트)에만 요청. 안드로이드·데스크톱은 기존대로.
-function isAppleTouchDevice(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  if (/iPhone|iPad|iPod/i.test(ua)) return true;
-  // iPadOS 13+ 은 MacIntel 로 위장 + touch 지원
-  const isMac = /Macintosh/i.test(ua);
-  const hasTouch = typeof (navigator as any).maxTouchPoints === 'number' && (navigator as any).maxTouchPoints > 1;
-  return isMac && hasTouch;
-}
-
-async function requestPermissionsOnce(): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.mediaDevices) return;
-  if (isAppleTouchDevice()) {
-    // iOS: 사용자 제스처 전 preflight 금지
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
-    // 스트림을 전역 캐시에 저장 (RecordingCamera.web.tsx의 _streamCache 로 이전)
-    // 트랙을 멈추지 않음 → 이후 챌린지에서 재사용
-    (window as any).__permissionStream = stream;
-  } catch {
-    // 거부돼도 앱은 동작 — 챌린지 진입 시 다시 요청됨
-  }
-}
+// FIX-G (2026-04-21): _layout useEffect 에서 getUserMedia 호출 제거.
+//   최신 Chrome/Android 는 user gesture 밖의 호출을 조용히 거부 → 팝업 자체가 뜨지 않음.
+//   권한 요청은 app/(main)/home 의 템플릿 카드 onPress 에서 수행 (user gesture 스택 안).
 
 export default function RootLayout() {
   const { setUserId, setProfile } = useUserStore();
 
   useEffect(() => {
-    // 권한 미리 확보
-    requestPermissionsOnce();
-
     // 목 모드: 즉시 로컬 유저 세팅
     const mockId = getMockUserId();
     if (mockId) {

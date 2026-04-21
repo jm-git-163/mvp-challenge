@@ -346,7 +346,23 @@ export default function HomeScreen() {
   const cardW = (contentW - sidePad * 2 - gutter * (numCols - 1)) / numCols;
 
   const handleSelect = useCallback(
-    (t: Template) => {
+    async (t: Template) => {
+      // FIX-G (2026-04-21): 카메라·마이크 권한 요청을 "사용자 제스처 스택 안"에서 수행.
+      //   _layout 의 useEffect 경로는 Chrome·Android 에서 user-gesture 미만으로 판정되어
+      //   팝업 자체가 뜨지 않음. 템플릿 카드 클릭은 확실한 gesture → 여기서 한 번 잡으면
+      //   오리진에 permission 캐시 → 이후 /record 진입 시 팝업 0.
+      if (typeof window !== 'undefined' && !(window as any).__permissionStream) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: { echoCancellation: true, noiseSuppression: true },
+          });
+          (window as any).__permissionStream = stream;
+        } catch (e) {
+          if (typeof console !== 'undefined') console.warn('[permission] denied or failed:', e);
+          // 거부돼도 진입은 시킴 — record 화면이 재요청 + 에러 표시
+        }
+      }
       startSession(t);
       router.push('/record');
     },
