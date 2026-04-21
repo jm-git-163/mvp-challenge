@@ -12,6 +12,7 @@ import {
 import type { Template as LayeredTemplate, BaseLayer } from '../engine/templates/schema';
 import { dispatchLayer } from '../engine/composition/layers';
 import { applyTemplatePostProcess } from '../engine/composition/postProcessHook';
+import { mergeLiveIntoState } from '../engine/composition/liveState';
 import {
   drawFilmGrain,
   drawLightLeak,
@@ -2227,6 +2228,10 @@ function renderLayeredFrame(
 
   const sortedLayers = [...template.layers].sort((a, b) => a.zIndex - b.zIndex);
 
+  // Focused Session-3 Candidate G: liveState 병합 — speechTranscript/beatIntensity/missionState
+  // 레이어 렌더러가 state 에서 읽을 수 있도록 주입. 호출자 state 키가 있으면 그 값이 우선.
+  const mergedState = mergeLiveIntoState(state as Record<string, unknown>);
+
   for (const layer of sortedLayers) {
     if (!layer.enabled) continue;
     
@@ -2242,7 +2247,7 @@ function renderLayeredFrame(
     const fn = dispatchLayer(layer.type);
     if (!fn) continue;   // 미지원 타입은 조용히 스킵
     try {
-      fn(ctx, layer, tMs, state);
+      fn(ctx, layer, tMs, mergedState);
     } catch (e) {
       console.warn(`[Compositor] Error rendering layer ${layer.id}:`, e);
     }
@@ -2255,7 +2260,7 @@ function renderLayeredFrame(
       ctx,
       (template as unknown as { postProcess?: Array<{ kind: string } & Record<string, unknown>> }).postProcess,
       tMs,
-      state as { beatIntensity?: number },
+      mergedState as { beatIntensity?: number },
     );
   } catch (e) {
     console.warn('[Compositor] postProcess chain failed:', e);
