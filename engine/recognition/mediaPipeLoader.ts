@@ -100,10 +100,16 @@ export async function loadPoseLandmarker(
     if (signal?.aborted) {
       return { status: 'error', handle: null, error: new DOMException('Aborted', 'AbortError') };
     }
-    const handle = await PoseLandmarker.createFromOptions(vision, {
+
+    // FIX-B (2026-04-21): GPU → CPU 자동 폴백.
+    //   중저가 안드로이드/일부 Edge 환경에서 WebGL 컨텍스트 실패 시
+    //   GPU delegate 로 createFromOptions 가 reject 되는 사례 다수.
+    //   CPU delegate 로 재시도해서 최대한 real pose 를 확보한다.
+    //   CPU 는 느리지만 모든 디바이스에서 동작.
+    const baseOptionsFor = (delegate: 'GPU' | 'CPU') => ({
       baseOptions: {
         modelAssetPath: config.modelPath,
-        delegate: 'GPU',
+        delegate,
       },
       runningMode: 'VIDEO',
       numPoses: 1,
@@ -111,6 +117,21 @@ export async function loadPoseLandmarker(
       minPosePresenceConfidence: 0.5,
       minTrackingConfidence: 0.5,
     });
+
+    let handle: PoseLandmarkerHandle;
+    try {
+      handle = await PoseLandmarker.createFromOptions(vision, baseOptionsFor('GPU'));
+    } catch (gpuErr) {
+      if (signal?.aborted) {
+        return { status: 'error', handle: null, error: new DOMException('Aborted', 'AbortError') };
+      }
+      // GPU 실패 로그는 남기고 CPU 재시도
+      if (typeof console !== 'undefined') {
+        console.warn('[mediaPipeLoader] GPU delegate failed, retrying with CPU:', gpuErr);
+      }
+      handle = await PoseLandmarker.createFromOptions(vision, baseOptionsFor('CPU'));
+    }
+
     if (signal?.aborted) {
       try { handle.close(); } catch { /* ignore */ }
       return { status: 'error', handle: null, error: new DOMException('Aborted', 'AbortError') };

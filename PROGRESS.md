@@ -465,3 +465,4 @@
 - Focused Session-5 Candidate V: layers/beat_flash (fullscreen flash driven by beatIntensity, curve/radial/blend, 735/735 green)
 - Focused Session-5 Candidate W: layers/particle_burst (pulseSeq/beat/manual 트리거, gravity/lifeMs/shape, 747/747 green)
 - Focused Session-5 Candidate X: layers/news_ticker (가로 스크롤 브로드캐스트 띠, labelText/accent/missionState.ticker 폴백, 760/760 green)
+- MOBILE FIX-A+B: speech 인식이 isRealPose 에 묶여 MediaPipe 실패 시 자막·미션 타임라인까지 죽던 버그 해소 + mediaPipeLoader GPU→CPU 자동 폴백 (중저가 안드로이드/Edge 대응, 762/762 green)

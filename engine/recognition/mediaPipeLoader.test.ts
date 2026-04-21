@@ -115,6 +115,50 @@ describe('loadPoseLandmarker', () => {
     expect(out.error?.message).toBe('create failed');
   });
 
+  it('FIX-B: GPU 실패 → CPU 폴백 성공 시 ready-real', async () => {
+    const handle = makeHandle();
+    let gpuAttempt = 0;
+    let cpuAttempt = 0;
+    const deps: PoseLoaderDeps = {
+      importMediaPipe: async () => ({
+        PoseLandmarker: {
+          createFromOptions: async (_vision: unknown, options: any) => {
+            const delegate = options?.baseOptions?.delegate;
+            if (delegate === 'GPU') {
+              gpuAttempt++;
+              throw new Error('WebGL context lost');
+            }
+            cpuAttempt++;
+            return handle;
+          },
+        },
+        FilesetResolver: { forVisionTasks: async () => ({}) },
+      }),
+    };
+    const out = await loadPoseLandmarker(cfg, deps);
+    expect(out.status).toBe('ready-real');
+    expect(out.handle).toBe(handle);
+    expect(gpuAttempt).toBe(1);
+    expect(cpuAttempt).toBe(1);
+  });
+
+  it('FIX-B: GPU+CPU 둘 다 실패 → error (prod) / ready-mock (dev)', async () => {
+    const deps: PoseLoaderDeps = {
+      importMediaPipe: async () => ({
+        PoseLandmarker: {
+          createFromOptions: async () => { throw new Error('both failed'); },
+        },
+        FilesetResolver: { forVisionTasks: async () => ({}) },
+      }),
+    };
+    const prod = await loadPoseLandmarker(cfg, deps);
+    expect(prod.status).toBe('error');
+    expect(prod.error?.message).toBe('both failed');
+
+    const dev = await loadPoseLandmarker(cfgDev, deps);
+    expect(dev.status).toBe('ready-mock');
+  });
+
   it('signal 이미 aborted → AbortError', async () => {
     const ac = new AbortController();
     ac.abort();

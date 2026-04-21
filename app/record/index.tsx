@@ -1488,10 +1488,15 @@ export default function RecordScreen() {
 
   useEffect(() => {
     if (state !== 'recording') return;
-    // Cycle 30 — 실제 MediaPipe 검출이 확립되기 전까지는 판정하지 않음.
-    // 이전에는 mock/부분 초기화 상태에서도 판정이 돌아 스쿼트가 자동 카운트되는 현상 유발.
-    if (!isRealPose) return;
-    const result = judge(landmarks, elapsed);
+    // FIX-A (2026-04-21): `isRealPose` 게이트 제거.
+    //   기존에는 MediaPipe 포즈 검출 실패 시 judge() 가 아예 호출되지 않아
+    //   음성 인식(sr.listen)·미션 타임라인·TTS 가이드까지 전부 죽었다.
+    //   → 포즈 없어도 시간 진행·음성·미션 전환은 돌아야 한다.
+    //   가짜 스쿼트 카운트 방지는 useJudgement 내부에서 이미
+    //   hasRealLandmarks 체크로 처리 중 (points>=17 & visible>=6~8).
+    //   포즈 없는 landmarks=[] 를 넘겨도 score=0 으로 안전하게 종료됨.
+    const poseLandmarks = isRealPose ? landmarks : [];
+    const result = judge(poseLandmarks, elapsed);
     setCurrentScore(result.score); setCurrentTag(result.tag); setCurrentMission(result.currentMission);
     scoreAccumRef.current.push(result.score);
     if (activeTemplate?.genre === 'fitness') { setSquatKneeAngle(result.kneeAngle); setSquatPhase(result.squatPhase); }
