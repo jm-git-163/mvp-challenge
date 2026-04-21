@@ -288,6 +288,20 @@ export class WhisperRecognizer {
   private async infer(asr: any, pcm16k: Float32Array): Promise<void> {
     if (!this._listening) return;
     try {
+      // FIX-I6: 에러 원인 추적용 — fetch 가 HTML 을 돌려주면 어느 URL 이었는지
+      // 로그. 단발성(첫 실패 1회) 리스너 설치.
+      if (!(window as any).__motiq_fetch_traced) {
+        (window as any).__motiq_fetch_traced = true;
+        const orig = window.fetch;
+        window.fetch = async (...args: any[]) => {
+          const res = await orig.apply(window, args as any);
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('text/html') && String(args[0]).match(/config\.json|tokenizer|\.onnx/)) {
+            try { console.warn('[whisper] HTML response for model asset:', args[0]); } catch {}
+          }
+          return res;
+        };
+      }
       const result = await asr(pcm16k, {
         language: 'korean',
         task: 'transcribe',
