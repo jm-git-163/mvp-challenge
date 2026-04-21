@@ -455,3 +455,4 @@
 - Focused Session-4 Candidate L: speechBridge (wrapInterim/Final → liveState) + useJudgement 배선 (682/682 green)
 - Focused Session-4 Candidate M: attachBeatClockToLiveState 브릿지 (decay 180ms, DI timer, 690/690 green)
 - Focused Session-4 Candidate N: createAngleSmoother + useJudgement 무릎각 EMA/outlier 주입 (697/697 green)
+- Focused Session-4 Candidate O: /debug/layers/subtitle_track 디버그 페이지 (web canvas 프리뷰 + TextInput → liveState)
