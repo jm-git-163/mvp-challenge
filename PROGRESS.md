@@ -446,3 +446,4 @@
 - Focused Session-2 Candidate B: counter_hud 렌더러 + 펄스 애니메이션 (585/585 green)
 - Focused Session-2 Candidate F: template.postProcess → Canvas 2D bloom/vignette/film_grain 체인 훅 (593/593 green)
 - Focused Session-2 Candidate C: subtitle_track 렌더러 (broadcast/bubble/minimal 3 스타일, word-wrap, 603/603 green)
+- Focused Session-2 Candidate D: kinetic_text 렌더러 (pop/drop/spin 3 모드, stagger 등장, 613/613 green)
