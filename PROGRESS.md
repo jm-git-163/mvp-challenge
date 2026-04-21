@@ -462,3 +462,4 @@
 - Focused Session-5 Candidate S: 6개 실제 BGM mp3 essentia.js 분석 → .beats.json 커밋 (100/120/140/138/121 BPM)
 - Focused Session-5 Candidate T: createLandmarkSmoother (OneEuroFilter 랜드마크 일괄 래퍼, visibility 게이트, 714/714 green)
 - Focused Session-5 Candidate U: layers/audio_visualizer (FFT bars, smoothing, beatIntensity 부스트, dispatcher 등록, 724/724 green)
+- Focused Session-5 Candidate V: layers/beat_flash (fullscreen flash driven by beatIntensity, curve/radial/blend, 735/735 green)
