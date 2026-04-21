@@ -11,6 +11,7 @@ import {
 } from './videoTemplates';
 import type { Template as LayeredTemplate, BaseLayer } from '../engine/templates/schema';
 import { dispatchLayer } from '../engine/composition/layers';
+import { applyTemplatePostProcess } from '../engine/composition/postProcessHook';
 import {
   drawFilmGrain,
   drawLightLeak,
@@ -2245,6 +2246,19 @@ function renderLayeredFrame(
     } catch (e) {
       console.warn(`[Compositor] Error rendering layer ${layer.id}:`, e);
     }
+  }
+
+  // Focused Session-2 Candidate F: 모든 레이어 렌더 후 템플릿 postProcess 체인 적용.
+  // bloom / vignette / film_grain 만 이번 세션 대상 (Canvas 2D 폴백).
+  try {
+    applyTemplatePostProcess(
+      ctx,
+      (template as unknown as { postProcess?: Array<{ kind: string } & Record<string, unknown>> }).postProcess,
+      tMs,
+      state as { beatIntensity?: number },
+    );
+  } catch (e) {
+    console.warn('[Compositor] postProcess chain failed:', e);
   }
 }
 
