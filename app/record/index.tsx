@@ -1600,7 +1600,31 @@ export default function RecordScreen() {
 
   const handleFrame = useCallback(async () => {}, []);
 
-  if (!activeTemplate) return null;
+  // FIX-E2 (2026-04-21): localStorage sticky debug.
+  //   ?debug=1 한번 접속하면 이후 템플릿 선택 경유해도 계속 표시.
+  //   ?debug=0 으로 해제.
+  const debugOn = (() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const q = window.location.search;
+      if (/[?&]debug=1\b/.test(q)) { window.localStorage.setItem('motiq_debug', '1'); return true; }
+      if (/[?&]debug=0\b/.test(q)) { window.localStorage.removeItem('motiq_debug'); return false; }
+      return window.localStorage.getItem('motiq_debug') === '1';
+    } catch { return false; }
+  })();
+
+  if (!activeTemplate) {
+    return debugOn ? (
+      <View style={{ flex:1, backgroundColor:'#000', padding:16, paddingTop:60 }}>
+        <Text style={{ color:'#0f0', fontFamily:'monospace', fontSize:12 }}>
+          [DEBUG] activeTemplate = null{'\n'}
+          → 템플릿을 먼저 선택해야 record 가 뜹니다.{'\n'}
+          홈으로 돌아가서 템플릿 하나 누르고 오세요.{'\n\n'}
+          (debug 플래그는 localStorage 에 저장됨 — 계속 유지)
+        </Text>
+      </View>
+    ) : null;
+  }
 
   const isCountdown = state === 'countdown';
   const isRecording = state === 'recording';
@@ -1613,10 +1637,6 @@ export default function RecordScreen() {
   const elapsedSec = Math.floor(elapsed / 1000);
   const hudMM = String(Math.floor(elapsedSec/60)).padStart(2,'0');
   const hudSS = String(elapsedSec%60).padStart(2,'0');
-
-  // FIX-E (2026-04-21): /record?debug=1 진단 HUD.
-  //   유저가 "노트북 크롬에서 진단페이지는 되는데 실제 record 는 안됨" 제보 → 통합 레이어 추적.
-  const debugOn = typeof window !== 'undefined' && /[?&]debug=1\b/.test(window.location.search);
 
   return (
     <View style={r.root}>
