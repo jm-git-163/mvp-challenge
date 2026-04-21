@@ -11,6 +11,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import { detectGesture, detectSquat }   from '../utils/poseUtils';
+import { createAngleSmoother }          from '../engine/missions/angleSmoother';
 import { getGlobalSpeechRecognizer, textSimilarity } from '../utils/speechUtils';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
 import type { NormalizedLandmark } from '../utils/poseUtils';
@@ -115,6 +116,10 @@ export function useJudgement(): {
   const squatCountRef          = useRef(0);
   const squatCountState        = useRef(0);
   const lastKneeAngle          = useRef(180);
+  // Session-4 N: MoveNet 각도 지터 억제용 스무더 (한 프레임 55° 이상 점프 reject + EMA)
+  const kneeSmootherRef        = useRef(createAngleSmoother({
+    smoothing: 'ema', emaAlpha: 0.35, maxAnglePerFrame: 55,
+  }));
 
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -178,18 +183,28 @@ export function useJudgement(): {
       );
       if (template && template.genre === 'fitness' && squatLmOk) {
         const sq = detectSquat(landmarks, 0.40);
-        kneeAngleOut = sq.kneeAngle;
-        lastKneeAngle.current = sq.kneeAngle;
+        // Session-4 N: 각도 스무딩 + 스파이크 reject. reject 시 이전 phase 유지
+        const smoothed = kneeSmootherRef.current.push(sq.kneeAngle);
+        let phaseIn: 'up' | 'down' | 'unknown' = sq.phase;
+        if (smoothed === null) {
+          phaseIn = 'unknown';                 // 아웃라이어 프레임 → debounce 리셋 유도
+        } else {
+          kneeAngleOut = smoothed;
+          lastKneeAngle.current = smoothed;
+          // 스무딩된 각도로 phase 재유도 (detectSquat 와 동일 임계)
+          phaseIn = smoothed < 115 ? 'down' : smoothed > 150 ? 'up' : sq.phase;
+        }
 
         // 디바운스: 같은 phase가 연속 프레임으로 들어오는지 추적
         const DEBOUNCE_FRAMES = 3;
-        if (sq.phase === 'unknown') {
+        const sqPhase = phaseIn;
+        if (sqPhase === 'unknown') {
           squatCandidateFrames.current = 0;
           squatCandidatePhaseRef.current = 'unknown';
-        } else if (sq.phase === squatCandidatePhaseRef.current) {
+        } else if (sqPhase === squatCandidatePhaseRef.current) {
           squatCandidateFrames.current += 1;
         } else {
-          squatCandidatePhaseRef.current = sq.phase;
+          squatCandidatePhaseRef.current = sqPhase;
           squatCandidateFrames.current = 1;
         }
 
@@ -422,6 +437,7 @@ export function useJudgement(): {
     squatCandidateFrames.current   = 0;
     squatReadyRef.current          = false;
     lastKneeAngle.current   = 180;
+    kneeSmootherRef.current.reset();
     setSquatCount(0);
   }, []);
 
