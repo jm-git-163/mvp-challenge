@@ -15,8 +15,9 @@ import animated_grid   from './animated_grid';
 import star_field      from './star_field';
 import noise_pattern   from './noise_pattern';
 import camera_feed     from './camera_feed';
-// 이후 candidates A~D 에서 추가 등록:
-//   camera_frame, counter_hud, kinetic_text, subtitle_track
+import camera_frame    from './camera_frame';
+// 이후 candidates B~D 에서 추가 등록:
+//   counter_hud, kinetic_text, subtitle_track
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -36,6 +37,7 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   star_field,
   noise_pattern,
   camera_feed,
+  camera_frame,
 };
 
 /**

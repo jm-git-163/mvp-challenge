@@ -437,3 +437,9 @@
 - `engine/composition/layers/index.ts` 신규 — LAYER_REGISTRY + dispatchLayer() + supportedLayerTypes(). 타입→렌더러 매핑 단일 지점. 신규 렌더러 추가는 이 파일 1줄로 끝남.
 - `utils/videoCompositor.ts` renderLayeredFrame switch 제거 → dispatchLayer 경유. 미지원 타입은 null 반환으로 조용히 스킵.
 - Vitest **569/569 green** (+5 dispatcher 스모크).
+
+### Focused Session-2 Candidate A: camera_frame 렌더러 (2026-04-21)
+- `engine/composition/layers/camera_frame.ts` 신규 — kind: rectangle/hexagon/circle/polaroid/letterbox 5종. ringColor/ringWidth/glowBlur props, beatIntensity 반응(글로우 증폭), 미묘한 브리딩(sin 1.8s).
+- dispatcher index.ts 등록 (6번째 타입).
+- 테스트 8 + dispatcher 스모크 ctx 확장(quadraticCurveTo·text·shadow 등). **577/577 green**.
+- 효과: neon-arena 의 `cam_frame` 레이어(hexagon·ringColor #FF2D95·glowBlur 12·onBeat) 가 실제로 렌더됨 → K-POP 챌린지에서 육각 네온 프레임 시각화.

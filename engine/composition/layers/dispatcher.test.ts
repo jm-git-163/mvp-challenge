@@ -29,14 +29,23 @@ describe('LAYER_REGISTRY dispatcher', () => {
   it('각 렌더러가 호출 시 ctx 메서드를 건드리는지 (스모크)', () => {
     const ctx: any = {
       save: vi.fn(), restore: vi.fn(),
-      fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
+      fillRect: vi.fn(), strokeRect: vi.fn(),
+      beginPath: vi.fn(), closePath: vi.fn(),
+      moveTo: vi.fn(), lineTo: vi.fn(),
+      quadraticCurveTo: vi.fn(), bezierCurveTo: vi.fn(),
       stroke: vi.fn(), fill: vi.fn(), arc: vi.fn(),
       createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+      createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
       createPattern: vi.fn(() => ({})),
       drawImage: vi.fn(), translate: vi.fn(),
+      scale: vi.fn(), rotate: vi.fn(),
+      fillText: vi.fn(), strokeText: vi.fn(),
+      measureText: vi.fn(() => ({ width: 100 })),
       canvas: { width: 1080, height: 1920 },
       globalAlpha: 1, globalCompositeOperation: 'source-over',
       fillStyle: '', strokeStyle: '', lineWidth: 1,
+      font: '', textAlign: 'left', textBaseline: 'alphabetic',
+      shadowColor: '', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
     };
     vi.stubGlobal('document', {
       createElement: () => ({
