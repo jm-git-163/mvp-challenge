@@ -25,7 +25,10 @@ const FACE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8]; // nose, eyes, ears 주변
 
 const MIN_VIS = 0.3;
 const HISTORY_LEN = 24;         // ≈ 0.8~1.2s at 20~30fps
-const MIN_PEAK_AMPL = 0.04;      // Normalized Y: 4% 프레임 높이 (손떨림보다 큼)
+// FIX-L (2026-04-21): 실기기 테스트 결과 4% 는 너무 엄격.
+//   폰을 손에 쥐거나 눈앞에 세워두면 스쿼트 시 얼굴 이동 폭이 실제로 2~3% 수준.
+//   2.5% 로 낮춤 — 노이즈(손떨림 ≤1.5%)와 실제 스쿼트 구분은 여전히 충분.
+const MIN_PEAK_AMPL = 0.025;     // Normalized Y: 2.5% 프레임 높이
 const COOLDOWN_FRAMES = 8;       // rep 간 최소 프레임 수
 
 export interface CloseSquatState {

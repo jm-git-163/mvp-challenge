@@ -169,6 +169,9 @@ export class SpeechRecognizer {
   private _listening = false;
   private _finalText  = '';
   private _stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private _watchdog: ReturnType<typeof setInterval> | null = null;
+  private _lastResultsSnapshot = 0;
+  private _stallChecks = 0;
   private _targetText = '';
   // generation counter: stop() 호출 시 증가 → 이전 onend가 잘못 재시작하는 race condition 방지
   private _gen = 0;
@@ -329,6 +332,34 @@ export class SpeechRecognizer {
     // 이전 recognition이 멈추는 중일 수 있으므로 50ms 후 시작
     setTimeout(tryStart, 50);
 
+    // FIX-M (2026-04-21): Android Chrome Google ASR 스톨 우회.
+    //   continuous=true 상태에서 구글 백엔드가 무응답이면 result 가 영원히 안 옴
+    //   (starts 계속 누적, results=0). 매 4초마다 result 증가 여부 체크 →
+    //   7초(2회 연속) 무증가면 강제 stop() → onend 가 재시작 → 구글 세션 리프레시.
+    //   이 패턴이 Android Chrome 환경에서 ASR 복구 유일한 클라이언트 우회책.
+    if (this._watchdog) { clearInterval(this._watchdog); this._watchdog = null; }
+    this._lastResultsSnapshot = this.resultCount;
+    this._stallChecks = 0;
+    this._watchdog = setInterval(() => {
+      if (!this._listening || this._gen !== myGen) {
+        if (this._watchdog) { clearInterval(this._watchdog); this._watchdog = null; }
+        return;
+      }
+      if (this.resultCount > this._lastResultsSnapshot) {
+        this._lastResultsSnapshot = this.resultCount;
+        this._stallChecks = 0;
+        return;
+      }
+      this._stallChecks++;
+      if (this._stallChecks >= 2 && this.startCount >= 1) {
+        // 스톨 감지 — 강제 재시작 (onend 핸들러가 재시작 담당)
+        try { console.warn('[speech] watchdog: stall detected, forcing restart'); } catch {}
+        this._stallChecks = 0;
+        try { this.rec.stop(); } catch {}
+        // onend 핸들러가 자동으로 rec.start() 호출 → 세션 리프레시
+      }
+    }, 4000);
+
     // 최대 timeoutMs 후 자동 종료
     this._stopTimer = setTimeout(() => {
       if (this._gen !== myGen) return;  // 이미 stop() 됐으면 무시
@@ -342,6 +373,7 @@ export class SpeechRecognizer {
       this._gen++;                   // 이 세대 무효화 → onend 재시작 차단
       this._listening = false;
       if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
+      if (this._watchdog) { clearInterval(this._watchdog); this._watchdog = null; }
       try { this.rec.stop(); } catch { /* ignore */ }
       onFinal(this._finalText || accumulated.trim());
     };
@@ -351,6 +383,7 @@ export class SpeechRecognizer {
     this._gen++;                   // generation 증가 → onend 재시작 차단
     this._listening = false;
     if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
+    if (this._watchdog) { clearInterval(this._watchdog); this._watchdog = null; }
     try { this.rec?.stop(); } catch { /* ignore */ }
   }
 }

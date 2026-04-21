@@ -88,7 +88,27 @@
       "Bash(node scripts/lint-routes.js)",
       "Bash(echo \"exit=$?\")",
       "Bash(npm test *)",
-      "Bash(node scripts/generate-placeholder-bgm.js)"
+      "Bash(node scripts/generate-placeholder-bgm.js)",
+      "Bash(node scripts/generate-beats.js public/bgm/kpop-upbeat-124.beats.json 124 30)",
+      "Bash(node scripts/generate-beats.js public/bgm/news-orchestra-90.beats.json 90 30)",
+      "Bash(node -e \"const e = require\\('essentia.js'\\); console.log\\(Object.keys\\(e\\).slice\\(0,10\\)\\); console.log\\('EssentiaWASM keys:', Object.keys\\(e.EssentiaWASM||{}\\).slice\\(0,5\\)\\);\")",
+      "Bash(node -e \"const e = require\\('essentia.js'\\); const es = new e.Essentia\\(e.EssentiaWASM\\); console.log\\('version:', es.version\\); console.log\\('RhythmExtractor2013 exists:', typeof es.RhythmExtractor2013 === 'function'\\);\")",
+      "Bash(node -e \"const d = require\\('audio-decode'\\); console.log\\(typeof d, Object.keys\\(d||{}\\).slice\\(0,10\\)\\);\")",
+      "Bash(node scripts/analyze-bgm.js \"public/bgm/atlasaudio-jazz-490623.mp3\" -o \"public/bgm/_test-analyze.beats.json\")",
+      "Bash(node -e \"const d = require\\('audio-decode'\\).default; const fs=require\\('fs'\\); d\\(fs.readFileSync\\('public/bgm/atlasaudio-jazz-490623.mp3'\\)\\).then\\(a => { console.log\\('proto keys:', Object.keys\\(a\\)\\); console.log\\('constructor:', a.constructor?.name\\); console.log\\('numChannels:', a.numberOfChannels, 'sr:', a.sampleRate, 'length:', a.length\\); console.log\\('has _data:', !!a._data, '_channelData:', !!a._channelData\\); if \\(a._channelData\\) console.log\\('ch0 len:', a._channelData[0]?.length\\); }\\);\")",
+      "Bash(node scripts/analyze-bgm.js --all)",
+      "Bash(git reset *)",
+      "Bash(curl -sI https://mvp-challenge.vercel.app)",
+      "Bash(curl -sI https://mvp.vercel.app)",
+      "Bash(command -v vercel)",
+      "Bash(cat C:\\\\\\\\Users\\\\\\\\user\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\C--Users-user-Desktop-mvp\\\\\\\\139773d2-47dd-448a-b8cf-11243f36e61a\\\\\\\\tasks\\\\\\\\b0eu8bdgr.output)",
+      "Bash(curl -sI https://mvp-ivory-kappa.vercel.app)",
+      "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/record?debug=1\")",
+      "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/record?debug=1\" -o /tmp/r.html)",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/_expo/static/js/web/entry-ebe6c4a96746dce6e923f5279a31ae0d.js\")",
+      "Bash(npm ls *)",
+      "Bash(git revert *)"
     ]
   }
 }
