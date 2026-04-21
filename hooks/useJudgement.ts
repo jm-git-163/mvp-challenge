@@ -12,6 +12,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import { detectGesture, detectSquat }   from '../utils/poseUtils';
 import { createAngleSmoother }          from '../engine/missions/angleSmoother';
+import { CloseProximitySquatDetector } from '../engine/missions/closeProximitySquat';
 import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
@@ -148,6 +149,8 @@ export function useJudgement(): {
   const kneeSmootherRef        = useRef(createAngleSmoother({
     smoothing: 'ema', emaAlpha: 0.35, maxAnglePerFrame: 55,
   }));
+  // FIX-J: 근접 촬영 대응 — 무릎이 안 보여도 얼굴 Y 진동으로 스쿼트 카운트.
+  const closeSquatRef          = useRef(new CloseProximitySquatDetector());
 
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -209,6 +212,18 @@ export function useJudgement(): {
         fullLeg(11, 13, 15) || fullLeg(12, 14, 16) ||
         hipKneeOnly(5, 11, 13) || hipKneeOnly(6, 12, 14)
       );
+      // FIX-J: fitness 장르에선 근접 디텍터를 항상 병렬로 돌림.
+      //   무릎이 안 보일 때 (squatLmOk=false) 얼굴 Y 진동이 유일한 신호.
+      //   primary 와 동시에 돌아도 Math.max 로 합치므로 이중 카운트 없음.
+      if (template && template.genre === 'fitness') {
+        const closeState = closeSquatRef.current.update(landmarks);
+        if (closeState.count > squatCountRef.current) {
+          squatCountRef.current = closeState.count;
+          squatCountState.current = closeState.count;
+          setSquatCount(closeState.count);
+          squatPhaseOut = closeState.phase;
+        }
+      }
       if (template && template.genre === 'fitness' && squatLmOk) {
         const sq = detectSquat(landmarks, 0.40);
         // Session-4 N: 각도 스무딩 + 스파이크 reject. reject 시 이전 phase 유지
@@ -291,6 +306,23 @@ export function useJudgement(): {
 
             // Web Audio 볼륨: 점수에는 영향 없음, "발화 중" 감지 UI용
             setupAudioAnalyser();
+
+            // FIX-J2: 음성 인식 실패시 볼륨 기반 부분점수 (안전 재도입).
+            //   조건: SR 이 starts≥3 & results=0 (명백한 스톨) AND 마이크 볼륨이
+            //   임계 이상. 이 블록은 점수만 읽기/쓰기, 다른 상태·리스너는
+            //   건드리지 않음 → 챌린지 흐름 영향 0.
+            try {
+              const srDiag0 = getGlobalSpeechRecognizer().getDiagnostic();
+              const stalled = srDiag0.starts >= 3 && srDiag0.results === 0;
+              if (stalled) {
+                const vol = getVolume();
+                // 임계 이상이면 점수 소폭 증가 (프레임당, 상한 0.7)
+                if (vol > 0.04 && voiceScoreRef.current < 0.7) {
+                  voiceScoreRef.current = Math.min(0.7, voiceScoreRef.current + 0.003);
+                  score = voiceScoreRef.current;
+                }
+              }
+            } catch {}
 
             // ── 세션 레벨 인식 시작 (1회만) ────────────────────────────────
             const sr = getGlobalSpeechRecognizer();
@@ -444,6 +476,8 @@ export function useJudgement(): {
     _interimCb     = null;
     _finalCb       = null;
     _progressCb    = null;
+    // FIX-J: 근접 스쿼트 디텍터도 함께 초기화 (다음 세션용)
+    try { closeSquatRef.current?.reset(); } catch {}
 
     // 오디오 분석기 초기화
     if (_analyser) { _analyser.disconnect(); _analyser = null; }
