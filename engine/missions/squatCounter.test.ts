@@ -133,6 +133,86 @@ describe('SquatCounter scoring', () => {
   });
 });
 
+// ── Focused Session-3 Candidate I: 지터/이상치 필터 회귀 테스트 ──
+describe('SquatCounter smoothing + outlier rejection (Session-3 I)', () => {
+  it("smoothing='none' (기본): 기존 테스트와 동일 동작", () => {
+    const sq = new SquatCounter();
+    simulateSquat(sq, { startT: 0, minAngle: 80, holdMs: 200 });
+    expect(sq.getState().reps).toBe(1);
+  });
+
+  it("smoothing='ema': 상승 중 1프레임 스파이크로 인한 오카운트 방지", () => {
+    // 일정한 상승 중 카메라 튐으로 각도 150°→30°→150° 같은 임펄스 발생.
+    // 'none' 에서는 튐이 phase 를 잘못 전이시킬 수 있지만, 'ema' 는 흡수.
+    const emaSq = new SquatCounter({ smoothing: 'ema', emaAlpha: 0.35 });
+    emaSq.push(170, 0);
+    emaSq.push(170, 50);
+    const prevPhase = emaSq.getState().phase;
+    emaSq.push(30, 100); // 단일 튐
+    // EMA 로 smoothed 은 170 → 120 정도. descending 까지만 가고 down 미진입.
+    expect(emaSq.getState().phase).not.toBe('down');
+    // 다시 정상값으로 복귀 시 phase up 복귀
+    emaSq.push(170, 150);
+    emaSq.push(170, 200);
+    expect(prevPhase).toBe('up');
+  });
+
+  it("maxAnglePerFrame: 55° 초과 스파이크는 버려짐 (카운트 1 유지)", () => {
+    const sq = new SquatCounter({ maxAnglePerFrame: 55 });
+    let t = 0;
+    // 정상 descent
+    for (let a = 170; a >= 80; a -= 10) { sq.push(a, t); t += 50; }
+    // 카메라 튐: 80 → 10 (70° 변화) — outlier, skip
+    sq.push(10, t); t += 50;
+    // 정상 계속
+    for (let i = 0; i < 5; i++) { sq.push(80, t); t += 50; }
+    for (let a = 80; a <= 170; a += 10) { sq.push(a, t); t += 50; }
+    expect(sq.getState().reps).toBe(1);
+  });
+
+  it("smoothing='median3': 단일 임펄스 무시 (rep 카운트 유지)", () => {
+    const sq = new SquatCounter({ smoothing: 'median3' });
+    let t = 0;
+    for (let a = 170; a >= 80; a -= 10) { sq.push(a, t); t += 50; }
+    // 홀드 중 1프레임 임펄스
+    sq.push(80, t); t += 50;
+    sq.push(200, t); t += 50; // 임펄스 (median으로 걸러짐)
+    sq.push(80, t); t += 50;
+    for (let i = 0; i < 4; i++) { sq.push(80, t); t += 50; }
+    for (let a = 80; a <= 170; a += 10) { sq.push(a, t); t += 50; }
+    expect(sq.getState().reps).toBe(1);
+  });
+
+  it('reset() 후 ema/median 히스토리도 초기화', () => {
+    const sq = new SquatCounter({ smoothing: 'ema' });
+    sq.push(100, 0);
+    sq.push(50, 10);
+    sq.reset();
+    // reset 후 첫 샘플은 필터 상태 영향 없음 → 그대로 흐름
+    sq.push(170, 0);
+    sq.push(80, 10);
+    // ema prev === null 이었으므로 첫 값 그대로 적용됐어야 = 흐름 정상
+    expect(sq.getState().phase).not.toBe('up');
+  });
+
+  it('NaN/Infinity 입력은 안전하게 무시', () => {
+    const sq = new SquatCounter();
+    sq.push(170, 0);
+    expect(() => sq.push(NaN, 10)).not.toThrow();
+    expect(() => sq.push(Infinity, 20)).not.toThrow();
+    expect(sq.getState().phase).toBe('up');
+  });
+
+  it('emaAlpha=1 이면 원본값과 동일 (스무딩 없음)', () => {
+    const sq1 = new SquatCounter({ smoothing: 'ema', emaAlpha: 1 });
+    const sq2 = new SquatCounter({ smoothing: 'none' });
+    let t = 0;
+    const path = [170, 150, 130, 110, 90, 80];
+    for (const a of path) { sq1.push(a, t); sq2.push(a, t); t += 50; }
+    expect(sq1.getState().phase).toBe(sq2.getState().phase);
+  });
+});
+
 describe('SquatCounter 상태 머신', () => {
   it('descending 중 복귀 → 취소', () => {
     const sq = new SquatCounter();

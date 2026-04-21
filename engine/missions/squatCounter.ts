@@ -24,6 +24,22 @@ export interface SquatCounterParams {
   downHoldMs?: number;   // 기본 150ms
   /** 목표 횟수 (달성률 계산용). */
   target?: number;       // 기본 10
+  /**
+   * Focused Session-3 Candidate I — 실기기 MediaPipe 랜드마크 지터 대응.
+   * 입력 각도 스무딩 방식. 기본 'ema'(알파 0.35).
+   *   - 'none'    : 원본값 사용 (과거 호환)
+   *   - 'ema'     : 지수이동평균 — 1~2 프레임 스파이크 흡수
+   *   - 'median3' : 최근 3 프레임 중앙값 — 임펄스 노이즈에 강함
+   */
+  smoothing?: 'none' | 'ema' | 'median3';
+  /** EMA 알파 (smoothing='ema' 일 때만). 0~1, 클수록 반응 빠름. 기본 0.35. */
+  emaAlpha?: number;
+  /**
+   * 1프레임 이상치 각도 변화 한계 (°). 절댓값이 이 이상이면 해당 샘플 무시.
+   * MediaPipe landmark 소실/튐으로 100→40→100 처럼 급변 시 지터 방지.
+   * 기본 55° (사람 무릎이 1/30 초 안에 55° 이상 움직이는 건 물리적으로 불가).
+   */
+  maxAnglePerFrame?: number;
 }
 
 const DEFAULTS: Required<SquatCounterParams> = {
@@ -31,6 +47,10 @@ const DEFAULTS: Required<SquatCounterParams> = {
   upAngle: 160,
   downHoldMs: 150,
   target: 10,
+  // 기본 'none' — 기존 호출부 호환성. 프로덕션 MediaPipe 경로에서는 'ema' 권장.
+  smoothing: 'none',
+  emaAlpha: 0.35,
+  maxAnglePerFrame: 0, // 0 = 비활성. 프로덕션에서는 55 권장.
 };
 
 export type SquatPhase = 'up' | 'descending' | 'down' | 'ascending';
@@ -66,12 +86,59 @@ export class SquatCounter {
     downEnteredAt: null,
     repStartedAt: null,
   };
+  // Focused Session-3 Candidate I: 지터/이상치 필터 상태
+  private emaPrev: number | null = null;
+  private hist3: number[] = [];
+  private lastAccepted: number | null = null;
 
   constructor(params: SquatCounterParams = {}) {
     this.p = { ...DEFAULTS, ...params };
   }
 
-  push(angle: number, t: number): SquatState {
+  /**
+   * 입력 각도 전처리: outlier reject → smoothing.
+   * 반환 `null` 이면 이 프레임은 상태 머신을 건너뜀(이상치).
+   */
+  private preprocess(angle: number): number | null {
+    if (!Number.isFinite(angle)) return null;
+
+    // 1) outlier reject — lastAccepted 대비 과도 변화
+    if (this.lastAccepted !== null && this.p.maxAnglePerFrame > 0) {
+      if (Math.abs(angle - this.lastAccepted) > this.p.maxAnglePerFrame) {
+        return null; // 튐 — 이번 프레임 스킵
+      }
+    }
+
+    // 2) smoothing
+    let smoothed = angle;
+    switch (this.p.smoothing) {
+      case 'ema': {
+        const a = this.p.emaAlpha;
+        smoothed = this.emaPrev === null ? angle : a * angle + (1 - a) * this.emaPrev;
+        this.emaPrev = smoothed;
+        break;
+      }
+      case 'median3': {
+        this.hist3.push(angle);
+        if (this.hist3.length > 3) this.hist3.shift();
+        const sorted = [...this.hist3].sort((a, b) => a - b);
+        smoothed = sorted[Math.floor(sorted.length / 2)];
+        break;
+      }
+      case 'none':
+      default:
+        break;
+    }
+
+    this.lastAccepted = smoothed;
+    return smoothed;
+  }
+
+  push(rawAngle: number, t: number): SquatState {
+    const pre = this.preprocess(rawAngle);
+    if (pre === null) return this.state;
+    const angle = pre;
+
     // 현재 rep 최저 각도 갱신
     if (this.state.phase !== 'up') {
       this.state.currentMinAngle = Math.min(this.state.currentMinAngle, angle);
@@ -182,5 +249,8 @@ export class SquatCounter {
       downEnteredAt: null,
       repStartedAt: null,
     };
+    this.emaPrev = null;
+    this.hist3 = [];
+    this.lastAccepted = null;
   }
 }
