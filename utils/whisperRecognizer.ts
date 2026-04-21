@@ -76,8 +76,13 @@ async function loadWhisperPipeline(modelId = 'Xenova/whisper-tiny'): Promise<any
     // IndexedDB 캐시 활성 (기본값 true 이지만 명시)
     t.env.useBrowserCache = true;
     t.env.useFSCache = false;
-    // 원격 호스트 고정 (jsdelivr ESM 은 wasm 을 같은 경로에서 찾음)
+    // FIX-I5: 로컬 `/models/` 경로 조회 비활성. Vercel SPA 는 존재하지 않는
+    // 경로에 index.html 을 돌려주므로 transformers 가 HTML 을 JSON 으로 파싱
+    // 시도하다 `Unexpected token '<'` 로 크래시. 바로 huggingface 로 가야 함.
+    t.env.allowLocalModels = false;
     t.env.allowRemoteModels = true;
+    t.env.remoteHost = 'https://huggingface.co';
+    t.env.remotePathTemplate = '{model}/resolve/{revision}/';
     // pipeline = high-level API (preprocess + tokenizer + decode 자동)
     const asr = await t.pipeline('automatic-speech-recognition', modelId, {
       // quantized=true → 모델 크기 1/4, 속도 2배, 품질 소폭 하락 (tiny 에서는 무시할 수준)
