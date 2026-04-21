@@ -11,6 +11,7 @@
     "postexport": "node scripts/patch-dist.js",
     "lint:routes": "node scripts/lint-routes.js",
     "gen:bgm": "node scripts/generate-placeholder-bgm.js",
+    "analyze:bgm": "node scripts/analyze-bgm.js",
     "pretest": "node scripts/lint-routes.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -49,6 +50,8 @@
     "@types/node": "^25.6.0",
     "@types/react": "~19.1.0",
     "@vitest/coverage-v8": "^4.1.4",
+    "audio-decode": "^3.10.1",
+    "essentia.js": "^0.1.3",
     "typescript": "~5.9.2",
     "vitest": "^4.1.4"
   },
