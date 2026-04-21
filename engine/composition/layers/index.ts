@@ -17,8 +17,9 @@ import noise_pattern   from './noise_pattern';
 import camera_feed     from './camera_feed';
 import camera_frame    from './camera_frame';
 import counter_hud     from './counter_hud';
-// 이후 candidates C~D 에서 추가 등록:
-//   kinetic_text, subtitle_track
+import subtitle_track  from './subtitle_track';
+// 이후 candidate D 에서 추가 등록:
+//   kinetic_text
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -40,6 +41,7 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   camera_feed,
   camera_frame,
   counter_hud,
+  subtitle_track,
 };
 
 /**
