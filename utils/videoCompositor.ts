@@ -10,11 +10,7 @@ import {
   ClipArea,
 } from './videoTemplates';
 import type { Template as LayeredTemplate, BaseLayer } from '../engine/templates/schema';
-import renderGradientMesh from '../engine/composition/layers/gradient_mesh';
-import renderAnimatedGrid from '../engine/composition/layers/animated_grid';
-import renderStarField from '../engine/composition/layers/star_field';
-import renderNoisePattern from '../engine/composition/layers/noise_pattern';
-import renderCameraFeed from '../engine/composition/layers/camera_feed';
+import { dispatchLayer } from '../engine/composition/layers';
 import {
   drawFilmGrain,
   drawLightLeak,
@@ -2241,27 +2237,11 @@ function renderLayeredFrame(
       }
     }
 
+    // Focused Session-2 Candidate E: dispatcher 경유 — 단일 지점에서 타입→렌더러 해석.
+    const fn = dispatchLayer(layer.type);
+    if (!fn) continue;   // 미지원 타입은 조용히 스킵
     try {
-      switch (layer.type) {
-        case 'gradient_mesh':
-          renderGradientMesh(ctx, layer, tMs, state);
-          break;
-        case 'animated_grid':
-          renderAnimatedGrid(ctx, layer, tMs, state);
-          break;
-        case 'star_field':
-          renderStarField(ctx, layer, tMs, state);
-          break;
-        case 'noise_pattern':
-          renderNoisePattern(ctx, layer, tMs, state);
-          break;
-        case 'camera_feed':
-          renderCameraFeed(ctx, layer, tMs, state);
-          break;
-        default:
-          // Skip unsupported types for now (세션 2 구현 대상)
-          break;
-      }
+      fn(ctx, layer, tMs, state);
     } catch (e) {
       console.warn(`[Compositor] Error rendering layer ${layer.id}:`, e);
     }

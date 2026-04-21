@@ -432,3 +432,8 @@
 - Vitest: **564/564 green** (렌더러 단위 테스트 10개 + 합성기 통합 스모크 테스트 1개 추가).
 
 ---
+
+### Focused Session-2 Candidate E: Layer Dispatcher (2026-04-21)
+- `engine/composition/layers/index.ts` 신규 — LAYER_REGISTRY + dispatchLayer() + supportedLayerTypes(). 타입→렌더러 매핑 단일 지점. 신규 렌더러 추가는 이 파일 1줄로 끝남.
+- `utils/videoCompositor.ts` renderLayeredFrame switch 제거 → dispatchLayer 경유. 미지원 타입은 null 반환으로 조용히 스킵.
+- Vitest **569/569 green** (+5 dispatcher 스모크).
