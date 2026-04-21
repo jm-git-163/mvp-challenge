@@ -443,3 +443,4 @@
 - dispatcher index.ts 등록 (6번째 타입).
 - 테스트 8 + dispatcher 스모크 ctx 확장(quadraticCurveTo·text·shadow 등). **577/577 green**.
 - 효과: neon-arena 의 `cam_frame` 레이어(hexagon·ringColor #FF2D95·glowBlur 12·onBeat) 가 실제로 렌더됨 → K-POP 챌린지에서 육각 네온 프레임 시각화.
+- Focused Session-2 Candidate B: counter_hud 렌더러 + 펄스 애니메이션 (585/585 green)
