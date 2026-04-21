@@ -457,3 +457,4 @@
 - Focused Session-4 Candidate N: createAngleSmoother + useJudgement 무릎각 EMA/outlier 주입 (697/697 green)
 - Focused Session-4 Candidate O: /debug/layers/subtitle_track 디버그 페이지 (web canvas 프리뷰 + TextInput → liveState)
 - Focused Session-4 Candidate P: postProcessHook crt_scanlines 배선 + applyLut2d(5 프리셋, 705/705 green)
+- Focused Session-4 Candidate R: result page 가 utils/shareHelpers (buildDownloadFilename/composeShareUrl/canUseWebShareFiles) 사용 (705/705 green)

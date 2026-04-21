@@ -32,6 +32,13 @@ import { resolveLayeredTemplate }                 from '../../services/challenge
 import type { JudgementTag, FrameTag } from '../../types/session';
 import type { MissionType } from '../../types/template';
 import { Claude, ClaudeFont } from '../../constants/claudeTheme';
+// Session-4 R: 공유/다운로드 순수 헬퍼
+import {
+  buildDownloadFilename,
+  composeShareUrl,
+  canUseWebShareFiles,
+  type SharePlatform,
+} from '../../utils/shareHelpers';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -164,54 +171,28 @@ function computeMissionResults(frameTags: FrameTag[]): MissionResult[] {
 async function doDownload(uri: string, name: string, mimeType?: string): Promise<void> {
   if (typeof window === 'undefined' || !uri) return;
 
-  // If mime is unknown (e.g. raw recording blob URL), fetch and inspect.
-  // Saving a WebM file as ".mp4" produces an unplayable file on most players.
+  // blob URL 이고 mime 미지정이면 fetch 해서 타입 확정 (webm 을 .mp4 로 저장하면 재생 불가)
   let resolvedMime = mimeType;
   if (!resolvedMime && uri.startsWith('blob:')) {
     try {
       const resp = await fetch(uri);
       resolvedMime = resp.headers.get('content-type') || (await resp.blob()).type || '';
-    } catch { /* ignore — fall back to guess below */ }
+    } catch { /* ignore */ }
   }
+  const probeBlob = { type: resolvedMime || '' } as Blob;
+  const filename = buildDownloadFilename(name || 'challenge', probeBlob);
 
-  const ext =
-    resolvedMime?.includes('mp4') ? 'mp4' :
-    resolvedMime?.includes('webm') ? 'webm' :
-    uri.toLowerCase().endsWith('.webm') ? 'webm' :
-    uri.toLowerCase().endsWith('.mp4') ? 'mp4' :
-    'webm'; // Chrome MediaRecorder default — safer than defaulting to mp4
-
-  const safeName = (name || 'challenge')
-    .replace(/[^\w가-힣\s-]/g, '')   // strip emoji + symbols, keep Korean
-    .trim()
-    .replace(/\s+/g, '_')            // spaces → underscores (filesystem-friendly)
-    .slice(0, 40);                   // limit filename length
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const a = document.createElement('a');
   a.href = uri;
-  a.download = `${safeName || 'challenge'}_${stamp}.${ext}`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
 
-function getBlobExt(blob: Blob): string {
-  if (blob.type.includes('mp4')) return 'mp4';
-  if (blob.type.includes('webm')) return 'webm';
-  return 'mp4';
-}
-
 function openPlatformShare(platform: string, text: string): void {
   if (typeof window === 'undefined') return;
-  const enc = encodeURIComponent(text);
-  const shareMap: Record<string, string> = {
-    twitter:   `https://twitter.com/intent/tweet?text=${enc}`,
-    facebook:  `https://www.facebook.com/sharer/sharer.php?quote=${enc}`,
-    threads:   `https://www.threads.net/intent/post?text=${enc}`,
-    instagram: 'https://www.instagram.com/create/story',
-    tiktok:    'https://www.tiktok.com/upload',
-  };
-  const url = shareMap[platform];
+  const url = composeShareUrl(platform as SharePlatform, text);
   if (!url) return;
   const a = document.createElement('a');
   a.href = url;
@@ -506,27 +487,28 @@ function ShareModal({
 
   const handleWebShare = async () => {
     if (typeof navigator === 'undefined') return;
-    if (navigator.share) {
-      try {
-        // Use the ACTUAL blob mime so Web Share doesn't reject a mislabeled file
-        const realMime = composedBlob?.type || 'video/webm';
-        const ext = realMime.includes('mp4') ? 'mp4' : 'webm';
-        const safeName = (templateName || 'challenge').replace(/[^\w가-힣\s-]/g, '').trim().slice(0, 40);
-        if (composedBlob) {
-          const probe = new File([composedBlob], `${safeName}.${ext}`, { type: realMime });
-          if ((navigator as any).canShare?.({ files: [probe] })) {
-            await navigator.share({ files: [probe], title: `${templateName} 챌린지 완료!`, text: shareText });
-          } else {
-            // canShare rejected files (e.g. iOS Safari with webm) — fall back to link share
-            await navigator.share({ title: `${templateName} 챌린지 완료!`, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' });
-          }
-        } else {
-          await navigator.share({ title: `${templateName} 챌린지 완료!`, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' });
-        }
-        onClose();
-      } catch (e: any) {
-        if (e?.name !== 'AbortError') showToast('공유 실패. 다른 방법을 시도해보세요.');
+    if (!navigator.share) return;
+    try {
+      // Session-4 R: iOS Safari + webm 같은 환경은 canUseWebShareFiles 가 false 반환 → 링크 폴백
+      const filename = buildDownloadFilename(templateName, composedBlob);
+      const canFiles = composedBlob && canUseWebShareFiles(
+        navigator as unknown as Parameters<typeof canUseWebShareFiles>[0],
+        composedBlob,
+        filename,
+      );
+      if (canFiles && composedBlob) {
+        const probe = new File([composedBlob], filename, { type: composedBlob.type || 'video/webm' });
+        await navigator.share({ files: [probe], title: `${templateName} 챌린지 완료!`, text: shareText });
+      } else {
+        await navigator.share({
+          title: `${templateName} 챌린지 완료!`,
+          text: shareText,
+          url: typeof window !== 'undefined' ? window.location.href : '',
+        });
       }
+      onClose();
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') showToast('공유 실패. 다른 방법을 시도해보세요.');
     }
   };
 
