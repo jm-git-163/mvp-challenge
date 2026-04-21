@@ -21,6 +21,7 @@ import subtitle_track  from './subtitle_track';
 import kinetic_text    from './kinetic_text';
 import audio_visualizer from './audio_visualizer';
 import beat_flash      from './beat_flash';
+import particle_burst  from './particle_burst';
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -46,6 +47,7 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   kinetic_text,
   audio_visualizer,
   beat_flash,
+  particle_burst,
 };
 
 /**
