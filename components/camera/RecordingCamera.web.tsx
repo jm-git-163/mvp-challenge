@@ -47,6 +47,7 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
     _streamCache = null;
   }
 
+  // FIX-H2: __permissionStream 제거됨 — 권한은 origin 캐시, 스트림은 여기서 새로 획득.
   if (typeof window !== 'undefined') {
     const pre = (window as any).__permissionStream as MediaStream | undefined;
     if (pre && pre.getTracks().every((t) => t.readyState === 'live')) {

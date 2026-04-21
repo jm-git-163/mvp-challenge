@@ -351,16 +351,21 @@ export default function HomeScreen() {
       //   _layout 의 useEffect 경로는 Chrome·Android 에서 user-gesture 미만으로 판정되어
       //   팝업 자체가 뜨지 않음. 템플릿 카드 클릭은 확실한 gesture → 여기서 한 번 잡으면
       //   오리진에 permission 캐시 → 이후 /record 진입 시 팝업 0.
-      if (typeof window !== 'undefined' && !(window as any).__permissionStream) {
+      // FIX-H2 (2026-04-21): 권한만 획득, 트랙은 즉시 종료.
+      //   스트림을 살려두면 안드로이드 Chrome 에서 SpeechRecognition 이 같은 마이크에
+      //   동시 접근 시 audio 를 못받아 results 가 안올라감. 권한은 origin 단위로
+      //   브라우저에 캐싱되므로 RecordingCamera 에서 재호출해도 팝업 없음.
+      if (typeof window !== 'undefined' && !(window as any).__permissionGranted) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: { echoCancellation: true, noiseSuppression: true },
           });
-          (window as any).__permissionStream = stream;
+          // 트랙 즉시 종료 — 마이크/카메라 해제. 권한만 origin 단위로 캐싱됨.
+          stream.getTracks().forEach((t) => t.stop());
+          (window as any).__permissionGranted = true;
         } catch (e) {
           if (typeof console !== 'undefined') console.warn('[permission] denied or failed:', e);
-          // 거부돼도 진입은 시킴 — record 화면이 재요청 + 에러 표시
         }
       }
       startSession(t);
