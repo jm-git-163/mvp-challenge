@@ -17,7 +17,7 @@ import JudgementBurst         from '../../components/mission/JudgementBurst';
 
 import { usePoseDetection }          from '../../hooks/usePoseDetection';
 import { useJudgement, prewarmSpeech } from '../../hooks/useJudgement';
-import { getGlobalSpeechRecognizer } from '../../utils/speechUtils';
+import { getRecognizer as getGlobalSpeechRecognizer, resolveSttEngine } from '../../utils/sttFactory';
 import { useRecording }              from '../../hooks/useRecording';
 import { useSessionStore }           from '../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
@@ -1661,7 +1661,7 @@ export default function RecordScreen() {
               backgroundColor:'rgba(0,0,0,0.88)', padding:6, borderRadius:4,
             }}>
               <Text style={{ color:'#0f0', fontSize:10, fontFamily:'monospace' }}>
-                state={state} elapsed={elapsed}ms{'\n'}
+                state={state} elapsed={elapsed}ms stt={resolveSttEngine()}{'\n'}
                 pose={poseStatus} real={String(isRealPose)} lm={landmarks.length} sq={squatCount}{'\n'}
                 mission={currentMission?.type ?? '-'} seq={currentMission?.seq ?? '-'}{'\n'}
                 sr.listen={String(srDiag?.listening)} starts={srDiag?.starts ?? 0} ends={srDiag?.endCount ?? srDiag?.ends ?? 0} results={srDiag?.results ?? 0}{'\n'}
