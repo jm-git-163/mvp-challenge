@@ -10,19 +10,9 @@ import { Claude } from '../constants/claudeTheme';
 //   최신 Chrome/Android 는 user gesture 밖의 호출을 조용히 거부 → 팝업 자체가 뜨지 않음.
 //   권한 요청은 app/(main)/home 의 템플릿 카드 onPress 에서 수행 (user gesture 스택 안).
 
-// FIX-I7 (2026-04-21): Whisper 엔진 프로덕션 미준비. Metro/CDN/WASM 경로·
-//   HuggingFace CORS 등 다중 번들러 이슈로 현재 세션에서 안정화 불가.
-//   기존에 `motiq_stt=whisper` 가 localStorage 에 박힌 유저들은 빨간 에러
-//   HUD 에 막혀 앱 사용 자체가 불가능한 상태 → 부팅 시 강제 purge.
-//   Whisper 는 Session 2 (Web Worker 격리 + WASM 경로 수동 지정) 이후 재개.
-function purgeBrokenSttFlag(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const v = window.localStorage.getItem('motiq_stt');
-    if (v === 'whisper') window.localStorage.removeItem('motiq_stt');
-  } catch {}
-}
-purgeBrokenSttFlag();
+// FIX-I7 부가 패치 롤백(2026-04-21): 부팅 시 localStorage purge 가 권한 흐름에
+//   간접 영향을 주는 것으로 의심되어 제거. Whisper 엔진 차단은 sttFactory 쪽
+//   WHISPER_ENABLED=false 한 줄로 충분 (motiq_stt 키가 남아있어도 무시됨).
 
 export default function RootLayout() {
   const { setUserId, setProfile } = useUserStore();
