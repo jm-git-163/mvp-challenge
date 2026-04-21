@@ -10,17 +10,19 @@ import { Claude } from '../constants/claudeTheme';
 //   최신 Chrome/Android 는 user gesture 밖의 호출을 조용히 거부 → 팝업 자체가 뜨지 않음.
 //   권한 요청은 app/(main)/home 의 템플릿 카드 onPress 에서 수행 (user gesture 스택 안).
 
-// FIX-I2 (2026-04-21): URL `?stt=whisper|webkit` 를 앱 루트에서 즉시 localStorage 에
-//   저장. record 페이지에서만 읽던 기존 로직은 activeTemplate=null 로 bail 하면
-//   플래그가 저장되지 않아, 홈 경로에서 템플릿을 눌러도 여전히 webkit 이었음.
-function persistSttFlagFromUrl(): void {
+// FIX-I7 (2026-04-21): Whisper 엔진 프로덕션 미준비. Metro/CDN/WASM 경로·
+//   HuggingFace CORS 등 다중 번들러 이슈로 현재 세션에서 안정화 불가.
+//   기존에 `motiq_stt=whisper` 가 localStorage 에 박힌 유저들은 빨간 에러
+//   HUD 에 막혀 앱 사용 자체가 불가능한 상태 → 부팅 시 강제 purge.
+//   Whisper 는 Session 2 (Web Worker 격리 + WASM 경로 수동 지정) 이후 재개.
+function purgeBrokenSttFlag(): void {
   if (typeof window === 'undefined') return;
   try {
-    const m = window.location.search.match(/[?&]stt=(whisper|webkit)\b/);
-    if (m) window.localStorage.setItem('motiq_stt', m[1]);
+    const v = window.localStorage.getItem('motiq_stt');
+    if (v === 'whisper') window.localStorage.removeItem('motiq_stt');
   } catch {}
 }
-persistSttFlagFromUrl();
+purgeBrokenSttFlag();
 
 export default function RootLayout() {
   const { setUserId, setProfile } = useUserStore();

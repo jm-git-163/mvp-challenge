@@ -47,11 +47,21 @@ void _sr; void _wr;
 
 let _cachedEngine: SttEngine | null = null;
 
+// FIX-I7: Whisper 엔진 일시 비활성 (Session 2 재개 전까지 강제 webkit).
+//   기존 우선순위 로직(URL·localStorage·env) 은 주석으로 보존 → Session 2 에
+//   Worker 격리 + WASM 경로 수동 지정 완료 후 복원.
+const WHISPER_ENABLED = false;
+
 export function resolveSttEngine(): SttEngine {
   if (_cachedEngine) return _cachedEngine;
   if (typeof window === 'undefined') return 'webkit';
 
-  // 1) URL 쿼리
+  if (!WHISPER_ENABLED) {
+    _cachedEngine = 'webkit';
+    return _cachedEngine;
+  }
+
+  // ── 이하는 WHISPER_ENABLED=true 때만 유효 (Session 2 에서 복원) ──
   const q = window.location.search;
   const m = q.match(/[?&]stt=(whisper|webkit)\b/);
   if (m) {
@@ -59,8 +69,6 @@ export function resolveSttEngine(): SttEngine {
     try { window.localStorage.setItem('motiq_stt', _cachedEngine); } catch {}
     return _cachedEngine;
   }
-
-  // 2) localStorage sticky
   try {
     const ls = window.localStorage.getItem('motiq_stt');
     if (ls === 'whisper' || ls === 'webkit') {
@@ -68,9 +76,7 @@ export function resolveSttEngine(): SttEngine {
       return _cachedEngine;
     }
   } catch {}
-
-  // 3) env (Expo 는 EXPO_PUBLIC_* 만 번들에 노출)
-  // @ts-ignore — process.env 는 번들러에 의해 정적 치환됨
+  // @ts-ignore
   const envEngine = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_STT_ENGINE) as
     | string
     | undefined;
@@ -78,10 +84,6 @@ export function resolveSttEngine(): SttEngine {
     _cachedEngine = envEngine;
     return _cachedEngine;
   }
-
-  // 4) 자동 감지 — 모바일은 whisper, 데스크톱은 webkit
-  //   세션1 초기값: 안정성 위해 기본은 'webkit' (기존 동작 유지).
-  //   유저가 원하면 ?stt=whisper 로 즉시 전환 가능.
   _cachedEngine = 'webkit';
   return _cachedEngine;
 }

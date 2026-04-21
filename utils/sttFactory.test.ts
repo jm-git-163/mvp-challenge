@@ -14,7 +14,7 @@ function setLocation(search: string): void {
   });
 }
 
-describe('resolveSttEngine', () => {
+describe('resolveSttEngine (WHISPER_ENABLED=false 잠금 상태)', () => {
   beforeEach(() => {
     _resetSttCache();
     try { window.localStorage.clear(); } catch {}
@@ -23,44 +23,33 @@ describe('resolveSttEngine', () => {
     if (typeof process !== 'undefined') delete process.env.EXPO_PUBLIC_STT_ENGINE;
   });
 
+  // FIX-I7: 현재 Whisper 엔진은 프로덕션 미준비로 강제 webkit 잠금.
+  //   Session 2 (Worker 격리 + WASM 경로 수동 지정) 완료 후 아래 테스트들을
+  //   원래의 우선순위 검증으로 복원한다.
+
   it('기본값은 webkit', () => {
     expect(resolveSttEngine()).toBe('webkit');
   });
 
-  it('?stt=whisper → whisper + localStorage 저장', () => {
+  it('?stt=whisper 무시 (잠금) → webkit', () => {
     setLocation('?stt=whisper');
-    expect(resolveSttEngine()).toBe('whisper');
-    expect(window.localStorage.getItem('motiq_stt')).toBe('whisper');
-  });
-
-  it('?stt=webkit 명시 → webkit + localStorage 저장', () => {
-    setLocation('?stt=webkit');
-    expect(resolveSttEngine()).toBe('webkit');
-    expect(window.localStorage.getItem('motiq_stt')).toBe('webkit');
-  });
-
-  it('localStorage sticky → URL 쿼리 없어도 유지', () => {
-    window.localStorage.setItem('motiq_stt', 'whisper');
-    expect(resolveSttEngine()).toBe('whisper');
-  });
-
-  it('URL 쿼리가 localStorage 를 덮어쓴다', () => {
-    window.localStorage.setItem('motiq_stt', 'whisper');
-    setLocation('?stt=webkit');
     expect(resolveSttEngine()).toBe('webkit');
   });
 
-  it('env EXPO_PUBLIC_STT_ENGINE 반영', () => {
+  it('localStorage sticky=whisper 무시 (잠금) → webkit', () => {
+    window.localStorage.setItem('motiq_stt', 'whisper');
+    expect(resolveSttEngine()).toBe('webkit');
+  });
+
+  it('env EXPO_PUBLIC_STT_ENGINE=whisper 무시 (잠금) → webkit', () => {
     // @ts-ignore
     process.env.EXPO_PUBLIC_STT_ENGINE = 'whisper';
-    expect(resolveSttEngine()).toBe('whisper');
+    expect(resolveSttEngine()).toBe('webkit');
   });
 
-  it('값 캐싱 — 두 번째 호출은 재평가 없음', () => {
-    setLocation('?stt=whisper');
+  it('캐싱 동작 유지', () => {
     const first = resolveSttEngine();
-    setLocation('?stt=webkit');  // 변경해도
     const second = resolveSttEngine();
-    expect(second).toBe(first);   // 캐시됨
+    expect(second).toBe(first);
   });
 });
