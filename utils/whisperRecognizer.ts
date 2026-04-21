@@ -30,14 +30,54 @@ const SAMPLE_RATE = 16_000;  // Whisper 기본 샘플레이트
 // ── 모델 로더 싱글톤 ──────────────────────────────────────────────────────────
 let _pipelinePromise: Promise<unknown> | null = null;
 
+// FIX-I3 (2026-04-21): Metro 번들러가 `@xenova/transformers` 내부 Node 의존성
+// (fs/path/onnxruntime-node)을 못 resolve → `Requiring unknown module "817"`.
+// 해결: bare import 대신 런타임에 jsdelivr ESM CDN 에서 동적 로드. Metro 는
+// 빌드 타임에 URL import 를 보지 못하므로 번들에서 완전히 제외됨.
+const TRANSFORMERS_CDN =
+  'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+async function loadTransformersFromCdn(): Promise<any> {
+  if (typeof window === 'undefined') throw new Error('no window');
+  const w = window as any;
+  if (w.__motiq_transformers) return w.__motiq_transformers;
+  return new Promise((resolve, reject) => {
+    // 이미 로드 중이면 이벤트만 대기
+    const onReady = () => resolve(w.__motiq_transformers);
+    window.addEventListener('__motiq_transformers_ready', onReady, { once: true });
+    if (w.__motiq_transformers_loading) return;
+    w.__motiq_transformers_loading = true;
+    const s = document.createElement('script');
+    s.type = 'module';
+    // inline module → jsdelivr ESM 에서 import → window 에 노출
+    s.textContent = `
+      import * as T from '${TRANSFORMERS_CDN}';
+      window.__motiq_transformers = T;
+      window.dispatchEvent(new Event('__motiq_transformers_ready'));
+    `;
+    s.onerror = (e) => {
+      w.__motiq_transformers_loading = false;
+      reject(new Error('transformers CDN script load failed'));
+    };
+    document.head.appendChild(s);
+    // 30초 타임아웃
+    setTimeout(() => {
+      if (!w.__motiq_transformers) {
+        reject(new Error('transformers CDN import timeout 30s'));
+      }
+    }, 30_000);
+  });
+}
+
 async function loadWhisperPipeline(modelId = 'Xenova/whisper-tiny'): Promise<any> {
   if (_pipelinePromise) return _pipelinePromise;
   _pipelinePromise = (async () => {
-    // 동적 import — SSR / Node 환경에서 로드 회피
-    const t: any = await import('@xenova/transformers');
+    const t: any = await loadTransformersFromCdn();
     // IndexedDB 캐시 활성 (기본값 true 이지만 명시)
     t.env.useBrowserCache = true;
     t.env.useFSCache = false;
+    // 원격 호스트 고정 (jsdelivr ESM 은 wasm 을 같은 경로에서 찾음)
+    t.env.allowRemoteModels = true;
     // pipeline = high-level API (preprocess + tokenizer + decode 자동)
     const asr = await t.pipeline('automatic-speech-recognition', modelId, {
       // quantized=true → 모델 크기 1/4, 속도 2배, 품질 소폭 하락 (tiny 에서는 무시할 수준)
