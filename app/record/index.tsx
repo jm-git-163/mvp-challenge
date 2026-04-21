@@ -1393,6 +1393,15 @@ export default function RecordScreen() {
   // router.replace 로 홈 리다이렉트 (Edge/새 탭 직접 링크 대응).
   useEffect(() => {
     if (!activeTemplate) {
+      // FIX-E3: debug 모드에서는 리다이렉트 스킵 → record 페이지 붙잡고 진단 표시.
+      if (typeof window !== 'undefined') {
+        const q = window.location.search;
+        const sticky = (() => { try { return window.localStorage.getItem('motiq_debug') === '1'; } catch { return false; } })();
+        if (/[?&]debug=1\b/.test(q) || sticky) {
+          if (/[?&]debug=1\b/.test(q)) { try { window.localStorage.setItem('motiq_debug','1'); } catch {} }
+          return;
+        }
+      }
       try { router.replace('/(main)/home'); }
       catch { if (typeof window !== 'undefined') window.location.href = '/'; }
     }
