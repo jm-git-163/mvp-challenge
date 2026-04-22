@@ -7,6 +7,7 @@ import {
   Image,
 } from 'react-native';
 import type { Template } from '../../types/template';
+import { TEMPLATE_THUMBNAILS } from '../../services/templateThumbnails';
 
 const GENRE_LABEL: Record<Template['genre'], string> = {
   kpop:      'K-POP',
@@ -61,11 +62,15 @@ export function TemplateCard({ template, onPress }: Props) {
   // Collect unique mission types
   const missionTypes = [...new Set(template.missions.map((m) => m.type))];
 
+  // Pixabay 큐레이션 썸네일 (템플릿별 고유) → 없으면 mockData 의 thumbnail_url → 없으면 플레이스홀더
+  const pixabayThumb = TEMPLATE_THUMBNAILS[template.id]?.url;
+  const thumbUri = pixabayThumb || template.thumbnail_url;
+
   return (
     <TouchableOpacity style={styles.card} onPress={() => onPress(template)} activeOpacity={0.85}>
       {/* Thumbnail or themed placeholder */}
-      {template.thumbnail_url ? (
-        <Image source={{ uri: template.thumbnail_url }} style={styles.thumbnail} />
+      {thumbUri ? (
+        <Image source={{ uri: thumbUri }} style={styles.thumbnail} />
       ) : (
         <View
           style={[
