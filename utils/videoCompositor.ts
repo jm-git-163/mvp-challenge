@@ -162,6 +162,325 @@ function drawCinematicAccents(
   }
 }
 
+// ---------------------------------------------------------------------------
+// FIX-Z16 (2026-04-22): 장르별 팔레트 · 스티커 · 오디오 바 · 프레이밍 마스크
+//   메인 렌더 섹션 (non-layered) 이 거의 같은 레이아웃으로 보이는 문제를 해결.
+//   후반 컴포지터 단독 수정, 녹화 경로 영향 없음.
+// ---------------------------------------------------------------------------
+
+type GenrePalette = {
+  main: string;
+  accent: string;
+  bgA: string;
+  bgB: string;
+  direction: 'diag' | 'vert' | 'horiz';
+  textFontSize: number;      // 기본 자막 보정 계수(px 추가분)
+  textWeightBoost: boolean;  // 굵게 강조
+};
+
+function getGenrePalette(bgStyle: string): GenrePalette {
+  switch (bgStyle) {
+    case 'kpop':
+      return { main: '#FF2E93', accent: '#8A2BE2', bgA: '#2A0B3A', bgB: '#FF2E93', direction: 'diag', textFontSize: 4, textWeightBoost: true };
+    case 'fitness':
+      return { main: '#FF5A1F', accent: '#FFD400', bgA: '#2A0A00', bgB: '#FF5A1F', direction: 'vert', textFontSize: 2, textWeightBoost: true };
+    case 'news':
+      return { main: '#1E3A8A', accent: '#F8FAFC', bgA: '#0B1E4A', bgB: '#E2E8F0', direction: 'horiz', textFontSize: 0, textWeightBoost: true };
+    case 'vlog': // lofi
+      return { main: '#C9A27A', accent: '#8B5E3C', bgA: '#2B1F14', bgB: '#C9A27A', direction: 'diag', textFontSize: -2, textWeightBoost: false };
+    case 'travel':
+      return { main: '#38BDF8', accent: '#FDE68A', bgA: '#0C2B4A', bgB: '#38BDF8', direction: 'diag', textFontSize: 0, textWeightBoost: false };
+    case 'hiphop':
+      return { main: '#F5C518', accent: '#111111', bgA: '#0A0A0A', bgB: '#8A6A00', direction: 'diag', textFontSize: 3, textWeightBoost: true };
+    case 'fairy':
+      return { main: '#D6A8FF', accent: '#FFB6E1', bgA: '#3A1F5A', bgB: '#FFB6E1', direction: 'diag', textFontSize: 0, textWeightBoost: false };
+    case 'english':
+      return { main: '#60A5FA', accent: '#FCD34D', bgA: '#0F2A55', bgB: '#60A5FA', direction: 'vert', textFontSize: 0, textWeightBoost: true };
+    default:
+      return { main: '#FFFFFF', accent: '#888888', bgA: '#111', bgB: '#333', direction: 'vert', textFontSize: 0, textWeightBoost: false };
+  }
+}
+
+function drawGenreBackground(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  localMs: number,
+  pal: GenrePalette,
+): void {
+  let x0 = 0, y0 = 0, x1 = 0, y1 = H;
+  if (pal.direction === 'diag') { x1 = W; y1 = H; }
+  else if (pal.direction === 'horiz') { x1 = W; y1 = 0; }
+  const drift = Math.sin(localMs * 0.00025) * 20;
+  const g = ctx.createLinearGradient(x0, y0 + drift, x1, y1 - drift);
+  g.addColorStop(0, pal.bgA);
+  g.addColorStop(1, pal.bgB);
+  ctx.save();
+  ctx.globalAlpha = 0.45;  // 기존 gradientColors 위에 은은하게 덧댐
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+// 이미지 스티커 로더 (없으면 null, 조용히 폴백)
+const stickerCache: Map<string, HTMLImageElement | null> = new Map();
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  if (stickerCache.has(url)) return Promise.resolve(stickerCache.get(url)!);
+  return new Promise((resolve) => {
+    if (typeof Image === 'undefined') { stickerCache.set(url, null); resolve(null); return; }
+    const img = new Image();
+    img.onload = () => { stickerCache.set(url, img); resolve(img); };
+    img.onerror = () => { stickerCache.set(url, null); resolve(null); };
+    try { img.src = url; } catch { stickerCache.set(url, null); resolve(null); }
+  });
+}
+
+// 장르별 스티커 정의 (이모지 폴백 사용 — 실제 PNG 없을 때)
+type StickerSpec = { emoji: string; xPct: number; yPct: number; size: number; mode: 'pulse' | 'drift' | 'sparkle' | 'tick' };
+function getGenreStickers(bgStyle: string): StickerSpec[] {
+  switch (bgStyle) {
+    case 'kpop':
+      return [
+        { emoji: '💫', xPct: 0.08, yPct: 0.08, size: 56, mode: 'pulse' },
+        { emoji: '⭐', xPct: 0.92, yPct: 0.08, size: 52, mode: 'pulse' },
+        { emoji: '✨', xPct: 0.08, yPct: 0.92, size: 54, mode: 'pulse' },
+        { emoji: '🔥', xPct: 0.92, yPct: 0.92, size: 56, mode: 'pulse' },
+      ];
+    case 'fitness':
+      return [
+        { emoji: '🔥', xPct: 0.08, yPct: 0.10, size: 60, mode: 'pulse' },
+        { emoji: '💪', xPct: 0.92, yPct: 0.10, size: 58, mode: 'pulse' },
+        { emoji: '⚡', xPct: 0.50, yPct: 0.06, size: 54, mode: 'sparkle' },
+      ];
+    case 'news':
+      return [
+        { emoji: '🔴 LIVE', xPct: 0.12, yPct: 0.93, size: 28, mode: 'tick' },
+        { emoji: '🕒', xPct: 0.90, yPct: 0.93, size: 40, mode: 'tick' },
+      ];
+    case 'vlog': // lofi
+      return [
+        { emoji: '☁️', xPct: 0.88, yPct: 0.10, size: 50, mode: 'drift' },
+        { emoji: '✨', xPct: 0.82, yPct: 0.18, size: 28, mode: 'sparkle' },
+      ];
+    case 'travel':
+      return [
+        { emoji: '✈️', xPct: 0.88, yPct: 0.12, size: 48, mode: 'drift' },
+        { emoji: '🌴', xPct: 0.10, yPct: 0.92, size: 54, mode: 'drift' },
+        { emoji: '☀️', xPct: 0.90, yPct: 0.90, size: 46, mode: 'sparkle' },
+      ];
+    case 'hiphop':
+      return [
+        { emoji: '💰', xPct: 0.08, yPct: 0.10, size: 58, mode: 'pulse' },
+        { emoji: '🎤', xPct: 0.92, yPct: 0.10, size: 56, mode: 'pulse' },
+        { emoji: '💎', xPct: 0.50, yPct: 0.08, size: 48, mode: 'sparkle' },
+      ];
+    case 'fairy':
+      return [
+        { emoji: '✨', xPct: 0.12, yPct: 0.15, size: 36, mode: 'sparkle' },
+        { emoji: '🌸', xPct: 0.86, yPct: 0.20, size: 44, mode: 'drift' },
+        { emoji: '⭐', xPct: 0.20, yPct: 0.80, size: 30, mode: 'sparkle' },
+        { emoji: '💖', xPct: 0.82, yPct: 0.82, size: 40, mode: 'drift' },
+        { emoji: '✨', xPct: 0.50, yPct: 0.50, size: 24, mode: 'sparkle' },
+      ];
+    case 'english':
+      return [
+        { emoji: '📚', xPct: 0.10, yPct: 0.10, size: 50, mode: 'pulse' },
+        { emoji: '🌟', xPct: 0.90, yPct: 0.10, size: 44, mode: 'sparkle' },
+      ];
+    default:
+      return [];
+  }
+}
+
+function drawStickers(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  localMs: number,
+  bgStyle: string,
+  bpm: number,
+): void {
+  const specs = getGenreStickers(bgStyle);
+  if (specs.length === 0) return;
+  const beatPeriod = 60_000 / Math.max(40, Math.min(200, bpm));
+  const beatPhase = (localMs % beatPeriod) / beatPeriod;
+  const beatPulse = Math.pow(1 - beatPhase, 2.0);
+  ctx.save();
+  for (let i = 0; i < specs.length; i++) {
+    const s = specs[i];
+    const baseX = s.xPct * W;
+    const baseY = s.yPct * H;
+    let scale = 1, rot = 0, alpha = 1, dx = 0, dy = 0;
+    switch (s.mode) {
+      case 'pulse': {
+        scale = 1 + beatPulse * 0.35;
+        rot = Math.sin(localMs * 0.003 + i) * 0.08;
+        break;
+      }
+      case 'sparkle': {
+        const phase = (localMs * 0.002 + i * 0.7) % 1;
+        alpha = 0.3 + Math.abs(Math.sin(phase * Math.PI * 2)) * 0.7;
+        scale = 0.85 + Math.sin(localMs * 0.004 + i) * 0.2;
+        break;
+      }
+      case 'drift': {
+        dx = Math.sin(localMs * 0.0006 + i * 1.3) * 18;
+        dy = Math.cos(localMs * 0.0005 + i * 0.9) * 10;
+        alpha = 0.75 + Math.sin(localMs * 0.001 + i) * 0.2;
+        break;
+      }
+      case 'tick': {
+        // 초 단위 깜박임
+        const secPhase = (localMs % 1000) / 1000;
+        alpha = secPhase < 0.5 ? 1 : 0.6;
+        break;
+      }
+    }
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.translate(baseX + dx, baseY + dy);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    ctx.font = `bold ${s.size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(s.emoji, 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// 오디오 비주얼라이저 (BPM 기반 사인 파 + 빠른 감쇠, fake 진폭)
+function drawAudioBars(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  localMs: number,
+  pal: GenrePalette,
+  bpm: number,
+): void {
+  const BAR_COUNT = 14;
+  const beatPeriod = 60_000 / Math.max(40, Math.min(200, bpm));
+  const beatPhase = (localMs % beatPeriod) / beatPeriod;
+  const beatPulse = Math.pow(1 - beatPhase, 2.0);
+  const barsAreaH = 80;
+  const barsY = H - 170;  // 해시태그 스트립 위
+  const gap = 6;
+  const totalGap = gap * (BAR_COUNT - 1);
+  const areaW = W * 0.55;
+  const barW = (areaW - totalGap) / BAR_COUNT;
+  const startX = (W - areaW) / 2;
+  ctx.save();
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const seed = i * 11.37;
+    const wave = 0.4 + 0.6 * Math.abs(Math.sin(localMs * 0.006 + seed));
+    const perBar = Math.abs(Math.sin(seed + i * 0.4));
+    const h = Math.max(6, barsAreaH * wave * (0.5 + perBar * 0.5) * (0.7 + beatPulse * 0.5));
+    const x = startX + i * (barW + gap);
+    const y = barsY + (barsAreaH - h);
+    // 바 본체 그라디언트
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, pal.accent);
+    g.addColorStop(1, pal.main);
+    ctx.fillStyle = g;
+    rrPath(ctx, x, y, barW, h, Math.min(barW / 2, 4));
+    ctx.fill();
+    // 상단 하이라이트
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    rrPath(ctx, x, y, barW, Math.min(4, h / 3), Math.min(barW / 2, 4));
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// 장르별 프레이밍: 클립 영역에 추가 마스크 적용
+function applyGenreFraming(
+  ctx: CanvasRenderingContext2D,
+  bgStyle: string,
+  cx: number,
+  cy: number,
+  cw: number,
+  ch: number,
+  borderRadius: number,
+): boolean {
+  // 반환: true 면 이 함수에서 clip 적용했음 (호출측은 rrPath/clip 스킵)
+  switch (bgStyle) {
+    case 'kpop':
+    case 'fitness': {
+      // 중앙 원형 마스크 (clip 영역 내)
+      const r = Math.min(cw, ch) / 2;
+      const midX = cx + cw / 2;
+      const midY = cy + ch / 2;
+      ctx.beginPath();
+      ctx.ellipse(midX, midY, r, r, 0, 0, Math.PI * 2);
+      ctx.clip();
+      return true;
+    }
+    case 'fairy': {
+      // 하트 마스크
+      const midX = cx + cw / 2;
+      const midY = cy + ch / 2;
+      const size = Math.min(cw, ch) * 0.95;
+      const s = size / 2;
+      ctx.beginPath();
+      ctx.moveTo(midX, midY + s * 0.6);
+      ctx.bezierCurveTo(midX + s * 1.2, midY - s * 0.1, midX + s * 0.5, midY - s, midX, midY - s * 0.35);
+      ctx.bezierCurveTo(midX - s * 0.5, midY - s, midX - s * 1.2, midY - s * 0.1, midX, midY + s * 0.6);
+      ctx.closePath();
+      ctx.clip();
+      return true;
+    }
+    case 'vlog': {
+      // 둥근 사각 (더 큰 반경)
+      rrPath(ctx, cx, cy, cw, ch, Math.max(borderRadius, 48));
+      ctx.clip();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// 뉴스 템플릿용 우측 "속보" 텍스트 스트림
+function drawNewsBreakingStrip(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  localMs: number,
+  pal: GenrePalette,
+): void {
+  const stripW = W * 0.28;
+  const stripX = W - stripW;
+  const stripY = H * 0.22;
+  const stripH = H * 0.5;
+  ctx.save();
+  ctx.fillStyle = 'rgba(11,30,74,0.75)';
+  rrPath(ctx, stripX + 8, stripY, stripW - 16, stripH, 10);
+  ctx.fill();
+  ctx.strokeStyle = pal.accent + 'aa';
+  ctx.lineWidth = 2;
+  rrPath(ctx, stripX + 8, stripY, stripW - 16, stripH, 10);
+  ctx.stroke();
+  // 헤드라인 롤링
+  const lines = ['속보', '실시간 현장', '주요 뉴스', '단독 입수', '긴급'];
+  const scroll = (localMs * 0.04) % (lines.length * 60);
+  ctx.font = 'bold 20px "Pretendard Variable",system-ui,sans-serif';
+  ctx.fillStyle = '#F8FAFC';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < lines.length; i++) {
+    const yy = stripY + 40 + i * 60 - scroll + lines.length * 60;
+    const wrappedY = ((yy - stripY) % (lines.length * 60)) + stripY;
+    if (wrappedY > stripY + 10 && wrappedY < stripY + stripH - 10) {
+      ctx.fillText(lines[i], stripX + stripW / 2, wrappedY);
+    }
+  }
+  ctx.restore();
+}
+
 function drawVlogScene(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -2544,6 +2863,12 @@ export async function composeVideo(
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, W, H);
 
+        // FIX-Z16 (2026-04-22): 장르별 다이내믹 그라디언트 오버레이
+        try {
+          const pal = getGenrePalette(legacyTemplate.bgStyle);
+          drawGenreBackground(ctx, W, H, elapsed, pal);
+        } catch {}
+
         // --- 2. Scene background ---
         switch (legacyTemplate.bgStyle) {
           case 'vlog': drawVlogScene(ctx, W, H, elapsed, legacyTemplate.accentColor); break;
@@ -2570,8 +2895,12 @@ export async function composeVideo(
           const cw = ca.wPct * W; const ch = ca.hPct * H;
           
           ctx.save();
-          rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
-          ctx.clip();
+          // FIX-Z16: 장르별 프레이밍 (원형/하트/둥근사각) — 기본은 rrPath
+          const framed = applyGenreFraming(ctx, legacyTemplate.bgStyle, cx, cy, cw, ch, ca.borderRadius);
+          if (!framed) {
+            rrPath(ctx, cx, cy, cw, ch, ca.borderRadius);
+            ctx.clip();
+          }
           try {
             const vw = video.videoWidth || 720;
             const vh = video.videoHeight || 1280;
@@ -2584,8 +2913,16 @@ export async function composeVideo(
             ctx.fillStyle = '#000'; ctx.fillRect(cx, cy, cw, ch);
           }
           ctx.restore();
-          
+
           drawClipFrame(ctx, legacyTemplate.bgStyle, cx, cy, cw, ch, ca.borderRadius, legacyTemplate.accentColor, elapsed);
+
+          // FIX-Z16: 뉴스 템플릿용 우측 "속보" 스트립
+          try {
+            if (legacyTemplate.bgStyle === 'news') {
+              const palN = getGenrePalette('news');
+              drawNewsBreakingStrip(ctx, W, H, elapsed, palN);
+            }
+          } catch {}
         }
       }
 
@@ -2603,13 +2940,49 @@ export async function composeVideo(
         }
       } catch (e) { try { console.warn('[compositor] accents error:', e); } catch {} }
 
+      // FIX-Z16 (2026-04-22): 장르별 스티커 레이어 + 오디오 바 비주얼라이저
+      try {
+        if (!isLayered && elapsed >= INTRO_MS && elapsed < (duration - OUTRO_MS)) {
+          const pal = getGenrePalette(legacyTemplate.bgStyle);
+          const bpm = legacyTemplate.bgm?.bpm ?? 120;
+          drawStickers(ctx, W, H, elapsed - INTRO_MS, legacyTemplate.bgStyle, bpm);
+          drawAudioBars(ctx, W, H, elapsed - INTRO_MS, pal, bpm);
+        }
+      } catch (e) { try { console.warn('[compositor] stickers/bars error:', e); } catch {} }
+
       // FIX-Z15 (2026-04-22): non-layered main 구간에 text_overlays 타임라인 렌더.
       //   기존엔 drawTextOverlay 정의만 있고 호출이 없어서 자막이 mp4 에 박히지 않았다.
       //   사용자 피드백: "화면 효과, 이미지, 이팩트, 자막 여러 레이어로"
       try {
         if (!isLayered && legacyTemplate.text_overlays && elapsed >= INTRO_MS && elapsed < (duration - OUTRO_MS)) {
+          const pal = getGenrePalette(legacyTemplate.bgStyle);
           for (const ov of legacyTemplate.text_overlays) {
-            drawTextOverlay(ctx, ov, W, H, elapsed);
+            // FIX-Z16: 자막 진입 애니 + 액센트 1px 라인 + 장르별 폰트 사이즈 보정
+            if (elapsed >= ov.start_ms && elapsed <= ov.end_ms) {
+              const localT = (elapsed - ov.start_ms) / Math.max(1, (ov.end_ms - ov.start_ms));
+              const ANIM_IN = 0.12;
+              const riseOffset = localT < ANIM_IN ? (1 - localT / ANIM_IN) * 18 : 0;
+              const lineAlpha = Math.min(1, localT / ANIM_IN) * 0.85;
+              if (!ov.bgColor) {
+                // 기본 bgColor 없는 자막 아래에만 얇은 액센트 라인
+                ctx.save();
+                ctx.globalAlpha = lineAlpha;
+                const xx = ov.xPct * W;
+                const yy = ov.yPct * H + ov.fontSize + 6 + riseOffset;
+                const lineW = Math.min(W * 0.55, 340);
+                const lx = ov.align === 'left' ? xx : (ov.align === 'right' ? xx - lineW : xx - lineW / 2);
+                ctx.fillStyle = pal.accent;
+                ctx.fillRect(lx, yy, lineW, 1.5);
+                ctx.restore();
+              }
+            }
+            // 장르별 폰트 사이즈 보정 (원본 수정 금지 → 임시 래퍼)
+            const boosted: TextOverlay = {
+              ...ov,
+              fontSize: Math.max(14, ov.fontSize + pal.textFontSize),
+              bold: ov.bold ?? pal.textWeightBoost,
+            };
+            drawTextOverlay(ctx, boosted, W, H, elapsed);
           }
         }
       } catch (e) { try { console.warn('[compositor] text_overlays draw error:', e); } catch {} }
