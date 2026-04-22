@@ -1896,7 +1896,20 @@ export default function RecordScreen() {
                     <Text style={r.comboText}>🔥 {combo}x</Text>
                   </View>
                 )}
-                <TouchableOpacity style={r.flipBtn} onPress={() => setFacing(f => f==='front'?'back':'front')} hitSlop={{top:12,bottom:12,left:12,right:12}}>
+                <TouchableOpacity
+                  style={r.flipBtn}
+                  onPress={() => {
+                    // FIX-AA (2026-04-22): 녹화 중 facing 전환 시 기존 audio track
+                    //   이 stop 되면서 녹화본 오디오가 끊기는 경로가 있어 억제.
+                    //   녹화 시작 전 / idle 상태에서만 토글 허용.
+                    if (isRecording || state === 'countdown' || state === 'processing') {
+                      return;
+                    }
+                    setFacing(f => f==='front'?'back':'front');
+                  }}
+                  hitSlop={{top:12,bottom:12,left:12,right:12}}
+                  disabled={isRecording || state === 'countdown' || state === 'processing'}
+                >
                   <Text style={r.flipText}>🔄</Text>
                 </TouchableOpacity>
               </Animated.View>

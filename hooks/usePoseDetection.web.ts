@@ -55,6 +55,12 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   const mockTimerRef     = useRef(0);
   const useMockRef       = useRef(false);
   const lastTimestampRef = useRef(0);
+  // FIX-Z20 (2026-04-22): status='error' 감지 시 3 초 후 자동 retry.
+  //   3회 실패 시 mock 모드 강제 전환해 "아무것도 안 됨" 상태 회피.
+  const poseRetryRef      = useRef(0);
+  const poseRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const POSE_RETRY_MAX    = 3;
+  const POSE_RETRY_DELAY_MS = 3000;
 
   const retry = useCallback(() => {
     setError(null);
@@ -115,6 +121,10 @@ export function usePoseDetection(): UsePoseDetectionReturn {
         //   (MoveNet knee) 가 실제로 elbow 가 되어 스쿼트 각도·스탠스가 전부 깨짐.
         //   → 여기서 한 번 변환해 downstream 은 기존대로 동작하게 한다.
         const bp = result.landmarks[0];
+        // FIX-AA (2026-04-22): BlazePose 가 드물게 부분 출력(길이<33)을 낼 때
+        //   폴백 0,0 landmark 가 downstream 에 주입되어 PoseCalibration 이
+        //   얼굴/발 위치로 오인식. bp.length < 33 이면 이번 프레임 skip.
+        if (!Array.isArray(bp) || bp.length < 33) return;
         const toLm = (i: number): NormalizedLandmark => {
           const lm = bp[i] ?? { x: 0, y: 0, z: 0, visibility: 0 };
           return {
@@ -226,6 +236,33 @@ export function usePoseDetection(): UsePoseDetectionReturn {
       ac.abort();
     };
   }, [loadNonce]);
+
+  // ── Auto-retry on error ──────────────────────────────────────────────────
+  // FIX-Z20 (2026-04-22): 로더가 error 로 떨어졌을 때 3초 후 자동 retry.
+  //   3회 실패 시 useMockRef 를 켜고 'ready-mock' 으로 전환 — 유저가 아무 것도
+  //   없는 화면을 계속 보지 않도록. 실기기 MediaPipe CDN 플레이키 상황 대응.
+  useEffect(() => {
+    if (status !== 'error') return;
+    if (poseRetryRef.current >= POSE_RETRY_MAX) {
+      // 한계 도달 → mock 강제 전환.
+      useMockRef.current = true;
+      setError('자동 재시도 3회 실패 — mock 모드');
+      setIsReady(true);
+      setStatus('ready-mock');
+      return;
+    }
+    if (poseRetryTimerRef.current) clearTimeout(poseRetryTimerRef.current);
+    poseRetryTimerRef.current = setTimeout(() => {
+      poseRetryRef.current += 1;
+      retry();
+    }, POSE_RETRY_DELAY_MS);
+    return () => {
+      if (poseRetryTimerRef.current) {
+        clearTimeout(poseRetryTimerRef.current);
+        poseRetryTimerRef.current = null;
+      }
+    };
+  }, [status, retry]);
 
   // ── Detection loop ───────────────────────────────────────────────────────
   useEffect(() => {

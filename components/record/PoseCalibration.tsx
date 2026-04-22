@@ -97,8 +97,10 @@ export function PoseCalibration({ landmarks, onCalibrated, onSkip }: Props) {
   useEffect(() => {
     if (calibratedRef.current) return;
     const { pct, visible: v } = computeMatch(landmarks);
-    setMatchPct(pct);
-    setVisible(v);
+    // FIX-AA (2026-04-22): 같은 값이면 setState 호출 자체를 억제해
+    //   React 리렌더 연쇄 차단 (landmarks 는 100ms 주기로 들어옴).
+    setMatchPct((prev) => (prev === pct ? prev : pct));
+    setVisible((prev) => (prev === v ? prev : v));
 
     const now = performance.now();
     if (pct >= MATCH_THRESHOLD) {

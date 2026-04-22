@@ -37,15 +37,31 @@ const CH = 1280;
 // Stream cache singleton — persists across navigations
 // ---------------------------------------------------------------------------
 let _streamCache: { stream: MediaStream; facing: 'front' | 'back' } | null = null;
+// FIX-AA (2026-04-22): facing 토글 경쟁 직렬화 — 빠르게 두 번 누르거나
+//   useEffect cleanup/setup 이 겹칠 때 두 개의 getUserMedia 가 동시에
+//   같은 카메라 장치를 잡으면 iOS/Android 에서 NotReadableError/OverconstrainedError
+//   가 터지면서 스트림 둘 다 사용불가. promise-queue 로 직렬화.
+let _acquireQueue: Promise<MediaStream> = Promise.resolve() as any;
 
 async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
+  // 이전 acquire 완료(성공/실패 무관) 이후 내 차례 실행
+  const prev = _acquireQueue.catch(() => undefined);
+  const next = prev.then(() => doAcquire(facing));
+  _acquireQueue = next.catch(() => undefined) as any;
+  return next;
+}
+
+async function doAcquire(facing: 'front' | 'back'): Promise<MediaStream> {
   if (_streamCache) {
     const allLive = _streamCache.stream
       .getTracks()
       .every((t) => t.readyState === 'live');
     if (allLive && _streamCache.facing === facing) return _streamCache.stream;
-    _streamCache.stream.getTracks().forEach((t) => t.stop());
+    // 기존 캐시 stream 정리 (video+audio 트랙 전부 stop) + 새 getUserMedia 전 80ms 여유.
+    //   → 일부 Android Chrome 에서 동일 장치 즉시 재요청 시 NotReadableError 발생 회피.
+    try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
     _streamCache = null;
+    await new Promise((r) => setTimeout(r, 80));
   }
 
   // FIX-H2: __permissionStream 제거됨 — 권한은 origin 캐시, 스트림은 여기서 새로 획득.
@@ -58,14 +74,25 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
   }
 
   const facingMode = facing === 'front' ? 'user' : 'environment';
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode,
-      width:  { ideal: 1280 },
-      height: { ideal: 720 },
-    },
-    audio: { echoCancellation: true, noiseSuppression: true },
-  });
+  // FIX-AA: facingMode 실패 폴백. iOS Safari 일부 환경에서 'environment' 미지원 시
+  //   OverconstrainedError 로 카메라가 아예 안 열림 → 최후로 video:true 로 강등.
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: facingMode } as any,
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (err) {
+    console.warn('[acquireStream] primary getUserMedia failed, fallback to generic video:true:', err);
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+  }
   _streamCache = { stream, facing };
   return stream;
 }
@@ -880,6 +907,9 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const recStateRef = useRef(false);
 
     const mountedFacingRef = useRef(facing);
+    // FIX-AA: facing 토글 race-guard 용 generation counter + cleanup 저장소.
+    const generationRef = useRef(0);
+    const cleanupsRef   = useRef<Array<() => void>>([]);
 
     // Stable refs for rAF loop closure
     const elapsedRef        = useRef(elapsed);
@@ -910,89 +940,132 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
     const [denied, setDenied] = useState(false);
     const [ready, setReady]   = useState(false);
+    // FIX-AA (2026-04-22): 카메라 진단 뱃지용 상태. 사용자가 실기기에서
+    //   어느 단계에서 카메라가 멈추는지 한눈에 확인할 수 있도록 노출.
+    const [camDiag, setCamDiag] = useState<{
+      phase: 'idle' | 'acquiring' | 'attached' | 'playing' | 'frozen' | 'error';
+      facing: 'front' | 'back';
+      vw: number; vh: number; ready: number; paused: boolean;
+      msg: string;
+    }>({ phase: 'idle', facing, vw: 0, vh: 0, ready: 0, paused: true, msg: '' });
+    const setCamDiagSafe = (patch: Partial<typeof camDiag>) =>
+      setCamDiag((prev) => ({ ...prev, ...patch }));
 
     // ------------------------------------------------------------------
     // Stream acquisition
     // ------------------------------------------------------------------
     useEffect(() => {
       let cancelled = false;
+      // FIX-AA: facing 전환마다 generation 증가 — 이전 setup 의 late-resolve 가
+      //   최신 상태를 덮어쓰지 않게 함 (race 방어).
+      const myGen = ++generationRef.current;
 
       const setup = async () => {
+        setCamDiagSafe({ phase: 'acquiring', facing, msg: `${facing} getUserMedia…` });
+        // facing 이 실제로 바뀐 경우에만 기존 캐시 무효화.
+        //   — 같은 facing 으로 remount 되는 경우 (예: React StrictMode) 기존 트랙 유지.
         if (mountedFacingRef.current !== facing && _streamCache) {
-          _streamCache.stream.getTracks().forEach((t) => t.stop());
+          try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
           _streamCache = null;
         }
         mountedFacingRef.current = facing;
 
+        let stream: MediaStream;
         try {
-          const stream = await acquireStream(facing);
-          if (cancelled) return;
-          streamRef.current = stream;
-          // 전역 노출: poseUtils(포즈감지) + useJudgement(볼륨감지) 에서 접근
-          (window as any).__cameraStream = stream;
-          if (videoRef.current) {
-            const vid = videoRef.current;
-            vid.srcObject = stream;
-            // Focused Commit B-1: __poseVideoEl 을 readyState>=2 & videoWidth>0 확보 후 세팅.
-            //   - 기존 fire-and-forget play() 는 iOS Safari/Chrome 의 autoplay 정책에서 거부되면
-            //     videoWidth=0 인 채로 pose 감지가 돌아 빈 프레임만 발생.
-            //   - loadedmetadata 대기 + play() await + 폴백으로 'camera-play-failed' 에러 마킹.
-            try {
-              await vid.play();
-            } catch (playErr) {
-              console.warn('[RecordingCamera] video.play() failed (autoplay):', playErr);
-              // 사용자 제스처 후 재시도: 첫 터치에서 play 재시도
-              const retryOnce = () => {
-                vid.play().catch(() => {});
-                window.removeEventListener('pointerdown', retryOnce);
-                window.removeEventListener('touchstart', retryOnce);
-              };
-              window.addEventListener('pointerdown', retryOnce, { once: true });
-              window.addEventListener('touchstart',  retryOnce, { once: true });
-            }
-            // FIX-Z10 (2026-04-22): 모바일(특히 iOS Safari) 에서 videoWidth 가 3초 내
-            //   올라오지 않는 경우가 있음 — autoplay 정책으로 play() 가 지연되거나
-            //   loadedmetadata 이벤트가 느림. 10초로 연장 + play() 재시도 + 마지막에
-            //   videoWidth 0 이어도 __poseVideoEl 세팅 (pose hook 내부에서 재시도).
-            const waitReady = async (): Promise<boolean> => {
-              for (let i = 0; i < 100; i++) {
-                if (cancelled) return false;
-                if (vid.readyState >= 2 && vid.videoWidth > 0) return true;
-                // 2초마다 play() 재시도 (autoplay 정책 우회)
-                if (i > 0 && i % 20 === 0) {
-                  try { await vid.play(); } catch {}
-                }
-                await new Promise((r) => setTimeout(r, 100));
-              }
-              return false;
-            };
-            const ok = await waitReady();
-            if (cancelled) return;
-            if (ok) {
-              (window as any).__poseVideoEl = vid;
-            } else {
-              console.warn('[RecordingCamera] video not fully ready after 10s (videoWidth='+vid.videoWidth+', readyState='+vid.readyState+'). Setting anyway for late-bind.');
-              // 그래도 세팅 — pose hook 이 내부에서 videoWidth>0 재확인
-              (window as any).__poseVideoEl = vid;
-            }
-          }
-          setDenied(false);
-          setReady(true);
+          stream = await acquireStream(facing);
         } catch (err) {
-          if (cancelled) return;
+          if (cancelled || myGen !== generationRef.current) return;
           console.warn('[RecordingCamera] getUserMedia failed:', err);
+          setCamDiagSafe({ phase: 'error', msg: (err as any)?.name ?? String(err) });
           setDenied(true);
           setReady(false);
           onPermissionDenied?.();
+          return;
         }
+        if (cancelled || myGen !== generationRef.current) {
+          // 이미 다음 facing 전환이 발생 → 방금 받은 stream 은 버림.
+          //   (이미 _streamCache 에 등록되어 있으므로 stop 하지 않음 — 후속 setup 이 사용)
+          return;
+        }
+        streamRef.current = stream;
+        (window as any).__cameraStream = stream;
+
+        if (!videoRef.current) return;
+        const vid = videoRef.current;
+        // 기존 srcObject 가 다르면 교체. 같으면 play() 만 재시도 (iOS 에서 srcObject
+        //   재할당 하면 readyState 가 일시 0 으로 떨어지며 preview 가 점멸).
+        if (vid.srcObject !== stream) {
+          try { vid.srcObject = stream; } catch {}
+        }
+        setCamDiagSafe({ phase: 'attached', msg: 'srcObject attached' });
+
+        // loadedmetadata 이벤트로 __poseVideoEl + ready 를 "즉시" 세팅.
+        //   이전엔 10s polling 루프가 끝나야 setReady(true) 호출되어 rAF 가 지연됨.
+        const markReady = () => {
+          if (cancelled || myGen !== generationRef.current) return;
+          (window as any).__poseVideoEl = vid;
+          setCamDiagSafe({
+            phase: 'playing', vw: vid.videoWidth, vh: vid.videoHeight,
+            ready: vid.readyState, paused: vid.paused, msg: 'ok',
+          });
+          setDenied(false);
+          setReady(true);
+        };
+
+        const onMeta = () => { markReady(); };
+        vid.addEventListener('loadedmetadata', onMeta, { once: true });
+        vid.addEventListener('playing', onMeta, { once: true });
+
+        try {
+          await vid.play();
+        } catch (playErr) {
+          console.warn('[RecordingCamera] video.play() failed (autoplay):', playErr);
+          const retryOnce = () => {
+            vid.play().catch(() => {});
+            window.removeEventListener('pointerdown', retryOnce);
+            window.removeEventListener('touchstart', retryOnce);
+          };
+          window.addEventListener('pointerdown', retryOnce, { once: true });
+          window.addEventListener('touchstart',  retryOnce, { once: true });
+        }
+
+        // 이미 metadata 가 올라와 있을 수도 있음 (캐시된 stream 재사용 시).
+        if (vid.readyState >= 1 && vid.videoWidth > 0) {
+          markReady();
+        }
+
+        // 안전망: 3초 내에도 playing/loadedmetadata 가 안 오면 강제로 ready 처리 +
+        //   진단 뱃지에 frozen 상태 표시. rAF 는 무조건 돌게 해서 UI freeze 피함.
+        const fallbackTimer = setTimeout(() => {
+          if (cancelled || myGen !== generationRef.current) return;
+          if (!(window as any).__poseVideoEl) {
+            (window as any).__poseVideoEl = vid;
+          }
+          setCamDiagSafe({
+            phase: vid.readyState >= 2 ? 'playing' : 'frozen',
+            vw: vid.videoWidth, vh: vid.videoHeight,
+            ready: vid.readyState, paused: vid.paused,
+            msg: vid.readyState >= 2 ? 'late-ready' : `late vw=${vid.videoWidth} rs=${vid.readyState}`,
+          });
+          setDenied(false);
+          setReady(true);
+        }, 3000);
+
+        cleanupsRef.current.push(() => {
+          clearTimeout(fallbackTimer);
+          vid.removeEventListener('loadedmetadata', onMeta);
+          vid.removeEventListener('playing', onMeta);
+        });
       };
 
       setup();
 
       return () => {
         cancelled = true;
-        if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-        if (frameRafRef.current !== null) { cancelAnimationFrame(frameRafRef.current); frameRafRef.current = null; }
+        // rAF 는 ready effect 가 별도로 관리 — 여기선 setup 용 cleanup 만.
+        const list = cleanupsRef.current;
+        cleanupsRef.current = [];
+        for (const fn of list) { try { fn(); } catch {} }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [facing]);
@@ -1018,6 +1091,12 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     useEffect(() => {
       if (!ready) return;
 
+      // FIX-AA (2026-04-22): draw 루프에서도 video 상태를 주기적으로 체크해
+      //   paused 면 play() 재시도, readyState 가 2 미만이면 마지막 프레임 유지 +
+      //   진단 뱃지 갱신. 이 루프 자체는 절대 끊기지 않는다.
+      let lastDiagUpdate = 0;
+      let lastPlayKick   = 0;
+
       // FIX-Y1 (2026-04-22): 어느 한 draw* 함수에서라도 throw 하면 rAF 체인이 끊겨
       //   카메라 피드가 얼어붙는 현상 방지. 각 블록을 try/catch 로 감싸 개별 실패를 묵음 처리.
       const drawFrame = () => {
@@ -1032,6 +1111,29 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           if (!canvas || !video) return;
           const ctx = canvas.getContext('2d');
           if (!ctx) return;
+
+          // FIX-AA: video.paused 상태가 계속되면 1초에 한번 play() 재시도 (무음으로).
+          //   iOS 에서 백그라운드/앱전환 복귀 시 video 가 paused 로 멈춰있는 경우 복구.
+          const now = performance.now();
+          if (video.paused && now - lastPlayKick > 1000) {
+            lastPlayKick = now;
+            try { video.play().catch(() => {}); } catch {}
+          }
+          // 0.5s 마다 진단 뱃지 업데이트.
+          if (now - lastDiagUpdate > 500) {
+            lastDiagUpdate = now;
+            setCamDiag((prev) => {
+              const vw = video.videoWidth, vh = video.videoHeight;
+              const rs = video.readyState;
+              const paused = video.paused;
+              // 값 변화가 있을 때만 업데이트 (리렌더 억제)
+              if (prev.vw === vw && prev.vh === vh && prev.ready === rs && prev.paused === paused) {
+                return prev;
+              }
+              return { ...prev, vw, vh, ready: rs, paused,
+                phase: rs >= 2 && !paused ? 'playing' : prev.phase === 'error' ? 'error' : 'frozen' };
+            });
+          }
 
           const tmpl    = templateRef.current;
           const elap    = elapsedRef.current;
@@ -1213,6 +1315,17 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             {children}
           </View>
         )}
+
+        {/* FIX-AA (2026-04-22): 카메라 진단 뱃지. 실기기에서 프리뷰가 멈췄을 때
+              어느 단계인지 즉시 식별. 좌상단 한 줄 모노스페이스. */}
+        <View pointerEvents="none" style={st.camDiag}>
+          <Text style={st.camDiagText}>
+            📷 {camDiag.facing}{camDiag.phase==='playing' && ' ✓'} {camDiag.phase}
+            {' '}{camDiag.vw}×{camDiag.vh} rs{camDiag.ready}
+            {camDiag.paused ? ' ⏸' : ' ▶'}
+            {camDiag.msg ? ` · ${camDiag.msg.slice(0, 24)}` : ''}
+          </Text>
+        </View>
       </View>
     );
   },
@@ -1236,4 +1349,18 @@ const st = StyleSheet.create({
   deniedBody:    { color: '#aaa', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
   deniedBtn:     { backgroundColor: '#fff', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 },
   deniedBtnText: { color: '#111', fontSize: 15, fontWeight: '600' },
+  camDiag: {
+    position: 'absolute' as any,
+    top: 6, left: 6,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 4,
+    zIndex: 9999,
+  } as any,
+  camDiagText: {
+    color: '#7fffd4',
+    fontSize: 10,
+    fontFamily: 'monospace' as any,
+    letterSpacing: 0.3,
+  } as any,
 });
