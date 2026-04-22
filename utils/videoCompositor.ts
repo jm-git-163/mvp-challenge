@@ -2440,6 +2440,7 @@ export async function composeVideo(
     }
 
     video.addEventListener('loadedmetadata', () => {
+      (async () => {
       try {
         audioCtx = new AudioContext();
         const dest = audioCtx.createMediaStreamDestination();
@@ -2448,12 +2449,31 @@ export async function composeVideo(
           totalMs: legacyTemplate.duration_ms,
         });
 
-        // FIX-Y1 (2026-04-22): createMediaElementSource 사용 중단.
-        //   일부 브라우저에서 blob URL 비디오 + crossOrigin='anonymous' + muted=true 조합이
-        //   MediaElementAudioSourceNode 생성 실패 → video 'error' 이벤트 → "Video load error".
-        //   원본 클립의 음성은 이미 raw download/share 경로로 유저에게 제공되므로,
-        //   합성 mp4 에서는 BGM 만 들어가고 마이크 음성은 일단 제외.
-        //   (Track D 포스트 컴포지터 재설계 시 정규 방식으로 복원 예정)
+        // FIX-Y10 (2026-04-22): 원본 마이크 음성 복원.
+        //   이전(FIX-Y1): createMediaElementSource 가 일부 브라우저에서 blob URL +
+        //     crossOrigin + muted 조합으로 실패 → video 'error' → "Video load error".
+        //   해결: video element 를 경유하지 않고, blob 자체를 decodeAudioData 로 디코드해
+        //     AudioBufferSourceNode 로 스케줄. video 는 순수 비디오 렌더용으로만 사용.
+        //   BGM 이 합성 시작 시점(now) 에 맞춰 재생되므로, 마이크 오디오도 동일하게
+        //     audioCtx.currentTime 기준으로 start(0) 로 맞춘다.
+        try {
+          const clipArrayBuffer = await clip.blob.arrayBuffer();
+          // decodeAudioData 는 일부 브라우저에서 ArrayBuffer 를 consume(detach) 하므로
+          //   복사본 만들 필요 없음 (Chrome/Safari 공통). 실패 시 catch 에서 폴백.
+          const audioBuffer = await audioCtx.decodeAudioData(clipArrayBuffer.slice(0));
+          const src = audioCtx.createBufferSource();
+          src.buffer = audioBuffer;
+          const micGain = audioCtx.createGain();
+          micGain.gain.value = 1.0;  // 마이크 음성 원음
+          src.connect(micGain).connect(dest);
+          // video.currentTime 과 동기: video.play() 가 조만간 호출될 것이므로
+          //   시작 시점을 0 으로 맞춘다. 약간의 드리프트 (~10ms) 허용 범위.
+          src.start(0);
+        } catch (decodeErr) {
+          // webm/opus 를 일부 Safari 구버전에서 decodeAudioData 실패 가능.
+          //   실패 시 BGM 만 합성 (기존 FIX-Y1 동작과 동일).
+          try { console.warn('[compositor] mic audio decode failed, BGM-only:', decodeErr); } catch {}
+        }
 
         const canvasStream = canvas.captureStream(FPS);
         dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
@@ -2483,6 +2503,7 @@ export async function composeVideo(
         cleanup();
         reject(err);
       }
+      })();
     });
 
     video.addEventListener('error', (e) => {
