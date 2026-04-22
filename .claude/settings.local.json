@@ -108,7 +108,8 @@
       "Read(//tmp/**)",
       "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/_expo/static/js/web/entry-ebe6c4a96746dce6e923f5279a31ae0d.js\")",
       "Bash(npm ls *)",
-      "Bash(git revert *)"
+      "Bash(git revert *)",
+      "Bash(git rm *)"
     ]
   }
 }

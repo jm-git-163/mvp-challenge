@@ -1,116 +1,148 @@
 /**
  * engine/missions/closeProximitySquat.ts
  *
- * FIX-J (2026-04-21) — 근접 촬영 스쿼트 판정.
+ * FIX-O (2026-04-22) — 알고리즘 완전 재설계.
  *
- * 배경: 유저가 스마트폰을 손에 쥐거나 눈 앞에 세워두고 챌린지를 하면 카메라에
- *   얼굴·상체만 잡혀 무릎 각도 계산이 불가 → `detectSquat` 가 `unknown / 180°`
- *   를 돌려주고 점수 영원히 0. 2~3 m 거리 전신 촬영은 모바일에선 비현실적.
+ * 문제: 기존(FIX-J/L) 은 "히스토리 min/max 의 % 기반 임계 교차"로 판정.
+ *   한 번의 일회성 이동(예: 앉는 동작) 이 히스토리에 큰 진폭을 남기면,
+ *   이후 작은 머리 흔들림이 양쪽 임계를 양방향으로 넘어 스쿼트 1~2 회로
+ *   잘못 카운트되는 치명적 버그 (유저 보고: 앉아서 2회 카운트).
  *
- * 해결: 무릎이 안 보여도 **얼굴 Y 좌표의 진동**으로 스쿼트를 감지.
- *   - 폰이 거치/고정 상태: 유저가 쪼그리면 얼굴 자체가 프레임 하단으로 내려옴
- *   - 폰이 손에 들린 상태: 팔이 얼굴을 따라 움직이지만 완전 동기화되진 않음 →
- *     진폭이 작아도 peak/trough 감지 가능 (임계 낮춤)
+ * 해결: **실제 local minima/maxima 검출** + **속도 반전 확인** + **rep 시간 제약**.
+ *   - 매 프레임 y 의 방향 변화(up→down 또는 down→up) 를 체크
+ *   - 반전이 일어난 지점을 pivot 으로 기록, 이전 pivot 과의 진폭이 충분할 때만 유효
+ *   - pivot 시퀀스 "up-pivot → down-pivot → up-pivot" 이 완성되면 1 rep
+ *   - 각 rep 의 시간(down→up 전환) 은 0.4~3.0s 범위 (너무 짧으면 지터, 길면 스쿼트 아님)
  *
- * 한계: 유저가 폰을 완벽히 얼굴에 고정하고 팔만 움직이면 감지 불가.
- *   → UX 로 "폰을 세워두면 정확도 ↑" 안내.
- *
- * 순수 함수·클래스 구조. 외부 API·센서 권한 불요.
+ * 한계: 유저가 완전히 가만히 앉아있어도 머리 이동 없으면 카운트 안됨 ✓
+ *   유저가 머리를 크게 끄덕이면 오인식 가능 → UX 안내 필요.
  */
 
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 
-// MediaPipe Pose 랜드마크 인덱스 — 얼굴 쪽 (nose, eye, ear)
-const FACE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8]; // nose, eyes, ears 주변
+const FACE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 const MIN_VIS = 0.3;
-const HISTORY_LEN = 24;         // ≈ 0.8~1.2s at 20~30fps
-// FIX-L (2026-04-21): 실기기 테스트 결과 4% 는 너무 엄격.
-//   폰을 손에 쥐거나 눈앞에 세워두면 스쿼트 시 얼굴 이동 폭이 실제로 2~3% 수준.
-//   2.5% 로 낮춤 — 노이즈(손떨림 ≤1.5%)와 실제 스쿼트 구분은 여전히 충분.
-const MIN_PEAK_AMPL = 0.025;     // Normalized Y: 2.5% 프레임 높이
-const COOLDOWN_FRAMES = 8;       // rep 간 최소 프레임 수
+const MIN_PIVOT_AMPL  = 0.05;    // 5% — pivot 간 최소 진폭 (실제 스쿼트 다운 폭)
+const MIN_REP_MS      = 400;     // rep 최소 시간 (이보다 짧으면 머리 끄덕임)
+const MAX_REP_MS      = 3500;    // rep 최대 시간 (이보다 길면 스쿼트 아님)
+const VELOCITY_EPS    = 0.0005;  // 프레임 당 y 변화 무시 임계(float 노이즈만 컷)
+const SMOOTHING_ALPHA = 0.4;     // EMA 스무딩
 
 export interface CloseSquatState {
   phase: 'up' | 'down' | 'unknown';
   count: number;
-  faceY: number;                // 최근 얼굴 Y (디버그)
-  amplitude: number;            // 최근 윈도우 진폭
-  active: boolean;              // 감지 가능 상태 (얼굴 잘 잡힘)
+  faceY: number;
+  amplitude: number;
+  active: boolean;
 }
 
-/**
- * 얼굴 Y 좌표 진동 기반 스쿼트 카운터.
- * 인스턴스 당 상태 유지 (reset 으로 세션 초기화).
- */
 export class CloseProximitySquatDetector {
-  private yHistory: number[] = [];
+  // EMA-스무딩된 y
+  private smoothedY: number | null = null;
+  // 직전 프레임의 스무딩 y (속도 계산용)
+  private lastY: number | null = null;
+  // 속도 부호: +1 = 아래로(squat down), -1 = 위로(standing), 0 = 정지
+  private lastVelSign: 0 | 1 | -1 = 0;
+  // pivot: 방향 반전이 일어난 지점 {y, t, type}
+  private lastPivot: { y: number; t: number; type: 'top' | 'bottom' } | null = null;
+  // 최근 완성된 bottom pivot 시각 (rep 완성 시 사용)
+  private lastBottomAt: number | null = null;
+  // 상태
   private phase: 'up' | 'down' | 'unknown' = 'unknown';
   private count = 0;
-  private cooldown = 0;
   private lastFaceY = 0;
   private lastAmpl = 0;
   private lastActive = false;
 
-  /**
-   * 한 프레임의 랜드마크를 주입.
-   * @returns 현재 상태 스냅샷
-   */
-  update(lms: NormalizedLandmark[]): CloseSquatState {
+  update(lms: NormalizedLandmark[], tMs?: number): CloseSquatState {
     const faceY = this.extractFaceY(lms);
     const active = faceY !== null;
     this.lastActive = active;
 
-    if (!active) {
-      // 얼굴이 안 잡히면 진동 추적 불가 — 히스토리는 유지
-      if (this.cooldown > 0) this.cooldown--;
-      return this.snapshot();
-    }
+    if (!active) return this.snapshot();
 
     this.lastFaceY = faceY!;
-    this.yHistory.push(faceY!);
-    if (this.yHistory.length > HISTORY_LEN) this.yHistory.shift();
-    if (this.cooldown > 0) this.cooldown--;
 
-    if (this.yHistory.length < HISTORY_LEN / 2) return this.snapshot();
+    // 1) EMA 스무딩
+    const sm = this.smoothedY === null
+      ? faceY!
+      : SMOOTHING_ALPHA * faceY! + (1 - SMOOTHING_ALPHA) * this.smoothedY;
+    const prev = this.smoothedY;
+    this.smoothedY = sm;
 
-    const minY = Math.min(...this.yHistory);
-    const maxY = Math.max(...this.yHistory);
-    const ampl = maxY - minY;
-    this.lastAmpl = ampl;
-
-    if (ampl < MIN_PEAK_AMPL) {
-      // 진폭이 작으면 "서 있음" 판정 유지
-      this.phase = this.phase === 'down' ? 'up' : this.phase;
+    if (prev === null || this.lastY === null) {
+      this.lastY = sm;
       return this.snapshot();
     }
 
-    // 임계선 (진폭의 30%, 70% 지점)
-    const lowThresh  = minY + ampl * 0.3;
-    const highThresh = maxY - ampl * 0.3;
+    // 2) 속도 부호 계산 (노이즈 epsilon 제외)
+    const dy = sm - this.lastY;
+    const currVelSign: 0 | 1 | -1 =
+      dy >  VELOCITY_EPS ? 1 :
+      dy < -VELOCITY_EPS ? -1 : 0;
 
-    const y = faceY!;
-    // Y 좌표는 원점이 상단 → 값이 클수록 화면 아래 = 몸이 내려간 상태
-    const newPhase: 'up' | 'down' | 'unknown' =
-      y > highThresh ? 'down' :
-      y < lowThresh  ? 'up'   : this.phase;
+    // 3) velocity 변화 감지 → pivot 기록
+    const now = tMs ?? Date.now();
+    const velChanged = currVelSign !== this.lastVelSign;
 
-    // 전이: up → down → up 한 사이클에서 up 복귀 시 count++
-    if (this.phase === 'down' && newPhase === 'up' && this.cooldown === 0) {
-      this.count++;
-      this.cooldown = COOLDOWN_FRAMES;
+    if (velChanged && this.lastVelSign !== 0) {
+      // 이전에 움직이고 있었고, 지금 멈추거나 반전 → 이전 움직임 끝나는 지점이 pivot
+      // lastVelSign=+1 (아래로 가던 중) → bottom pivot
+      // lastVelSign=-1 (위로 가던 중) → top pivot
+      const pivotType: 'top' | 'bottom' = this.lastVelSign === 1 ? 'bottom' : 'top';
+      const pivotY = this.lastY;
+
+      if (this.lastPivot) {
+        const ampl = Math.abs(pivotY - this.lastPivot.y);
+        this.lastAmpl = ampl;
+        if (ampl >= MIN_PIVOT_AMPL) {
+          if (pivotType === 'bottom' && this.lastPivot.type === 'top') {
+            this.phase = 'down';
+            this.lastBottomAt = now;
+            this.lastPivot = { y: pivotY, t: now, type: 'bottom' };
+          } else if (pivotType === 'top' && this.lastPivot.type === 'bottom') {
+            // rep 완성 후보 — 시간 체크
+            if (this.lastBottomAt !== null) {
+              const repDur = now - this.lastBottomAt;
+              if (repDur >= MIN_REP_MS && repDur <= MAX_REP_MS) {
+                this.count++;
+              }
+            }
+            this.phase = 'up';
+            this.lastPivot = { y: pivotY, t: now, type: 'top' };
+          } else {
+            // 같은 타입 연속 — 이전 pivot 을 더 극값으로 갱신
+            if (pivotType === 'top' && pivotY < this.lastPivot.y) {
+              this.lastPivot = { y: pivotY, t: now, type: 'top' };
+            } else if (pivotType === 'bottom' && pivotY > this.lastPivot.y) {
+              this.lastPivot = { y: pivotY, t: now, type: 'bottom' };
+            }
+          }
+        }
+      } else {
+        this.lastPivot = { y: pivotY, t: now, type: pivotType };
+      }
     }
-    this.phase = newPhase;
+
+    if (velChanged && currVelSign !== 0 && this.lastVelSign === 0) {
+      // 정지 상태에서 움직임 시작 — 현재 위치가 암시적 pivot
+      // currVelSign=+1 (아래로 시작) → 현재가 top, currVelSign=-1 (위로 시작) → 현재가 bottom
+      const startType: 'top' | 'bottom' = currVelSign === 1 ? 'top' : 'bottom';
+      if (!this.lastPivot || this.lastPivot.type !== startType) {
+        this.lastPivot = { y: this.lastY, t: now, type: startType };
+      }
+    }
+
+    this.lastVelSign = currVelSign;
+    this.lastY = sm;
+
     return this.snapshot();
   }
 
-  /**
-   * 여러 얼굴 랜드마크의 평균 Y. visibility 가 낮으면 null.
-   */
   private extractFaceY(lms: NormalizedLandmark[]): number | null {
     if (!lms || lms.length === 0) return null;
-    let sum = 0;
-    let n = 0;
+    let sum = 0; let n = 0;
     for (const idx of FACE_INDICES) {
       const lm = lms[idx];
       if (!lm) continue;
@@ -123,10 +155,13 @@ export class CloseProximitySquatDetector {
   }
 
   reset(): void {
-    this.yHistory = [];
+    this.smoothedY = null;
+    this.lastY = null;
+    this.lastVelSign = 0;
+    this.lastPivot = null;
+    this.lastBottomAt = null;
     this.phase = 'unknown';
     this.count = 0;
-    this.cooldown = 0;
     this.lastFaceY = 0;
     this.lastAmpl = 0;
   }
