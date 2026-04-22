@@ -1354,7 +1354,8 @@ export default function RecordScreen() {
   const [facing, setFacing] = useState<'front'|'back'>(defaultFacing);
 
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
-  const { judge, voiceTranscript, squatCount, squatMode, resetVoice } = useJudgement();
+  const { judge, voiceTranscript, squatCount, squatMode, resetVoice,
+          latestJudgement, lastSquatCountAt, micPermissionDeniedAt } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
   const [showIntro,  setShowIntro]  = useState(false);
@@ -1865,6 +1866,12 @@ export default function RecordScreen() {
               diagSquatReady={!!squatDebug.ready}
               diagSquatFaceOk={!!squatDebug.faceOk}
               diagSquatBodyOk={!!squatDebug.squatLmOk}
+              // FIX-Z25: 라이브 자막 + 판정 + 스쿼트 +1 + 마이크 배너 (캔버스 합성).
+              latestJudgement={latestJudgement}
+              lastSquatCountAt={lastSquatCountAt}
+              micPermissionDeniedAt={micPermissionDeniedAt}
+              liveCaptionText={speechBadge.transcript || voiceTranscript || ''}
+              showLiveCaption={true}
             >
               {particles.map(p => <Text key={p.id} style={[r.particle, { left:p.left as any }]}>{p.emoji}</Text>)}
 

@@ -27,6 +27,13 @@ import type { RecordingCameraHandle } from './RecordingCamera';
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 import { getBgmPlayer } from '../../utils/bgmLibrary';
 import { drawDiagnosticsOverlay } from '../../utils/diagnosticsOverlay';
+import {
+  drawLiveCaption,
+  drawJudgementToast,
+  drawSquatPlusOne,
+  drawMicPermissionBanner,
+  type JudgementTier,
+} from '../../utils/liveCaption';
 
 // ---------------------------------------------------------------------------
 // Canvas dimensions (9:16 portrait)
@@ -885,6 +892,17 @@ export interface RecordingCameraWebProps {
   diagSquatReady?:       boolean;
   diagSquatFaceOk?:      boolean;
   diagSquatBodyOk?:      boolean;
+  // FIX-Z25 (2026-04-22): 라이브 자막 + 발화 판정 + 스쿼트 +1 + 마이크 권한 배너.
+  //   RecordingCamera 가 drawFrame 안에서 순수함수(utils/liveCaption) 로 직접 캔버스에 박는다.
+  latestJudgement?:          { tier: JudgementTier; at: number } | null;
+  lastSquatCountAt?:         number | null;
+  micPermissionDeniedAt?:    number | null;
+  /** 라이브 자막으로 쓸 텍스트 (default: voiceTranscript). 명시하면 우선. */
+  liveCaptionText?:          string;
+  /** 자막 좌측 accent 색상. tier 있으면 tier 색 우선. */
+  liveCaptionAccent?:        string;
+  /** 자막 표시 on/off. default true (미션 없어도 노출 — 인식 확인 용). */
+  showLiveCaption?:          boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -924,6 +942,12 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       diagSquatReady = false,
       diagSquatFaceOk = false,
       diagSquatBodyOk = false,
+      latestJudgement = null,
+      lastSquatCountAt = null,
+      micPermissionDeniedAt = null,
+      liveCaptionText,
+      liveCaptionAccent,
+      showLiveCaption = true,
     },
     ref,
   ) => {
@@ -960,6 +984,13 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const comboRef          = useRef(combo);
     const squatCountRef     = useRef(squatCount);
     const voiceTranscriptRef = useRef(voiceTranscript);
+    // FIX-Z25: 라이브 자막/판정/스쿼트+1/마이크 배너용 refs
+    const liveCaptionTextRef    = useRef<string | undefined>(liveCaptionText);
+    const liveCaptionAccentRef  = useRef<string | undefined>(liveCaptionAccent);
+    const showLiveCaptionRef    = useRef<boolean>(showLiveCaption);
+    const latestJudgementRef    = useRef(latestJudgement);
+    const lastSquatCountAtRef   = useRef<number | null>(lastSquatCountAt);
+    const micDeniedAtRef        = useRef<number | null>(micPermissionDeniedAt);
     // FIX-Z22: 온캔버스 진단 오버레이용 refs (매 render 최신값 주입)
     const diagRef = useRef({
       show: showDiagnostics,
@@ -991,6 +1022,12 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     comboRef.current           = combo;
     squatCountRef.current      = squatCount;
     voiceTranscriptRef.current = voiceTranscript;
+    liveCaptionTextRef.current   = liveCaptionText;
+    liveCaptionAccentRef.current = liveCaptionAccent;
+    showLiveCaptionRef.current   = showLiveCaption;
+    latestJudgementRef.current   = latestJudgement;
+    lastSquatCountAtRef.current  = lastSquatCountAt;
+    micDeniedAtRef.current       = micPermissionDeniedAt;
     diagRef.current = {
       show: showDiagnostics,
       vListen: diagVoiceListening,
@@ -1288,6 +1325,54 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               elapsedSec: elap / 1000,
               isRecording: isRec,
             });
+          } catch (e) { /* silent */ }
+
+          // FIX-Z25: 라이브 자막 (캔버스 하단 78~92%, 폰트 46px bold).
+          //   유저가 말한 발화가 즉시 눈에 보여야 "인식 되는지" 확인 가능.
+          try {
+            if (showLiveCaptionRef.current) {
+              const captionText = (liveCaptionTextRef.current !== undefined
+                ? liveCaptionTextRef.current
+                : voiceTranscriptRef.current) || '';
+              if (captionText.trim().length > 0) {
+                const lj = latestJudgementRef.current;
+                // 판정 팝업이 활성 중이면 자막 accent 도 tier 색으로 동기화
+                const tierActive = lj && (performance.now() - lj.at) < 800 ? lj.tier : null;
+                drawLiveCaption(ctx, {
+                  canvasW: CW, canvasH: CH,
+                  text: captionText,
+                  accentColor: liveCaptionAccentRef.current,
+                  judgementTier: tierActive,
+                });
+              }
+            }
+          } catch (e) { /* silent */ }
+
+          // FIX-Z25: 발화 판정 토스트 (우측 상단, 0.8s).
+          try {
+            const lj = latestJudgementRef.current;
+            if (lj) {
+              drawJudgementToast(ctx, {
+                canvasW: CW, canvasH: CH,
+                tier: lj.tier, at: lj.at,
+              });
+            }
+          } catch (e) { /* silent */ }
+
+          // FIX-Z25: 스쿼트 +1 팝업 (중앙, 500ms).
+          try {
+            const sqAt = lastSquatCountAtRef.current;
+            if (typeof sqAt === 'number') {
+              drawSquatPlusOne(ctx, { canvasW: CW, canvasH: CH, at: sqAt });
+            }
+          } catch (e) { /* silent */ }
+
+          // FIX-Z25: 마이크 권한 필요 빨간 배너 (3s).
+          try {
+            const micAt = micDeniedAtRef.current;
+            if (typeof micAt === 'number') {
+              drawMicPermissionBanner(ctx, { canvasW: CW, canvasH: CH, at: micAt });
+            }
           } catch (e) { /* silent */ }
 
           // 미사용 참조 억제 (post-production 으로 이동)

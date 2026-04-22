@@ -47,7 +47,8 @@ const TARGET: Record<string, { x: number; y: number }> = {
 const TARGET_KEYS = Object.keys(TARGET);
 const MATCH_THRESHOLD = 80;   // %
 const HOLD_MS = 1500;
-const SKIP_VISIBLE_AFTER_MS = 3000;
+// FIX-Z25 (2026-04-22): 3s → 0 (처음부터 노출). 실기기 피드백: 캘리브레이션 자체가 장벽.
+const SKIP_VISIBLE_AFTER_MS = 0;
 // 한 관절의 편차 거리(정규화 단위) → 해당 관절 점수 0 이 되는 최대 거리.
 //   0.20 = 프레임 대각선의 20% — 관대한 매칭 (모바일 작은 화면 대응).
 const MAX_JOINT_DIST = 0.20;
@@ -82,7 +83,8 @@ function computeMatch(lms: NormalizedLandmark[]): { pct: number; visible: number
 export function PoseCalibration({ landmarks, onCalibrated, onSkip }: Props) {
   const [matchPct, setMatchPct] = useState(0);
   const [visible, setVisible] = useState(0);
-  const [showSkip, setShowSkip] = useState(false);
+  // FIX-Z25: 건너뛰기 버튼 처음부터 크게 노출.
+  const [showSkip, setShowSkip] = useState(true);
   const holdStartRef = useRef<number | null>(null);
   const calibratedRef = useRef(false);
   const mountedAtRef = useRef(performance.now());
@@ -302,16 +304,22 @@ const styles = StyleSheet.create({
   },
   holdText: { fontSize: 11, fontWeight: '700', color: '#ecfdf5' },
   hint:     { fontSize: 11, color: '#cbd5e1', marginTop: 6, textAlign: 'center' },
+  // FIX-Z25: 건너뛰기 버튼을 처음부터 크게·눈에 띄게.
   skipBtn: {
     position: 'absolute',
     bottom: 40,
     alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-    borderRadius: 20,
-    backgroundColor: 'rgba(15,18,30,0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.5)',
+    paddingVertical: 16,
+    paddingHorizontal: 36,
+    borderRadius: 28,
+    backgroundColor: '#f59e0b',
+    borderWidth: 2,
+    borderColor: '#fde68a',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 8,
   },
-  skipText: { color: '#cbd5e1', fontSize: 13, fontWeight: '600' },
+  skipText: { color: '#1f2937', fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
 });

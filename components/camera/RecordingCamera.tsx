@@ -49,6 +49,29 @@ interface Props {
   combo?:              number;
   squatCount?:         number;
   voiceTranscript?:    string;
+  // FIX-Z25: web-only pass-through props (native 에서는 사용 안 함).
+  latestJudgement?:        any;
+  lastSquatCountAt?:       number | null;
+  micPermissionDeniedAt?:  number | null;
+  liveCaptionText?:        string;
+  liveCaptionAccent?:      string;
+  showLiveCaption?:        boolean;
+  // 기존 diag props 도 web only — 웹에서 JSX 전파 시 TS 에러 방지용.
+  showDiagnostics?:        boolean;
+  diagVoiceListening?:     boolean;
+  diagVoiceTranscript?:    string;
+  diagVoiceError?:         string | null;
+  diagVoicePreCheckOk?:    boolean | null;
+  diagVoiceSupported?:     boolean;
+  diagPoseStatus?:         string;
+  diagPoseLandmarkCount?:  number;
+  diagIsRealPose?:         boolean;
+  diagSquatCount?:         number;
+  diagSquatTarget?:        number;
+  diagSquatPhase?:         string;
+  diagSquatReady?:         boolean;
+  diagSquatFaceOk?:        boolean;
+  diagSquatBodyOk?:        boolean;
 }
 
 const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(

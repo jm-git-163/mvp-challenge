@@ -13,9 +13,11 @@ import { useSessionStore } from '../store/sessionStore';
 import { detectGesture, detectSquat }   from '../utils/poseUtils';
 import { createAngleSmoother }          from '../engine/missions/angleSmoother';
 import { CloseProximitySquatDetector } from '../engine/missions/closeProximitySquat';
+import { NoseSquatDetector }           from '../engine/missions/noseSquat';
 import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
+import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
 import type { Mission } from '../types/template';
@@ -151,6 +153,14 @@ export function useJudgement(): {
   voiceAccuracy: number;
   squatCount: number;
   squatMode: 'full-body' | 'near-mode' | 'idle';
+  // FIX-Z25: 대본 판정 결과 (voice_read 미션 final transcript 기준).
+  //   RecordingCamera.drawFrame 에서 drawJudgementToast 에 넘김.
+  latestJudgement: { tier: JudgementTier; at: number } | null;
+  // FIX-Z25: 방금 스쿼트 카운트가 증가한 시각 (performance.now()).
+  //   +1 팝업 트리거용.
+  lastSquatCountAt: number | null;
+  // FIX-Z25: 마이크 권한 필요 배너 트리거 시각.
+  micPermissionDeniedAt: number | null;
   resetVoice: () => void;
 } {
   const { activeTemplate, appendFrameTag } = useSessionStore();
@@ -176,6 +186,12 @@ export function useJudgement(): {
   }));
   // FIX-J: 근접 촬영 대응 — 무릎이 안 보여도 얼굴 Y 진동으로 스쿼트 카운트.
   const closeSquatRef          = useRef(new CloseProximitySquatDetector());
+  // FIX-Z25: nose-based 초단순 detector — PoseCalibration 없이 머리 하강-복귀만으로 카운트.
+  //   두 로직(knee/close/nose) 중 가장 관대한 쪽이 이기는 max-count 정책.
+  const noseSquatRef           = useRef(new NoseSquatDetector());
+  const lastSquatCountAtRef    = useRef<number | null>(null);
+  const latestJudgementRef     = useRef<{ tier: JudgementTier; at: number } | null>(null);
+  const micDeniedAtRef         = useRef<number | null>(null);
   // FIX-N (2026-04-22): 스쿼트 감지 소스 트래킹.
   //   'full-body' = MediaPipe 무릎각도 기반(정밀). 점수 제한 없음.
   //   'near-mode' = 얼굴 Y 진동 프록시(근사). 점수 최대 70% 제한 → 정직한 UX.
@@ -240,6 +256,8 @@ export function useJudgement(): {
       // ── Squat counter ───────────────────────────────────────────────────
       let squatPhaseOut: 'up' | 'down' | 'unknown' = squatPhaseRef.current;
       let kneeAngleOut = lastKneeAngle.current;
+      // FIX-Z25: 이 프레임에서 count 가 늘었는지 추적용. 아래 블록들 지나고 변하면 timestamp.
+      const preCount = squatCountRef.current;
 
       // 스쿼트 카운터 — MoveNet 추정 노이즈가 심하므로:
       //  (1) 신뢰도 게이트 상향 (0.25 → 0.50)
@@ -349,6 +367,36 @@ export function useJudgement(): {
         }
       }
 
+      // FIX-Z25: nose-based squat — PoseCalibration 게이트 없이, 머리(nose) 감지만으로 카운트.
+      //   fitness 장르이고 위의 full-body/close 로직이 3초 동안 카운트 못 올릴 때만 활성.
+      //   두 로직이 동시에 카운트하면 max 정책 + 디바운스(600ms).
+      if (template && template.genre === 'fitness') {
+        // 나머지 로직이 최근 3초 동안 카운트 변화 없는가?
+        const stalled = (noseSquatRef.current.msSinceLastChange(now) > 3_000) || squatCountRef.current === 0;
+        if (stalled) {
+          const noseRes = noseSquatRef.current.update(landmarks, now);
+          if (noseRes.justCounted && noseRes.count > squatCountRef.current) {
+            squatCountRef.current = noseRes.count;
+            squatCountState.current = noseRes.count;
+            setSquatCount(noseRes.count);
+            squatPhaseOut = noseRes.phase;
+            lastSquatCountAtRef.current = now;
+            if (squatSourceRef.current !== 'full-body') {
+              squatSourceRef.current = 'near-mode';
+              setSquatMode('near-mode');
+            }
+          }
+        } else {
+          // 여전히 history 는 업데이트해서 baseline 유지
+          noseSquatRef.current.update(landmarks, now);
+        }
+      }
+
+      // FIX-Z25: 이 프레임에서 count 가 늘었다면 +1 팝업 타임스탬프 기록.
+      if (squatCountRef.current > preCount) {
+        lastSquatCountAtRef.current = now;
+      }
+
       // ── Score calculation ───────────────────────────────────────────────
       let score = 0;
 
@@ -392,6 +440,11 @@ export function useJudgement(): {
               // 현재 컴포넌트 인스턴스의 setState를 클로저로 캡처해두되
               // _interimCb / _finalCb 에 저장해서 remount 시 교체 가능
               _interimCb = (interim: string) => {
+                // FIX-Z25: 권한 거부 시 speechUtils 가 '[마이크 권한 필요 …]' 을
+                //   interim 콜백으로 보냄 — 이를 감지해 온캔버스 빨간 배너 트리거.
+                if (interim && interim.includes('마이크 권한 필요')) {
+                  micDeniedAtRef.current = performance.now();
+                }
                 voiceTranscriptRef.current = interim;
                 setVoiceTranscript(interim);
                 const target = _currentTarget;
@@ -422,6 +475,14 @@ export function useJudgement(): {
                 voiceTranscriptRef.current = final;
                 setVoiceTranscript(final);
                 setVoiceAccuracy(rawSim);
+                // FIX-Z25: 발화 단위 판정 — Perfect(≥0.90)/Good(≥0.70)/So-so(≥0.50)/Miss.
+                //   rawSim (원본 유사도) 기준 — lifted 1.15 는 점수용, 판정은 정직하게.
+                if (target && final.trim().length > 0) {
+                  latestJudgementRef.current = {
+                    tier: similarityToTier(rawSim),
+                    at: performance.now(),
+                  };
+                }
               };
 
               _progressCb = (similarity: number) => {
@@ -446,6 +507,11 @@ export function useJudgement(): {
             } else if (_voiceActive) {
               // 이미 실행 중 — 콜백만 현재 인스턴스로 갱신 (remount 대응)
               _interimCb = (interim: string) => {
+                // FIX-Z25: 권한 거부 시 speechUtils 가 '[마이크 권한 필요 …]' 을
+                //   interim 콜백으로 보냄 — 이를 감지해 온캔버스 빨간 배너 트리거.
+                if (interim && interim.includes('마이크 권한 필요')) {
+                  micDeniedAtRef.current = performance.now();
+                }
                 voiceTranscriptRef.current = interim;
                 setVoiceTranscript(interim);
                 const target = _currentTarget;
@@ -471,6 +537,12 @@ export function useJudgement(): {
                 voiceTranscriptRef.current = final;
                 setVoiceTranscript(final);
                 setVoiceAccuracy(rawSim);
+                if (target && final.trim().length > 0) {
+                  latestJudgementRef.current = {
+                    tier: similarityToTier(rawSim),
+                    at: performance.now(),
+                  };
+                }
               };
 
             } else if (!sr.isSupported()) {
@@ -564,6 +636,10 @@ export function useJudgement(): {
     _progressCb    = null;
     // FIX-J: 근접 스쿼트 디텍터도 함께 초기화 (다음 세션용)
     try { closeSquatRef.current?.reset(); } catch {}
+    try { noseSquatRef.current?.reset(); } catch {}
+    lastSquatCountAtRef.current = null;
+    latestJudgementRef.current  = null;
+    micDeniedAtRef.current      = null;
 
     // 오디오 분석기 초기화
     if (_analyser) { _analyser.disconnect(); _analyser = null; }
@@ -593,5 +669,15 @@ export function useJudgement(): {
     setSquatMode('idle');
   }, []);
 
-  return { judge, voiceTranscript, voiceAccuracy, squatCount, squatMode, resetVoice };
+  return {
+    judge,
+    voiceTranscript,
+    voiceAccuracy,
+    squatCount,
+    squatMode,
+    latestJudgement: latestJudgementRef.current,
+    lastSquatCountAt: lastSquatCountAtRef.current,
+    micPermissionDeniedAt: micDeniedAtRef.current,
+    resetVoice,
+  };
 }
