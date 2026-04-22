@@ -34,6 +34,7 @@ describe('LAYER_REGISTRY dispatcher', () => {
       moveTo: vi.fn(), lineTo: vi.fn(),
       quadraticCurveTo: vi.fn(), bezierCurveTo: vi.fn(),
       stroke: vi.fn(), fill: vi.fn(), arc: vi.fn(),
+      clip: vi.fn(), rect: vi.fn(),
       createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
       createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
       createPattern: vi.fn(() => ({})),

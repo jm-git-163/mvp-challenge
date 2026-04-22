@@ -8,21 +8,33 @@
  *   - 신규 렌더러 추가 시 이 파일만 편집하면 되도록 단일 테이블로 정리.
  *   - 미지원 타입은 `null` 반환 → 상위에서 조용히 스킵(CLAUDE §3 "개별 레이어 예외는 격리").
  */
-import type { BaseLayer } from '../templates/schema';
+import type { BaseLayer } from '../../templates/schema';
 
-import gradient_mesh   from './gradient_mesh';
-import animated_grid   from './animated_grid';
-import star_field      from './star_field';
-import noise_pattern   from './noise_pattern';
-import camera_feed     from './camera_feed';
-import camera_frame    from './camera_frame';
-import counter_hud     from './counter_hud';
-import subtitle_track  from './subtitle_track';
-import kinetic_text    from './kinetic_text';
-import audio_visualizer from './audio_visualizer';
-import beat_flash      from './beat_flash';
-import particle_burst  from './particle_burst';
-import news_ticker     from './news_ticker';
+import gradient_mesh     from './gradient_mesh';
+import animated_grid     from './animated_grid';
+import star_field        from './star_field';
+import noise_pattern     from './noise_pattern';
+import camera_feed       from './camera_feed';
+import camera_frame      from './camera_frame';
+import counter_hud       from './counter_hud';
+import subtitle_track    from './subtitle_track';
+import kinetic_text      from './kinetic_text';
+import audio_visualizer  from './audio_visualizer';
+import beat_flash        from './beat_flash';
+import particle_burst    from './particle_burst';
+import news_ticker       from './news_ticker';
+// ── 2026-04-22 신규: 공식 템플릿이 요구하는 11개 타입 ─────────────
+import particle_ambient  from './particle_ambient';
+import floating_shapes   from './floating_shapes';
+import orbiting_ring     from './orbiting_ring';
+import face_sticker      from './face_sticker';
+import hand_emoji        from './hand_emoji';
+import camera_reflection from './camera_reflection';
+import timer_ring        from './timer_ring';
+import score_hud         from './score_hud';
+import mission_prompt    from './mission_prompt';
+import lens_flare        from './lens_flare';
+import chromatic_pulse   from './chromatic_pulse';
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -50,6 +62,18 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   beat_flash,
   particle_burst,
   news_ticker,
+  // 2026-04-22 신규
+  particle_ambient,
+  floating_shapes,
+  orbiting_ring,
+  face_sticker,
+  hand_emoji,
+  camera_reflection,
+  timer_ring,
+  score_hud,
+  mission_prompt,
+  lens_flare,
+  chromatic_pulse,
 };
 
 /**
