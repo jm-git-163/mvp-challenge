@@ -418,6 +418,21 @@ export default function SelfTest() {
   const pureSttRun = (lang: string, continuous: boolean) => {
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { window.alert('PURE: webkitSpeechRecognition 없음'); return; }
+    // FIX-PURE-AUDIO-RELEASE (2026-04-22): 허용 버튼이 먼저 눌려서 getUserMedia 가
+    //   audio track 을 점유 중이면 webkitSpeechRecognition 이 silent fail.
+    //   모든 __permissionStream / streamRef 의 audio track 을 stop.
+    try {
+      const pre = streamRef.current ?? (window as any).__permissionStream;
+      if (pre && typeof pre.getAudioTracks === 'function') {
+        pre.getAudioTracks().forEach((t: MediaStreamTrack) => {
+          try { t.stop(); } catch {}
+          try { pre.removeTrack(t); } catch {}
+        });
+      }
+      // 혹시 이전 PURE 세션이 남아있으면 abort
+      const prev = (window as any).__pureRec;
+      if (prev) { try { prev.abort?.(); } catch {} try { prev.stop?.(); } catch {} }
+    } catch {}
     try {
       const r = new SR();
       r.lang = lang;
@@ -480,7 +495,7 @@ export default function SelfTest() {
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-pure-lang-v8 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-audio-release-pure-v9 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
