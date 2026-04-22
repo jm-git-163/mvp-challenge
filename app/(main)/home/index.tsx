@@ -401,6 +401,14 @@ export default function HomeScreen() {
           </View>
           <View style={s.headerRight}>
             <Pressable
+              onPress={() => router.push('/selftest')}
+              style={[s.iconBtn, { backgroundColor: '#16a34a' }]}
+              // @ts-ignore web
+              accessibilityLabel="SelfTest"
+            >
+              <Text style={s.iconBtnText}>🩺 자가진단</Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push('/(main)/profile')}
               style={s.iconBtn}
               // @ts-ignore web
