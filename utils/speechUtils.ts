@@ -177,6 +177,7 @@ export class SpeechRecognizer {
   private _gen = 0;
 
   constructor() {
+    this.lastEvent = 'init: webkit-api-check';
     if (typeof window !== 'undefined') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -186,7 +187,12 @@ export class SpeechRecognizer {
         this.rec.interimResults = true;
         this.rec.maxAlternatives = 1;
         this.supported = true;
+        this.lastEvent = 'init: ok';
+      } else {
+        this.lastEvent = 'init: no-api';
       }
+    } else {
+      this.lastEvent = 'init: no-window';
     }
   }
 
@@ -199,6 +205,8 @@ export class SpeechRecognizer {
   public startCount = 0;
   public endCount = 0;
   public resultCount = 0;
+  // 신규: 단계별 라이프사이클 이벤트 기록 (실기기 콘솔 없이 화면에서 직접 확인).
+  public lastEvent: string = 'init: pending';
   getDiagnostic(): { listening: boolean; error: string | null; transcript: string; starts: number; ends: number; results: number } {
     return {
       listening: this._listening,
@@ -209,6 +217,25 @@ export class SpeechRecognizer {
       results: this.resultCount,
     };
   }
+
+  /**
+   * 화면에 실시간 표시할 상세 진단 (엔진·플랫폼·마지막 이벤트).
+   * SttRecognizer.getDiagnostics 구현.
+   */
+  getDiagnostics(): { lastEvent: string; engine: string; platform: string } {
+    const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+    const platform = /Android/i.test(ua) ? 'android'
+                   : /iPhone|iPad|iPod/i.test(ua) ? 'ios'
+                   : /Mobile/i.test(ua) ? 'mobile'
+                   : 'desktop';
+    return {
+      lastEvent: this.lastEvent,
+      engine: 'webkit',
+      platform,
+    };
+  }
+
+  getLastEvent(): string { return this.lastEvent; }
 
   /**
    * 미션 변경 시 호출: 마이크 팝업 없이 누적 텍스트만 리셋
@@ -274,6 +301,7 @@ export class SpeechRecognizer {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onresult = (e: any) => {
       this.resultCount++;
+      this.lastEvent = `onresult #${this.resultCount} len=${e?.results?.length ?? 0}`;
       let interim = '';
       let newFinal = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -297,6 +325,7 @@ export class SpeechRecognizer {
     this.rec.onerror = (e: any) => {
       // 진단용 — 왜 인식이 멈추는지 콘솔에 기록
       this.lastError = String(e?.error || e || 'unknown');
+      this.lastEvent = `onerror: ${this.lastError}`;
       try { console.warn('[speech] onerror:', e.error || e); } catch {}
       if (e.error === 'no-speech' || e.error === 'aborted') {
         // Chrome은 침묵이 길면 자동 종료 → onend에서 재시작됨 (listening 유지)
@@ -318,15 +347,21 @@ export class SpeechRecognizer {
 
     // onend: continuous 모드에서 중간에 끊기면 재시작
     // generation check으로 이전 stop()에 의한 onend가 잘못 재시작하는 것 방지
-    this.rec.onstart = () => { this.startCount++; this.lastError = null; };
+    this.rec.onstart = () => {
+      this.startCount++;
+      this.lastError = null;
+      this.lastEvent = `onstart #${this.startCount}`;
+    };
     this.rec.onend = () => {
       this.endCount++;
       if (this._listening && this._gen === myGen) {
+        this.lastEvent = `onend #${this.endCount} → restart`;
         // Chrome InvalidStateError 회피: 100ms 지연 후 재시작
         setTimeout(() => {
           if (!this._listening || this._gen !== myGen) return;
           try { this.rec.start(); }
           catch (err) {
+            this.lastEvent = `onend-restart failed: ${String((err as Error)?.message ?? err)}`;
             try { console.warn('[speech] restart failed:', err); } catch {}
             // 400ms 뒤 한 번 더 시도
             setTimeout(() => {
@@ -335,6 +370,8 @@ export class SpeechRecognizer {
             }, 400);
           }
         }, 100);
+      } else {
+        this.lastEvent = `onend #${this.endCount} final`;
       }
     };
 
@@ -352,9 +389,12 @@ export class SpeechRecognizer {
     // FIX-Z9 (2026-04-22): 모바일 Chrome 은 user gesture stack 이 ~200ms 내에서만
     //   start() 를 허가. setTimeout(50) 은 stack 을 이탈할 수 있음 → 우선 동기 호출,
     //   InvalidStateError 발생 시에만 50ms 지연 재시도.
+    this.lastEvent = 'start: calling';
     try {
       this.rec.start();
+      this.lastEvent = 'start: ok';
     } catch (err) {
+      this.lastEvent = `start: error: ${String((err as Error)?.name ?? err)}`;
       try { console.warn('[speech] sync start threw, retry after 50ms:', err); } catch {}
       setTimeout(tryStart, 50);
     }
@@ -409,8 +449,36 @@ export class SpeechRecognizer {
   stop(): void {
     this._gen++;                   // generation 증가 → onend 재시작 차단
     this._listening = false;
+    this.lastEvent = 'stop: called';
     if (this._stopTimer) { clearTimeout(this._stopTimer); this._stopTimer = null; }
     if (this._watchdog) { clearInterval(this._watchdog); this._watchdog = null; }
     try { this.rec?.stop(); } catch { /* ignore */ }
   }
+}
+
+// ── 음성 인식 사전 가용성 체크 ────────────────────────────────────────────────
+// 녹화 시작 전 호출하여 어느 단계에서 막혔는지 화면에 표시할 수 있게 한다.
+// 서버 전송 없이 100% 클라이언트 체크.
+export async function checkSpeechCapability(): Promise<{ ok: boolean; reason?: string }> {
+  if (typeof window === 'undefined') return { ok: false, reason: 'SSR 환경' };
+  if (!navigator?.mediaDevices?.getUserMedia) {
+    return { ok: false, reason: 'mediaDevices.getUserMedia 미지원 (HTTPS 필요)' };
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (!SpeechRec) {
+    return { ok: false, reason: 'SpeechRecognition API 없음 (Chrome/Safari 필요)' };
+  }
+  // permissions.query 는 브라우저별 지원 편차가 커서 실패해도 무시.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyNav = navigator as any;
+    if (anyNav.permissions?.query) {
+      const status = await anyNav.permissions.query({ name: 'microphone' });
+      if (status?.state === 'denied') {
+        return { ok: false, reason: '마이크 권한 거부됨 (브라우저 설정에서 허용)' };
+      }
+    }
+  } catch { /* ignore */ }
+  return { ok: true };
 }

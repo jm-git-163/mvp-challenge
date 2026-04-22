@@ -39,6 +39,9 @@ export interface SttRecognizer {
     ends: number;
     results: number;
   };
+  // 옵셔널 — Whisper 어댑터와의 호환성 유지.
+  // 미구현 엔진은 default 값이 반환되도록 factory 에서 보정.
+  getDiagnostics?(): { lastEvent: string; engine: string; platform: string };
 }
 
 // 컴파일 타임에 두 클래스가 실제로 인터페이스를 만족하는지 타입 레벨에서 확인

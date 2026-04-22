@@ -238,6 +238,23 @@ export class WhisperRecognizer {
     };
   }
 
+  // FIX-Z10 (2026-04-22): 화면에 단계별 상태를 표시하기 위한 진단.
+  //   Whisper 는 세부 라이프사이클 계측이 아직 없어서 engine 만 반환.
+  //   SpeechRecognizer 와 동일 시그니처로 SttRecognizer 인터페이스 준수.
+  getDiagnostics(): { lastEvent: string; engine: string; platform: string } {
+    const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+    const platform = /Android/i.test(ua) ? 'android'
+                   : /iPhone|iPad|iPod/i.test(ua) ? 'ios'
+                   : /Mobile/i.test(ua) ? 'mobile'
+                   : 'desktop';
+    const last = this.lastError
+      ? `error: ${this.lastError}`
+      : this._listening
+        ? `listening (results=${this.resultCount})`
+        : this.startCount > 0 ? 'stopped' : 'idle';
+    return { lastEvent: last, engine: 'whisper', platform };
+  }
+
   /**
    * SpeechRecognizer.listen 과 동일 시그니처.
    * @returns 중단 함수.
