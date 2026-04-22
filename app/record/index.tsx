@@ -19,6 +19,7 @@ import { usePoseDetection }          from '../../hooks/usePoseDetection';
 import { useJudgement, prewarmSpeech } from '../../hooks/useJudgement';
 import { getRecognizer as getGlobalSpeechRecognizer, resolveSttEngine } from '../../utils/sttFactory';
 import { preloadWhisper } from '../../utils/whisperRecognizer';
+import { checkSpeechCapability } from '../../utils/speechUtils';
 import { useRecording }              from '../../hooks/useRecording';
 import { useSessionStore }           from '../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
@@ -30,6 +31,7 @@ import { Claude } from '../../constants/claudeTheme';
 import type { TemplateIntro, TemplateOutro } from '../../types/template';
 import { UnloadGuard } from '../../engine/studio/unloadGuard';
 import { StanceGuide } from '../../components/record/StanceGuide';
+import { PoseCalibration } from '../../components/record/PoseCalibration';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1388,12 +1390,60 @@ export default function RecordScreen() {
       });
   }, [activeTemplate]);
 
+  // FIX-Z10 (2026-04-22): 음성 진단 뱃지용 실시간 폴링 + 프리체크.
+  //   실기기 콘솔 접근 불가 상황에서 어느 단계에서 실패했는지 화면으로 확인.
+  const [speechBadge, setSpeechBadge] = useState<{
+    listening: boolean; err: string | null; transcript: string;
+    lastEvent: string; engine: string; platform: string;
+    preCheck: { ok: boolean; reason?: string } | null;
+  }>({ listening: false, err: null, transcript: '', lastEvent: 'init: pending', engine: 'webkit', platform: 'unknown', preCheck: null });
+
+  // 프리체크: 마운트 시 1회
+  useEffect(() => {
+    let cancelled = false;
+    checkSpeechCapability().then(r => {
+      if (!cancelled) setSpeechBadge(s => ({ ...s, preCheck: r }));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // 100ms 폴링 — voice 미션 템플릿에서만.
+  useEffect(() => {
+    const needsVoice = activeTemplate?.missions?.some((m: any) =>
+      m.type === 'voice_read' || m.type === 'loud_voice' || m.type === 'script' || m.type === 'voice'
+    );
+    if (!needsVoice) return;
+    const id = setInterval(() => {
+      try {
+        const rec: any = getGlobalSpeechRecognizer();
+        const d = rec.getDiagnostic();
+        const d2 = rec.getDiagnostics
+          ? rec.getDiagnostics()
+          : { lastEvent: '(no getDiagnostics)', engine: resolveSttEngine(), platform: 'unknown' };
+        setSpeechBadge(s => ({
+          ...s,
+          listening: d.listening,
+          err: d.error,
+          transcript: d.transcript || '',
+          lastEvent: d2.lastEvent,
+          engine: d2.engine,
+          platform: d2.platform,
+        }));
+      } catch { /* ignore */ }
+    }, 100);
+    return () => clearInterval(id);
+  }, [activeTemplate]);
+
   const [burstVisible, setBurstVisible] = useState(false);
   const [burstTag,     setBurstTag]     = useState<JudgementTag|null>(null);
   const [combo,        setCombo]        = useState(0);
   const [tagStampTs,   setTagStampTs]   = useState(0);
   const [particles,    setParticles]    = useState<Particle[]>([]);
   const [charState,    setCharState]    = useState<keyof typeof CHAR>('idle');
+  // FIX-U (2026-04-22): 스쿼트(fitness) 미션 진입 전 "이상적 촬영 자세" 캘리브레이션.
+  //   idle → (fitness면) calibrating → countdown → recording
+  //   비-fitness 미션은 기존대로 바로 countdown 으로 진행.
+  const [calibrating, setCalibrating] = useState(false);
 
   const charScale   = useRef(new Animated.Value(1)).current;
   const missionAnim = useRef(new Animated.Value(0)).current;
@@ -1428,6 +1478,7 @@ export default function RecordScreen() {
     setParticles([]); setBurstVisible(false); setSquatKneeAngle(180); setSquatPhase('unknown');
     hudOpacity.setValue(0); scoreAccumRef.current = []; setFinalScore(0);
     setShowOutro(false); setShowIntro(false); introShownRef.current = false;
+    setCalibrating(false);
   }, [sessionKey]); // eslint-disable-line
 
   // 화면 진입 시 음성 인식 권한 미리 요청 (녹화 중 팝업 방지)
@@ -1496,6 +1547,25 @@ export default function RecordScreen() {
     unloadGuardRef.current = null;
   }, []);
 
+  // FIX-U (2026-04-22): 스쿼트 미션 촬영 시작 전 캘리브레이션 게이트.
+  //   fitness 장르일 때만 PoseCalibration 오버레이를 먼저 띄우고,
+  //   onCalibrated()/onSkip() 에서 실제 useRecording.start() 를 호출한다.
+  const beginStartFlow = useCallback(() => {
+    if (!cameraRef.current || !isReady) return;
+    initAudio();
+    try { prewarmSpeech(); } catch {}
+    if (activeTemplate?.genre === 'fitness') {
+      setCalibrating(true);
+      return;
+    }
+    start(cameraRef.current);
+  }, [isReady, activeTemplate, start]);
+
+  const finishCalibration = useCallback(() => {
+    setCalibrating(false);
+    if (cameraRef.current) start(cameraRef.current);
+  }, [start]);
+
   // Cycle 29 — 데스크톱 키보드 단축키: Space = 시작/중지, Esc = 취소
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1505,10 +1575,8 @@ export default function RecordScreen() {
       if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) return;
       if (e.code === 'Space') {
         e.preventDefault();
-        if (state === 'idle' && isReady && cameraRef.current) {
-          initAudio();
-          try { prewarmSpeech(); } catch {}
-          start(cameraRef.current);
+        if (state === 'idle' && isReady && cameraRef.current && !calibrating) {
+          beginStartFlow();
         } else if (state === 'recording' && cameraRef.current) {
           stop(cameraRef.current);
         }
@@ -1518,7 +1586,7 @@ export default function RecordScreen() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state, isReady, start, stop, router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state, isReady, start, stop, router, beginStartFlow, calibrating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bounceChar = useCallback(() => {
     Animated.sequence([
@@ -1868,35 +1936,41 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {/* FIX-Z6: 음성 인식 상태 뱃지 — voice_read 미션 중. */}
+              {/* FIX-Z6 / FIX-Z10: 음성 인식 진단 뱃지 — 3줄 표시, 100ms 폴링.
+                  엔진·상태 / 마지막 라이프사이클 이벤트 / 인식 텍스트.
+                  프리체크 실패 시 빨간 배경 강조. */}
               {isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (() => {
-                let srDiag: any = null;
-                try { srDiag = getGlobalSpeechRecognizer().getDiagnostic(); } catch {}
-                const listening = srDiag?.listening;
-                const err = srDiag?.error;
-                const raw = srDiag?.transcript || voiceTranscript || '';
-                const shown = raw ? (raw.length > 50 ? '…' + raw.slice(-50) : raw) : '';
+                const preFail = speechBadge.preCheck && !speechBadge.preCheck.ok;
+                const raw = speechBadge.transcript || voiceTranscript || '';
+                const shown = raw ? (raw.length > 30 ? '…' + raw.slice(-30) : raw) : '(없음)';
+                const status = speechBadge.err ? 'error'
+                             : speechBadge.listening ? 'listening'
+                             : 'idle';
+                const bg = preFail ? 'rgba(220,38,38,0.96)'
+                         : speechBadge.err ? 'rgba(239,68,68,0.92)'
+                         : speechBadge.listening ? 'rgba(59,130,246,0.92)'
+                         : 'rgba(100,116,139,0.92)';
+                const line1 = preFail
+                  ? `⚠️ 사전 체크 실패: ${speechBadge.preCheck?.reason ?? '알 수 없음'}`
+                  : `🎤 ${speechBadge.engine}/${speechBadge.platform} · ${status}${speechBadge.err ? ` (${speechBadge.err})` : ''}`;
+                const line2 = `last: ${speechBadge.lastEvent}`;
+                const line3 = `txt: ${shown}`;
                 return (
                   <View pointerEvents="none" style={{
                     position:'absolute', top: 116, right: 12, left: 12,
-                    backgroundColor: err ? 'rgba(239,68,68,0.92)' : listening ? 'rgba(59,130,246,0.92)' : 'rgba(100,116,139,0.92)',
-                    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14,
+                    backgroundColor: bg,
+                    borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12,
                     zIndex: 9997, elevation: 18,
                   }}>
-                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>
-                      {err ? `⚠️ 음성 인식 오류: ${err}` :
-                       listening ? '🎤 듣는 중…' :
-                       '🎤 대기 중'}
+                    <Text style={{ color:'#fff', fontSize:12, fontFamily:'monospace', fontWeight:'700' }}>
+                      {line1}
                     </Text>
-                    {shown ? (
-                      <Text style={{ color:'#fff', fontSize:14, fontWeight:'600', marginTop:2 }}>
-                        {shown}
-                      </Text>
-                    ) : (
-                      <Text style={{ color:'#fff', fontSize:11, opacity:0.85, marginTop:2 }}>
-                        {listening ? '큰 소리로 또박또박 읽어 주세요' : '모바일 브라우저에서는 음성 인식 불안정 — 데스크톱 권장'}
-                      </Text>
-                    )}
+                    <Text style={{ color:'#fff', fontSize:12, fontFamily:'monospace', marginTop:2 }}>
+                      {line2}
+                    </Text>
+                    <Text style={{ color:'#fff', fontSize:12, fontFamily:'monospace', marginTop:2 }}>
+                      {line3}
+                    </Text>
                   </View>
                 );
               })()}
@@ -2028,18 +2102,17 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {isIdle && (
+              {isIdle && !calibrating && (
                 <View style={[r.startArea, { maxWidth:maxW }]}>
                   <Pressable
                     style={[r.startBtn, !isReady && { opacity: 0.55 }]}
                     disabled={!isReady}
                     onPress={() => {
                       if (!isReady) return;
-                      initAudio();
                       // FIX-F: 모바일 Chrome 은 user gesture 스택 안에서 바로
                       // SpeechRecognition.start() 호출해야 함. useEffect 경로는 거부됨.
-                      try { prewarmSpeech(); } catch {}
-                      if (cameraRef.current) start(cameraRef.current);
+                      // FIX-U: fitness 장르면 캘리브레이션 먼저, 아니면 바로 start().
+                      beginStartFlow();
                     }}
                   >
                     <View style={r.startGlow} />
@@ -2056,6 +2129,14 @@ export default function RecordScreen() {
                 </View>
               )}
             </RecordingCamera>
+
+          {calibrating && isIdle && (
+            <PoseCalibration
+              landmarks={landmarks}
+              onCalibrated={finishCalibration}
+              onSkip={finishCalibration}
+            />
+          )}
 
           {showIntro && activeTemplate.intro && (
             <IntroOverlay intro={activeTemplate.intro} genre={activeTemplate.genre} onDone={() => setShowIntro(false)} />
