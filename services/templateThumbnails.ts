@@ -100,11 +100,11 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 1845432
   },
   "fitness-squat-001": {
-    "url": "https://pixabay.com/get/g0c108c49a3b180afc0f01aa6f49ee4b0eafb69d6b60143e900dfc4944c6f65dc48288bd556f3ec942ceddf4945cc3734_640.jpg",
-    "largeURL": "https://pixabay.com/get/ge1cebec58a44db19c16b31238decb3743e46ba38ba320d4323fca0459b359d860e383f005bb05e0e32617087734c22f4e6c35b4d69400ce3b37500b92f9fdea8_1280.jpg",
-    "tags": "legs, woman, skirt, the shade, heel shoes, tango shoes, dance, move, light, dance floor, parquet, dancer",
-    "user": "pavstern",
-    "pixabayId": 191543
+    "url": "https://pixabay.com/get/g09ccd417617af4877c3d1e69aed38274ba88dbb1a63752bf89e78baa1557a8a20084eae2c1428e09e844768c7ea93c95fb980b9d9ae81ba72c9903e1385bd356_640.jpg",
+    "largeURL": "https://pixabay.com/get/gd7ffba9be6f85a84330f469142a5f68ec48d9c9e184d6f328a68fa75f60a2a1df72675753450e7baaa10b44e1c3283b92ea662588abae17fa83851d594914fee_1280.jpg",
+    "tags": "yoga, girl, exercise, health, yoga mat, woman, home workout, downward dog pose, sport, stretching, comfort, body shape, position, youth, silhouette, gym, active, being fit, body, meditation",
+    "user": "UnluckyPaw",
+    "pixabayId": 10197728
   },
   "fitness-plank-001": {
     "url": "https://pixabay.com/get/g04b9ebd327e0aea93d23adc9b92afe1ea46076e2f8253e9f9817fe95ce0f3711de924e84c2323a82797f7a13eaec62bf4e72b4df977ed9de84c51e79ac7e77d4_640.jpg",
@@ -114,11 +114,11 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 2250970
   },
   "dance-kpop-001": {
-    "url": "https://pixabay.com/get/g90a358d809c374951c89b4aa2c433566741d01443d0aa6ee7c4759f28103efb66629326dcca1ab46a8be7c62e6e0adb166b2b1837ec11566cad4c249e24780a3_640.jpg",
-    "largeURL": "https://pixabay.com/get/g2a73e891350332647246fb8c8f1e281331068978b29c599baa49c971b2b80dc249f23018bdcb8cf0b3edc012544bc8a9c0f10d91217210c340fd999e4bb7842d_1280.jpg",
-    "tags": "music, concert, night, guitarist, stage, performance, singer, artist, crowd, smoke, lighting, viral, rock, live, inspirational, live performance, musician, shadowy, electric guitar, musical group",
-    "user": "Chandrak",
-    "pixabayId": 9963662
+    "url": "https://pixabay.com/get/ge4fc185117628094788ee7bfda01fdb8a91929f4421111b574061302635546b4e43b04a1cc19d383498eb9bd139d056cfae3857f5e94bd900bc4afdca2ccbef2_640.jpg",
+    "largeURL": "https://pixabay.com/get/gc65a2e40cbcbbc6adf85e879a638c24fab7b7d649682db181f7a83c43456ab536beb269fafe75c5e102c4a79fd13c42f609c98451e06d9b0b6ef98ee454aa3ea_1280.jpg",
+    "tags": "ballerina, swan lake, performance, dancer, ballet, balance, woman, show, elegance, stage, ballerina, ballerina, ballerina, ballerina, dancer, dancer, dancer, ballet, ballet, ballet, ballet, ballet",
+    "user": "nikidinov",
+    "pixabayId": 2122473
   },
   "meditation-001": {
     "url": "https://pixabay.com/get/g8188c9055b3ec1ba3fd3bf04b655ab92d599450b14af8a6099d12b457072a4c82ff65f5da87842330fe65940cf51de37f462dc679528ddbaa8315ec20c6a01b6_640.jpg",
@@ -135,17 +135,17 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 534615
   },
   "dance-hiphop-001": {
-    "url": "https://pixabay.com/get/g7cb9fc01e9d689c2d7394144c2852f70fe85d0b5990646fc8031e1c253bd2ca33bfe975b568990a61018640a4071ddeb_640.jpg",
-    "largeURL": "https://pixabay.com/get/gefb2fff5186ee559a58ddf85322821805d43c72fcee1c5a22301f161b58fcef3d59ee825fafb574170b95158d05779d51b5ec3a04d2c3f9ffc2e68ec02a95621_1280.jpg",
-    "tags": "tango argentino, few, move, music, to dance, people, dance style",
-    "user": "joakant",
-    "pixabayId": 688728
+    "url": "https://pixabay.com/get/g896004f4b1b6c23b29eb0391cf3a83aafb74156acb76cbfe541c3278f3a909df3b9bd8880565b884eb9c7751ae21bbc343ac27bd3e2f9ca3a4789a7e2b09006b_640.jpg",
+    "largeURL": "https://pixabay.com/get/g8dd7a5a0058dc1fbe6934c91d67a3feea3519e732fe9795a8dcc13757b334ecf2f889a62e88c9c9f3139623565d58e47ee3464acc2ec35add38755216016e156_1280.jpg",
+    "tags": "urban, hip hop, casual, dancer, stylish, fashion, grunge, people, hip hop dancer, hip-hop, funky, music, wall, person, american, style, young, modern, street, brown music, brown street, hip hop, hip hop, hip hop, hip hop, hip hop, dancer, hip-hop, funky, funky",
+    "user": "tazzanderson",
+    "pixabayId": 2093990
   },
   "fitness-squat-50": {
-    "url": "https://pixabay.com/get/g3abaf7691a02e249f7298e270fd2f86f0fca622bb153c85efe42c9c5cae2bca66bdcdee179da753e2f1213da5a727c2c1a4fd23d750bb93d9a26266942fd2b75_640.jpg",
-    "largeURL": "https://pixabay.com/get/gca143af1d7e2bfa6a205fceba57ce5b599a62864451b2b715a6f6987b094a6eea2b305a1193b385f716a3399b70d84d26a64012e65974cd5889399ace4127db0_1280.jpg",
-    "tags": "fitness, woman, exercise, workout, fitness model, sports, yoga, stretching, trainer, personal trainer, sportswear, training, caucasian, workout, fitness model, yoga, stretching, stretching, stretching, trainer, trainer, personal trainer, personal trainer, personal trainer, personal trainer, sportswear, sportswear, sportswear, sportswear, sportswear",
-    "user": "OlgaVolkovitskaia",
-    "pixabayId": 6996771
+    "url": "https://pixabay.com/get/gf4b422ba75e2833e3cfbd605af7846133c9123fe5fd5a79fb8f818aa811888270bf2990627a38e286829487b8f91453458d7100ff43ddba4d0e22ca92631f557_640.jpg",
+    "largeURL": "https://pixabay.com/get/g657b5346c734176c6e4d773e56f60b9ffd4b8eb8a238a7bcd504540294f0a414eb1cd9314671f46b2c85f2a24ca2dac7362e016445a4d659d9334a06dec83ac1_1280.jpg",
+    "tags": "girl, stretching, warming up, run, treadmill, young woman, sports, fitness, young woman, young woman, young woman, young woman, young woman, fitness",
+    "user": "sobima",
+    "pixabayId": 7832385
   }
 } as const;

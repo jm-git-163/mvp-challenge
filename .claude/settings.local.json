@@ -120,7 +120,11 @@
       "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/_expo/static/js/web/entry-24f2239acca1c584311b330ad3127fa8.js\" -o /tmp/bundle.js)",
       "Bash(grep -oE \"eyJ[A-Za-z0-9_.-]{100,}\" /tmp/bundle.js)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'total: {len\\(d\\)}'\\); [print\\(f\\\\\"{t['id']}  [{t['genre']:10}]  {t['name']}\\\\\"\\) for t in d]\")",
-      "Bash(node scripts/fetch-supabase-thumbnails.js)"
+      "Bash(node scripts/fetch-supabase-thumbnails.js)",
+      "Bash(python -c \"import json,sys; [print\\(t['id'],'|',t['genre'],'|',t['name']\\) for t in json.load\\(sys.stdin\\)]\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('TOTAL:',len\\(d\\)\\); [print\\(t['id'],'|',t['genre'],'|',t['name']\\) for t in d]\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\)['hits'][0]; print\\('tags:',d['tags']\\); print\\('user:',d['user']\\); print\\('url:',d['webformatURL']\\)\")",
+      "Bash(node scripts/fix-bad-thumbnails-round2.js)"
     ]
   }
 }

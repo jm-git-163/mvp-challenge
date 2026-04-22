@@ -45,18 +45,18 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 3741233
   },
   "af337411-5b84-408a-b16a-e4fc04e78ebb": {
-    "url": "https://pixabay.com/get/g4b8a5ae221c7f462636f2cd6275c23b4613a17f731580cdb72a3a3b54fa289ccc149fed015d24ee1b261936ca59e5a01d0994709fca72bf8f391508042f366cc_640.jpg",
-    "largeURL": "https://pixabay.com/get/g0cfe8d350f3d1a971c4314d1dddc6af33c7d6e9f5b7ef5b22c06c12896bbfc3288ad50bcbc20569bfe37270482bcdba41309d9c44ae4fd33bf1a72df11d3d118_1280.jpg",
-    "tags": "chicken eggs, hay, chicken product, nourishment, food, eggs, bio, naturally, natural product, package, chicken eggs, chicken eggs, chicken eggs, chicken eggs, chicken eggs, eggs",
-    "user": "Couleur",
-    "pixabayId": 4212132
+    "url": "https://pixabay.com/get/g704edaab3a856189b3349701331b731a57a36bfd0aea9f8aae6365ee5d118d1e144d389a9a7b350de711f7c304150bd4_640.jpg",
+    "largeURL": "https://pixabay.com/get/gfc6f7050c6fdbc9a775f870e50e874e4bf539e5d322c8279be83d3ca53384655fb66f708ae4159911f3ca5b1035b1569ec57c2bdb7f77c23d22185a8e55af448_1280.jpg",
+    "tags": "iphone, smartphone, apps, apple inc, mobile phone, cell phone, phone, communication, mobile, telephone, technology, cellular, call, screen, wireless, business, modern, digital, message, connection, communicate, electronic, display, contact, hand, touch, conversation, portable, computer, touchscreen, applications, ios, holding, typing, browsing, brown business, brown computer, brown technology, brown laptop, brown phone, brown apple, brown mobile, brown community, brown digital, brown communication, brown company, brown conversation, brown smartphone, brown telephone, brown iphone, iphone, iphone, iphone, smartphone, smartphone, mobile phone, cell phone, phone, phone, phone, phone, phone, mobile, mobile",
+    "user": "JESHOOTS-com",
+    "pixabayId": 410324
   },
   "e2d9cc60-08c3-4200-86ba-3a7cdfa6ad54": {
-    "url": "https://pixabay.com/get/gcaaf05c9a87898629b45ca7dd724bef5197b28e4e086959ce537b2910cc4692565314fd51ce37e705a59a18d07ccb7a26112795eef0879f5ce7f9689507ca084_640.jpg",
-    "largeURL": "https://pixabay.com/get/g11ea3a365024aca830ea7fa3c6df2468d60956f41d686783bdf3b250050bb5a548bdff11b3b9cc87f91ac5d0de4cb8e053d5522ac6007030125b4200e814de1b_1280.jpg",
-    "tags": "music, concert, night, guitarist, stage, performance, singer, artist, crowd, smoke, lighting, viral, rock, live, inspirational, live performance, musician, shadowy, electric guitar, musical group",
-    "user": "Chandrak",
-    "pixabayId": 9963662
+    "url": "https://pixabay.com/get/ge4fc185117628094788ee7bfda01fdb8a91929f4421111b574061302635546b4e43b04a1cc19d383498eb9bd139d056cfae3857f5e94bd900bc4afdca2ccbef2_640.jpg",
+    "largeURL": "https://pixabay.com/get/gc65a2e40cbcbbc6adf85e879a638c24fab7b7d649682db181f7a83c43456ab536beb269fafe75c5e102c4a79fd13c42f609c98451e06d9b0b6ef98ee454aa3ea_1280.jpg",
+    "tags": "ballerina, swan lake, performance, dancer, ballet, balance, woman, show, elegance, stage, ballerina, ballerina, ballerina, ballerina, dancer, dancer, dancer, ballet, ballet, ballet, ballet, ballet",
+    "user": "nikidinov",
+    "pixabayId": 2122473
   },
   "981093f7-b455-4e48-82b2-6ce05850929a": {
     "url": "https://pixabay.com/get/g9d716d992d149268cf111248053f4ad4931b4e81c8bc08193073c56193d60f5db90256b515412f112b9f7c8fc280d6a42b9782ddf24ce1c26257d2b98f65b51d_640.jpg",
