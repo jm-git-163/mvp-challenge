@@ -411,15 +411,66 @@ export default function SelfTest() {
     },
   }, '🎤 FIXED: 음성 인식 시작 (탭)') : null;
 
+  // FIX-STT-PURE-ISOLATE (2026-04-22): 앱 코드 전체를 배제한 pure webkitSpeechRecognition
+  //   테스트. getGlobalSpeechRecognizer / 오디오 트랙 / 전역 스트림 등 일체 미사용.
+  //   버튼 탭하면 alert 로 onstart/onresult/onerror/onend 직접 표시 → 기기+브라우저
+  //   레벨에서 STT 가 작동하는지 100% 격리 확인.
+  const pureSttTest = () => {
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { window.alert('PURE: webkitSpeechRecognition 없음'); return; }
+    try {
+      const r = new SR();
+      r.lang = 'ko-KR';
+      r.continuous = false;
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      let gotResult = false;
+      r.onstart = () => window.alert('PURE onstart');
+      r.onresult = (e: any) => {
+        gotResult = true;
+        const t = e.results?.[0]?.[0]?.transcript ?? '(empty)';
+        window.alert('PURE onresult: ' + t);
+      };
+      r.onerror = (e: any) => window.alert('PURE onerror: ' + (e?.error ?? e));
+      r.onend = () => window.alert('PURE onend, gotResult=' + gotResult);
+      r.start();
+    } catch (err: any) {
+      window.alert('PURE start threw: ' + (err?.message ?? String(err)));
+    }
+  };
+  const PureSttButton = Platform.OS === 'web' ? React.createElement('button', {
+    key: 'stt-pure-btn',
+    onClick: pureSttTest,
+    style: {
+      position: 'fixed',
+      bottom: 80,
+      left: 16,
+      right: 16,
+      zIndex: 99999,
+      background: '#ea580c',
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 800,
+      padding: '14px 16px',
+      border: '3px solid #fdba74',
+      borderRadius: 14,
+      cursor: 'pointer',
+      touchAction: 'manipulation',
+      fontFamily: 'inherit',
+      boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+    },
+  }, '🧪 PURE STT (앱 코드 무관, alert로 단계 표시)') : null;
+
   return (
     <>
     {FixedSttButton}
+    {PureSttButton}
     <ScrollView style={s.root} contentContainerStyle={s.inner}>
       <Text style={s.title}>🩺 MotiQ 실기기 자가진단</Text>
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-audio-release-v6 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-pure-isolate-v7 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
