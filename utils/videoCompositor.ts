@@ -3045,9 +3045,16 @@ export async function composeVideo(
         audioCtx = new AudioContext();
         const dest = audioCtx.createMediaStreamDestination();
         // FIX-Z8: 실제 MP3 파일 우선 사용, 실패 시 oscillator 합성 폴백.
+        // FIX-Z17 (2026-04-22): layered 경로에도 인트로 duck → 타이틀 등장 싱크 맞춤.
+        //   레이어드 템플릿 인트로는 2.5s (각 템플릿 intro_title activeRange 기준),
+        //   duration 은 템플릿 자체의 duration*1000 을 우선 사용.
+        const layeredIntroMs = 2500;
+        const layeredDurationMs = isLayered
+          ? Math.round((templateOrLayered as LayeredTemplate).duration * 1000)
+          : legacyTemplate.duration_ms;
         const bgmOpts = {
-          introMs: isLayered ? 0 : INTRO_MS,
-          totalMs: legacyTemplate.duration_ms,
+          introMs: isLayered ? layeredIntroMs : INTRO_MS,
+          totalMs: layeredDurationMs,
         };
         const fileBgm = await createFileBGM(audioCtx, legacyTemplate.bgm, dest, bgmOpts);
         bgmHandle = fileBgm ?? createSimpleBGM(audioCtx, legacyTemplate.bgm, dest, bgmOpts);

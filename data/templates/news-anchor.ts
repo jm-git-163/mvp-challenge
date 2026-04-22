@@ -41,12 +41,23 @@ export const newsAnchor: Template = {
     { id: 'live_badge',  type: 'banner_badge',    zIndex: 22, opacity: 1, enabled: true, props: { text: 'LIVE', bg: '#FF3B5C', dotColor: '#FFFFFF', position: { x: 140, y: 280 } },
       reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.4, easing: 'standard', durationMs: 250 } } },
 
+    // ── INTRO (0 ~ 2.5s) : BREAKING NEWS 풀스크린 시퀀스 ──────────
+    { id: 'intro_flash',   type: 'beat_flash',      zIndex: 28, opacity: 1, enabled: true, props: { color: '#FF3B5C', peakOpacity: 0.55 }, activeRange: { startSec: 0, endSec: 0.7 } },
+    { id: 'intro_title',   type: 'kinetic_text',    zIndex: 29, opacity: 1, enabled: true, props: { text: 'BREAKING NEWS', fontSize: 120, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
+    { id: 'intro_sub',     type: 'kinetic_text',    zIndex: 30, opacity: 1, enabled: true, props: { text: '속보 · LIVE', fontSize: 54, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 900, staggerMs: 60 }, activeRange: { startSec: 0.4, endSec: 2.5 } },
+    { id: 'intro_ticker',  type: 'news_ticker',     zIndex: 31, opacity: 1, enabled: true, props: { texts: ['속보 · BREAKING', '오늘의 주요 소식', '특파원 생중계', '실시간 업데이트'], speedPxPerSec: 260, fontSize: 42, bgColor: '#FF3B5C', color: '#FFFFFF', accentColor: '#D4AF37', position: 'top', labelText: 'LIVE', labelBg: '#D4AF37', labelColor: '#0B1828' }, activeRange: { startSec: 0.3, endSec: 2.5 } },
+
     // 뉴스 그래픽 (30~40)
-    { id: 'breaking_bar',type: 'banner_badge',    zIndex: 30, opacity: 1, enabled: true, props: { text: 'BREAKING NEWS', bg: '#D4AF37', color: '#0B1828', skewDeg: 6 } },
-    { id: 'ticker',      type: 'news_ticker',     zIndex: 31, opacity: 1, enabled: true, props: { text: '실시간 뉴스 · 오늘의 주요 소식 · 미션 진행 중 · 챌린지 스튜디오', bg: '#D4AF37', speedPxPerSec: 120 } },
-    { id: 'title',       type: 'kinetic_text',    zIndex: 32, opacity: 1, enabled: true, props: { text: '앵커 챌린지', size: 72, color: '#FFFFFF' }, activeRange: { startSec: 0, endSec: 1.5 } },
-    { id: 'title_fixed', type: 'kinetic_text',    zIndex: 33, opacity: 1, enabled: true, props: { text: '앵커 챌린지', size: 24, color: '#A0AEC0', position: 'top-left' }, activeRange: { startSec: 1.5, endSec: 20 } },
-    { id: 'logo',        type: 'image_bg',        zIndex: 34, opacity: 0.9, enabled: true, props: { src: '/templates/news-anchor/logo.png', position: 'top-right', sizePx: 80 } },
+    { id: 'breaking_bar',type: 'banner_badge',    zIndex: 32, opacity: 1, enabled: true, props: { text: 'BREAKING NEWS', bg: '#D4AF37', color: '#0B1828', skewDeg: 6 }, activeRange: { startSec: 2.5, endSec: 17.5 } },
+    { id: 'ticker',      type: 'news_ticker',     zIndex: 33, opacity: 1, enabled: true, props: { texts: ['실시간 뉴스', '오늘의 주요 소식', '미션 진행 중', '챌린지 스튜디오', '날씨 속보'], bgColor: '#D4AF37', color: '#0B1828', accentColor: '#FF3B5C', speedPxPerSec: 120, labelText: 'NEWS', labelBg: '#FF3B5C', labelColor: '#FFFFFF', position: { y: 1780 } }, activeRange: { startSec: 2.5, endSec: 17.5 } },
+    { id: 'title_fixed', type: 'kinetic_text',    zIndex: 34, opacity: 1, enabled: true, props: { text: '앵커 챌린지', fontSize: 32, color: '#A0AEC0', position: 'top-center', startMs: 2500, staggerMs: 40 }, activeRange: { startSec: 2.5, endSec: 17.5 } },
+    { id: 'logo',        type: 'image_bg',        zIndex: 35, opacity: 0.9, enabled: true, props: { src: '/templates/news-anchor/logo.png', position: 'top-right', sizePx: 80 } },
+
+    // ── 뉴스 헤드라인 로테이션 (메인 구간 자막) ────────────────
+    { id: 'head_1',      type: 'kinetic_text',    zIndex: 40, opacity: 1, enabled: true, props: { text: '안녕하십니까', fontSize: 64, color: '#FFFFFF', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 2800, staggerMs: 55 }, activeRange: { startSec: 2.8, endSec: 5 } },
+    { id: 'head_2',      type: 'kinetic_text',    zIndex: 41, opacity: 1, enabled: true, props: { text: '오늘의 날씨', fontSize: 64, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'pop', position: 'top-center', startMs: 6000, staggerMs: 55 }, activeRange: { startSec: 6, endSec: 8.5 } },
+    { id: 'head_3',      type: 'kinetic_text',    zIndex: 42, opacity: 1, enabled: true, props: { text: '맑은 하늘', fontSize: 64, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 10000, staggerMs: 55 }, activeRange: { startSec: 10, endSec: 12.5 } },
+    { id: 'head_4',      type: 'kinetic_text',    zIndex: 43, opacity: 1, enabled: true, props: { text: '뉴스 마무리', fontSize: 64, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 14000, staggerMs: 55 }, activeRange: { startSec: 14, endSec: 16.5 } },
 
     // 자막 (50)
     { id: 'caption',     type: 'karaoke_caption', zIndex: 50, opacity: 1, enabled: true, props: { color: '#D4AF37', mutedColor: '#4A5568' } },
@@ -62,7 +73,19 @@ export const newsAnchor: Template = {
     // 성공 이펙트 (80)
     { id: 'fx_gold',     type: 'particle_burst',  zIndex: 80, opacity: 1, enabled: false, props: { count: 20, colors: ['#D4AF37'] } },
     { id: 'fx_chroma',   type: 'chromatic_pulse', zIndex: 81, opacity: 1, enabled: false, props: { peakPx: 0.5 } },
+
+    // ── 하단 해시태그 스트립 (메인 구간) ─────────────────────────
+    { id: 'hashtag_strip', type: 'news_ticker',   zIndex: 72, opacity: 0.9, enabled: true, props: { texts: ['#news', '#breaking', '#live', '#anchor', '#speed', '#motiq'], separator: '   ', speedPxPerSec: 80, fontSize: 28, bgColor: 'rgba(11,24,40,0.7)', color: '#D4AF37', accentColor: '#FF3B5C', position: { y: 1720 } }, activeRange: { startSec: 2.5, endSec: 17 } },
+
+    // ── OUTRO (17 ~ 20s) : 속보 종료 + 점수 + 시보 ─────────────
+    { id: 'outro_flash',   type: 'beat_flash',    zIndex: 74, opacity: 1, enabled: true, props: { color: '#D4AF37', peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
+    { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: '속보 종료', fontSize: 96, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 8, mode: 'pop', position: 'center', startMs: 17100, staggerMs: 60 }, activeRange: { startSec: 17, endSec: 20 } },
+    { id: 'outro_score',   type: 'kinetic_text',  zIndex: 76, opacity: 1, enabled: true, props: { text: '★ ★ ★ ★ ★', fontSize: 96, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 17700, staggerMs: 130 }, activeRange: { startSec: 17.5, endSec: 20 } },
+    { id: 'outro_cta',     type: 'kinetic_text',  zIndex: 77, opacity: 1, enabled: true, props: { text: '시청해주셔서 감사합니다', fontSize: 44, color: '#FFFFFF', strokeColor: '#0B1828', strokeWidth: 5, mode: 'drop', position: 'bottom-center', startMs: 18500, staggerMs: 40 }, activeRange: { startSec: 18.5, endSec: 20 } },
+    { id: 'outro_ticker',  type: 'news_ticker',   zIndex: 78, opacity: 1, enabled: true, props: { texts: ['다음 소식을 기대해주세요', '뉴스 앵커 챌린지 종료', 'SUBSCRIBE · LIKE'], speedPxPerSec: 180, fontSize: 36, bgColor: '#FF3B5C', color: '#FFFFFF', accentColor: '#D4AF37', position: 'top', labelText: 'END', labelBg: '#D4AF37', labelColor: '#0B1828' }, activeRange: { startSec: 17, endSec: 20 } },
   ],
+
+  hashtags: ['news', 'breaking', 'live', 'anchor', 'speed', 'motiq'],
 
   missionTimeline: [
     {

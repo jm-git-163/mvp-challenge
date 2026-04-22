@@ -82,7 +82,31 @@ export const emojiExplosion: Template = {
 
     // 글로벌 성공 (95)
     { id: 'global_confetti', type: 'confetti',     zIndex: 95, opacity: 1, enabled: false },
+
+    // ── INTRO (0 ~ 2.5s) : KPOP CHALLENGE 풀스크린 시퀀스 ─────────
+    { id: 'intro_flash',   type: 'beat_flash',    zIndex: 28, opacity: 1, enabled: true, props: { color: '#FF2D95', peakOpacity: 0.55 }, activeRange: { startSec: 0, endSec: 0.6 } },
+    { id: 'intro_title',   type: 'kinetic_text',  zIndex: 29, opacity: 1, enabled: true, props: { text: '⭐ KPOP CHALLENGE', fontSize: 110, color: '#FFFFFF', strokeColor: '#FF2D95', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
+    { id: 'intro_sub',     type: 'kinetic_text',  zIndex: 30, opacity: 1, enabled: true, props: { text: '💖 SMILE · ✌ PEACE · 🙌 JUMP', fontSize: 52, color: '#39FF7D', strokeColor: '#FF2D95', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 900, staggerMs: 50 }, activeRange: { startSec: 0.4, endSec: 2.5 } },
+    { id: 'intro_burst',   type: 'particle_burst',zIndex: 31, opacity: 1, enabled: true, props: { burstCount: 100, colors: ['#FF2D95', '#FFD700', '#39FF7D', '#00E0FF', '#FF8A3D'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 1600, speedMin: 300, speedMax: 700, shape: 'star', origin: 'center' }, activeRange: { startSec: 0, endSec: 0.9 } },
+
+    // ── 캡션/제스처 큐 타임라인 ────────────────────────────────
+    { id: 'cue_smile',     type: 'kinetic_text',  zIndex: 54, opacity: 1, enabled: true, props: { text: 'SMILE! 😊', fontSize: 88, color: '#FF2D95', strokeColor: '#FFFFFF', strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 2500, staggerMs: 50 }, activeRange: { startSec: 2.5, endSec: 4.5 } },
+    { id: 'cue_heart',     type: 'kinetic_text',  zIndex: 55, opacity: 1, enabled: true, props: { text: 'HEART! 💖', fontSize: 88, color: '#FF2D95', strokeColor: '#FFFFFF', strokeWidth: 8, mode: 'drop', position: 'top-center', startMs: 5500, staggerMs: 50 }, activeRange: { startSec: 5.5, endSec: 7 } },
+    { id: 'cue_peace',     type: 'kinetic_text',  zIndex: 56, opacity: 1, enabled: true, props: { text: 'PEACE! ✌', fontSize: 88, color: '#39FF7D', strokeColor: '#FFFFFF', strokeWidth: 8, mode: 'spin', position: 'top-center', startMs: 8000, staggerMs: 50 }, activeRange: { startSec: 8, endSec: 10 } },
+    { id: 'cue_jump',      type: 'kinetic_text',  zIndex: 57, opacity: 1, enabled: true, props: { text: 'JUMP! 🙌', fontSize: 88, color: '#FF8A3D', strokeColor: '#FFFFFF', strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 12500, staggerMs: 50 }, activeRange: { startSec: 12.5, endSec: 14.5 } },
+
+    // ── 하단 해시태그 스트립 ─────────────────────────────────────
+    { id: 'hashtag_strip', type: 'news_ticker',   zIndex: 72, opacity: 0.92, enabled: true, props: { texts: ['#kpop', '#love', '#star', '#cute', '#smile', '#challenge', '#motiq'], separator: '  ', speedPxPerSec: 110, fontSize: 30, bgColor: 'rgba(255,45,149,0.6)', color: '#FFFFFF', accentColor: '#FFD700', position: 'bottom' }, activeRange: { startSec: 2.5, endSec: 16.5 } },
+
+    // ── OUTRO (16 ~ 18.5s) : 무지개 컨페티 + 점수 + CTA ─────────
+    { id: 'outro_flash',   type: 'beat_flash',    zIndex: 74, opacity: 1, enabled: true, props: { color: '#FFD700', peakOpacity: 0.6 }, activeRange: { startSec: 16, endSec: 16.5 } },
+    { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: 'SO CUTE! 💖', fontSize: 110, color: '#FF2D95', strokeColor: '#FFFFFF', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 16100, staggerMs: 55 }, activeRange: { startSec: 16, endSec: 18.5 } },
+    { id: 'outro_score',   type: 'kinetic_text',  zIndex: 76, opacity: 1, enabled: true, props: { text: '★ ★ ★ ★ ★', fontSize: 100, color: '#FFD700', strokeColor: '#FF2D95', strokeWidth: 8, mode: 'drop', position: 'top-center', startMs: 16700, staggerMs: 130 }, activeRange: { startSec: 16.5, endSec: 18.5 } },
+    { id: 'outro_cta',     type: 'kinetic_text',  zIndex: 77, opacity: 1, enabled: true, props: { text: 'TAP TO RETRY', fontSize: 48, color: '#39FF7D', strokeColor: '#FF2D95', strokeWidth: 5, mode: 'drop', position: 'bottom-center', startMs: 17500, staggerMs: 40 }, activeRange: { startSec: 17.5, endSec: 18.5 } },
+    { id: 'outro_burst',   type: 'particle_burst',zIndex: 78, opacity: 1, enabled: true, props: { burstCount: 140, colors: ['#FF2D95', '#FFD700', '#39FF7D', '#00E0FF', '#FF8A3D', '#B794F4'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 2000, speedMin: 280, speedMax: 650, shape: 'star', origin: 'center' }, activeRange: { startSec: 16, endSec: 16.8 } },
   ],
+
+  hashtags: ['kpop', 'love', 'star', 'cute', 'smile', 'challenge', 'motiq'],
 
   missionTimeline: [
     { id: 'sc1_smile',    startSec: 2,  endSec: 7,  mission: { kind: 'smile', intensity: 0.6, durationMs: 2000 }, scoreWeight: 0.34, hudBinding: 'hud_prompt' },

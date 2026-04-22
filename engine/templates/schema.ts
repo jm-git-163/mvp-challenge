@@ -210,6 +210,11 @@ export const zTemplate = z.object({
   postProcess: zPostFxChain.default([]),
   successEffects: z.array(zGlobalEffect).default([]),
   failEffects: z.array(zGlobalEffect).default([]),
+  /**
+   * 해시태그 — 아웃트로/하단 스트립에서 사용. (2026-04-22 FIX: 템플릿별 차별화·소셜 매체 감성 보강)
+   * 6~8 개 권장. 영문/한글/이모지 혼용 가능. '#' 프리픽스는 자동 추가되므로 생략.
+   */
+  hashtags: z.array(z.string().min(1)).default([]),
 }).superRefine((t, ctx) => {
   // scoreWeight 합 = 1.0 (±0.01 허용)
   const sum = t.missionTimeline.reduce((s, m) => s + m.scoreWeight, 0);

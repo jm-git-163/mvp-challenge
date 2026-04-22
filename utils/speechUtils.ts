@@ -175,6 +175,13 @@ export class SpeechRecognizer {
   private _targetText = '';
   // generation counter: stop() 호출 시 증가 → 이전 onend가 잘못 재시작하는 race condition 방지
   private _gen = 0;
+  // FIX-Z20 (2026-04-22): onerror 자동 재시도 카운터.
+  //   no-speech / audio-capture / network 에러 시 1초 후 start() 재호출.
+  //   onresult 가 성공적으로 들어오면 0 으로 리셋.
+  //   5회 초과 시 포기 → lastEvent / lastError 에 사유 기록, 화면 뱃지로 노출.
+  private retryCountRef = 0;
+  private static RETRY_MAX = 5;
+  private static RETRY_DELAY_MS = 1000;
 
   constructor() {
     this.lastEvent = 'init: webkit-api-check';
@@ -301,6 +308,8 @@ export class SpeechRecognizer {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.rec.onresult = (e: any) => {
       this.resultCount++;
+      // FIX-Z20: 결과가 도착했으면 자동 재시도 카운터 리셋.
+      if (this.retryCountRef > 0) this.retryCountRef = 0;
       this.lastEvent = `onresult #${this.resultCount} len=${e?.results?.length ?? 0}`;
       let interim = '';
       let newFinal = '';
@@ -327,6 +336,33 @@ export class SpeechRecognizer {
       this.lastError = String(e?.error || e || 'unknown');
       this.lastEvent = `onerror: ${this.lastError}`;
       try { console.warn('[speech] onerror:', e.error || e); } catch {}
+
+      // FIX-Z20 (2026-04-22): 복구 가능 에러에 대한 능동적 재시도.
+      //   onend 기반 재시작은 브라우저가 onend 를 발생시켜야 동작하지만
+      //   모바일 Chrome 은 특정 에러(no-speech/audio-capture/network) 후
+      //   onend 가 지연되거나 누락되는 경우가 있어 dead-state 에 빠진다.
+      //   명시적 setTimeout(1000) 후 start() 재호출로 확정적 회복을 보장.
+      const recoverable = (e.error === 'no-speech' || e.error === 'audio-capture' || e.error === 'network');
+      if (recoverable && this._listening && this._gen === myGen) {
+        if (this.retryCountRef < SpeechRecognizer.RETRY_MAX) {
+          this.retryCountRef += 1;
+          this.lastEvent = `onerror: ${e.error} → auto-retry #${this.retryCountRef}`;
+          setTimeout(() => {
+            if (!this._listening || this._gen !== myGen) return;
+            try { this.rec?.start(); }
+            catch (err) {
+              this.lastEvent = `auto-retry #${this.retryCountRef} start failed: ${String((err as Error)?.message ?? err)}`;
+            }
+          }, SpeechRecognizer.RETRY_DELAY_MS);
+          // 복구 가능 에러는 _listening 유지한 채 돌아간다 (아래 fallthrough 에서 false 되지 않도록).
+          return;
+        } else {
+          this.lastEvent = 'give-up: 5 failures';
+          this.lastError = '자동 재시도 5회 실패';
+          return;
+        }
+      }
+
       if (e.error === 'no-speech' || e.error === 'aborted') {
         // Chrome은 침묵이 길면 자동 종료 → onend에서 재시작됨 (listening 유지)
         return;

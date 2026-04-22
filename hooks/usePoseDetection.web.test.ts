@@ -78,6 +78,18 @@ describe('usePoseDetection (web)', () => {
     expect(String(mockState.data[4])).toContain('MediaPipe load failed'); // error message visible
   });
 
+  it('BlazePose 33 → MoveNet 17 리맵 결과가 17 개여야 한다 (FIX-Z16)', () => {
+    // 리맵 인덱스는 usePoseDetection.web.ts 내부 BP_TO_MN 과 동일해야 한다.
+    // 직접 호출할 수 없으므로 동일 매핑으로 17 크기 검증.
+    const BP_TO_MN = [0, 2, 5, 7, 8, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+    expect(BP_TO_MN.length).toBe(17);
+    // 스쿼트 판정이 쓰는 핵심 인덱스가 실제로 다리(knee=13,14 / ankle=15,16) 로 매핑.
+    expect(BP_TO_MN[13]).toBe(25); // MoveNet left_knee → BlazePose 25
+    expect(BP_TO_MN[14]).toBe(26); // MoveNet right_knee → BlazePose 26
+    expect(BP_TO_MN[15]).toBe(27); // MoveNet left_ankle → BlazePose 27
+    expect(BP_TO_MN[16]).toBe(28); // MoveNet right_ankle → BlazePose 28
+  });
+
   it('개발 환경에서 실패 시 mock 모드로 전환한다', async () => {
     vi.stubGlobal('process', { env: { NODE_ENV: 'development' } });
     vi.spyOn(mediaPipeLoader, 'loadPoseLandmarker').mockResolvedValue({

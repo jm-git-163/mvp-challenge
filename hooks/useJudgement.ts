@@ -141,6 +141,10 @@ export function useJudgement(): {
       candidatePhase: 'up' | 'down' | 'unknown';
       candidateFrames: number;
       ready: boolean;
+      // FIX-Z20 (2026-04-22): 녹화 10초 경과 && landmarks 비면 true.
+      //   포즈 엔진이 사실상 죽은 상태(wasm 로드 성공했으나 detectForVideo 가
+      //   결과 없음)를 UI 가 정직하게 표시하도록 플래그로 노출.
+      poseTimeout: boolean;
     };
   };
   voiceTranscript: string;
@@ -177,6 +181,9 @@ export function useJudgement(): {
   //   'near-mode' = 얼굴 Y 진동 프록시(근사). 점수 최대 70% 제한 → 정직한 UX.
   //   'idle'      = 아직 감지 안 됨.
   const squatSourceRef         = useRef<'full-body' | 'near-mode' | 'idle'>('idle');
+  // FIX-Z20 (2026-04-22): 녹화 시작 시각 tracking (포즈 타임아웃 감지용).
+  //   첫 judge() 호출 시점에 0 으로 설정되며, landmarks 가 10 초 이상 비면 poseTimeout=true.
+  const recordingStartRef      = useRef<number | null>(null);
 
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -189,6 +196,10 @@ export function useJudgement(): {
     (landmarks: NormalizedLandmark[], elapsedMs: number) => {
       const now      = Date.now();
       const template = useSessionStore.getState().activeTemplate;
+      // FIX-Z20: 첫 judge() 호출 시각 기록.
+      if (recordingStartRef.current === null) recordingStartRef.current = now;
+      const recordingElapsedMs = now - (recordingStartRef.current ?? now);
+      const poseTimeout = recordingElapsedMs > 10_000 && landmarks.length === 0;
       const mission  = template
         ? getCurrentMission(template.missions, elapsedMs)
         : null;
@@ -530,6 +541,7 @@ export function useJudgement(): {
           candidatePhase: squatCandidatePhaseRef.current,
           candidateFrames: squatCandidateFrames.current,
           ready: squatReadyRef.current,
+          poseTimeout,
         },
       };
     },
@@ -575,6 +587,8 @@ export function useJudgement(): {
     lastKneeAngle.current   = 180;
     kneeSmootherRef.current.reset();
     squatSourceRef.current = 'idle';
+    // FIX-Z20: 다음 녹화용으로 타임아웃 타이머 리셋.
+    recordingStartRef.current = null;
     setSquatCount(0);
     setSquatMode('idle');
   }, []);

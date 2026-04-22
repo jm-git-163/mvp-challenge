@@ -32,6 +32,7 @@ import type { TemplateIntro, TemplateOutro } from '../../types/template';
 import { UnloadGuard } from '../../engine/studio/unloadGuard';
 import { StanceGuide } from '../../components/record/StanceGuide';
 import { PoseCalibration } from '../../components/record/PoseCalibration';
+import { RecognitionStatusPanel } from '../../components/record/RecognitionStatusPanel';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1372,9 +1373,10 @@ export default function RecordScreen() {
     landmarkCount: number; squatLmOk: boolean;
     faceOk: boolean; allowCloseMode: boolean;
     candidatePhase: 'up'|'down'|'unknown'; candidateFrames: number; ready: boolean;
+    poseTimeout: boolean;
   }>({ faceY: 0, amplitude: 0, visibility: 0, velSign: 0, lastPivotType: 'none',
        landmarkCount: 0, squatLmOk: false, faceOk: false, allowCloseMode: false,
-       candidatePhase: 'unknown', candidateFrames: 0, ready: false });
+       candidatePhase: 'unknown', candidateFrames: 0, ready: false, poseTimeout: false });
 
   // FIX-Z1 (2026-04-22): Whisper 프리로드 제거 — WHISPER_ENABLED=false 복귀.
   //   ?stt=whisper 디버그 모드에서만 아래 상태가 loading 으로 전환된다.
@@ -2132,6 +2134,41 @@ export default function RecordScreen() {
                     </Text>
                   )}
                 </View>
+              )}
+
+              {/* FIX-Z20 (2026-04-22): 인식 3종 통합 진단 패널 (우하단).
+                  기존 FIX-Z10(음성)·FIX-Z19(스쿼트) 뱃지와 병행.
+                  voice/pose/squat 을 한 화면에서 비교할 수 있도록 recording 중 항상 표시. */}
+              {isRecording && activeTemplate?.genre && (
+                <RecognitionStatusPanel
+                  voiceState={{
+                    status: (speechBadge.err
+                      ? 'error'
+                      : speechBadge.listening
+                        ? 'listening'
+                        : speechBadge.preCheck && !speechBadge.preCheck.ok
+                          ? 'unsupported'
+                          : 'idle'),
+                    engine: speechBadge.engine,
+                    platform: speechBadge.platform,
+                    lastEvent: speechBadge.lastEvent,
+                    transcript: speechBadge.transcript || voiceTranscript || '',
+                    err: speechBadge.err,
+                  }}
+                  poseState={{
+                    status: poseStatus,
+                    landmarkCount: squatDebug.landmarkCount,
+                    faceOk: squatDebug.faceOk,
+                    bodyOk: squatDebug.squatLmOk,
+                    kneeAngle: squatKneeAngle,
+                  }}
+                  squatState={{
+                    count: squatCount,
+                    target: 10,
+                    phase: squatPhase,
+                    mode: squatMode,
+                  }}
+                />
               )}
 
               {isRecording && !showIntro && currentMission && currentMission.type!=='voice_read' && (
