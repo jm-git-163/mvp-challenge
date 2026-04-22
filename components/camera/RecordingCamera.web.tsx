@@ -932,6 +932,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const streamRef = useRef<MediaStream | null>(null);
     const rafRef    = useRef<number | null>(null);
     const frameRafRef = useRef<number | null>(null);
+    const frameCounterRef = useRef(0);
     const recRef    = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     // FIX-R: 오디오 믹스 파이프라인 리소스 — 녹화 종료 시 disconnect
@@ -1226,17 +1227,34 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           //   검은 배경 + 부드러운 펄스 힌트로 초기화 → drawCamera 가 그리지 못한
           //   경우에도 "현재 로딩 중" 상태가 시각적으로 드러난다.
           if (video.readyState < 2 || !video.videoWidth) {
+            // FIX-Z24: "진짜 멈춤" vs "rAF 는 돌지만 video 만 안 풀림" 을 유저가
+            //   구분할 수 있도록 회전하는 스피너 + 프레임 카운터 표시.
             ctx.fillStyle = '#0a0a12';
             ctx.fillRect(0, 0, CW, CH);
+            frameCounterRef.current++;
             const t = performance.now() * 0.002;
-            const pulse = 0.4 + 0.3 * Math.sin(t);
-            ctx.fillStyle = `rgba(255,255,255,${pulse.toFixed(3)})`;
-            ctx.font = 'bold 36px system-ui, sans-serif';
+            // 회전 원형 스피너
+            const cx = CW / 2, cy = CH / 2 - 40;
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(performance.now() * 0.003);
+            for (let i = 0; i < 12; i++) {
+              ctx.rotate(Math.PI / 6);
+              ctx.fillStyle = `rgba(127,255,212,${((i + 1) / 12).toFixed(3)})`;
+              ctx.fillRect(-3, -40, 6, 14);
+            }
+            ctx.restore();
+            const pulse = 0.5 + 0.5 * Math.sin(t);
+            ctx.fillStyle = `rgba(255,255,255,${(0.6 + 0.4 * pulse).toFixed(3)})`;
+            ctx.font = 'bold 40px system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('카메라 준비 중…', CW / 2, CH / 2 - 10);
-            ctx.font = '22px system-ui, sans-serif';
-            ctx.fillStyle = 'rgba(200,200,220,0.7)';
-            ctx.fillText(`rs=${video.readyState} ${video.videoWidth}×${video.videoHeight}`, CW / 2, CH / 2 + 30);
+            ctx.fillText('카메라 준비 중…', CW / 2, CH / 2 + 60);
+            ctx.font = '20px monospace';
+            ctx.fillStyle = 'rgba(127,255,212,0.9)';
+            ctx.fillText(
+              `frame #${frameCounterRef.current}  rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} ${video.paused ? '⏸' : '▶'}`,
+              CW / 2, CH / 2 + 110,
+            );
           } else {
             try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
           }
@@ -1381,19 +1399,23 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     // ------------------------------------------------------------------
     return (
       <View style={st.container}>
-        {/* FIX-Z21 (2026-04-22): iOS Safari 는 `display:none` <video> 의
-              디코더를 일시 정지/해제해 videoWidth=0, readyState<2 로 유지되어
-              → drawImage 로 아무 것도 안 그려짐 (canvas freeze) →
-              MediaPipe 도 landmarks=0 → 포즈/스쿼트 전부 작동 불가.
-              화면 밖으로 1×1 로 위치시켜 DOM 에 살아있게 한다. */}
+        {/* FIX-Z24 (2026-04-22): off-screen (-9999px) 로 옮긴 FIX-Z21 이 실기기에서
+              여전히 디코더 culling 을 유발 → videoWidth=0 고착. iOS/Android 웹뷰는
+              viewport 내 visible 여부를 디코더 활성 조건으로 삼는다. 해법: 실제
+              viewport 안에 full-size 로 위치시키되 canvas 가 위를 덮게 해 유저에게는
+              안 보이게 한다. visibility:hidden 은 iOS 에서 동일 culling, opacity:0
+              도 마찬가지 → 화면에 그려지되 canvas 가 가리는 방식이 가장 안전. */}
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video
           ref={videoRef}
           style={{
             position: 'absolute' as any,
-            width: 1, height: 1,
-            left: -9999, top: -9999,
-            opacity: 0.01,
+            top: 0, left: 0,
+            width: '100%',
+            height: '100%',
+            // @ts-ignore web
+            objectFit: 'cover',
+            zIndex: 0,
             pointerEvents: 'none' as any,
           }}
           autoPlay
@@ -1407,6 +1429,8 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           width={CW}
           height={CH}
           style={{
+            position: 'relative' as any,
+            zIndex: 1,
             height: '100%',
             width: 'auto',
             maxWidth: '100%',

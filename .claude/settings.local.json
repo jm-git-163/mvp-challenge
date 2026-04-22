@@ -126,7 +126,10 @@
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\)['hits'][0]; print\\('tags:',d['tags']\\); print\\('user:',d['user']\\); print\\('url:',d['webformatURL']\\)\")",
       "Bash(node scripts/fix-bad-thumbnails-round2.js)",
       "Bash(cd C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\mvp)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(grep -n \"position:\\\\|pointerEvents:\\\\|left: -9999\\\\|videoRef\\\\\\\\s*=\\\\\\\\s*useRef\\\\\\\\|<video\" components/camera/RecordingCamera.web.tsx)"
     ]
   }
 }
