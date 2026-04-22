@@ -17,6 +17,12 @@ export default function Root({ children }: PropsWithChildren) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        {/* FIX-CACHE (2026-04-22): HTML 쉘 캐시 금지.
+            Vercel edge 에서 Cache-Control 을 내려도 일부 모바일 브라우저(Safari, 일부 삼성인터넷)는
+            meta httpEquiv 없이는 back/forward 캐시에서 꺼내 쓰는 경우가 있어 중복 방어. */}
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
