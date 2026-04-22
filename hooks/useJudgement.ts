@@ -122,10 +122,12 @@ export function useJudgement(): {
     squatCount: number;
     squatPhase: 'up' | 'down' | 'unknown';
     kneeAngle: number;
+    squatMode: 'full-body' | 'near-mode' | 'idle';
   };
   voiceTranscript: string;
   voiceAccuracy: number;
   squatCount: number;
+  squatMode: 'full-body' | 'near-mode' | 'idle';
   resetVoice: () => void;
 } {
   const { activeTemplate, appendFrameTag } = useSessionStore();
@@ -151,11 +153,17 @@ export function useJudgement(): {
   }));
   // FIX-J: 근접 촬영 대응 — 무릎이 안 보여도 얼굴 Y 진동으로 스쿼트 카운트.
   const closeSquatRef          = useRef(new CloseProximitySquatDetector());
+  // FIX-N (2026-04-22): 스쿼트 감지 소스 트래킹.
+  //   'full-body' = MediaPipe 무릎각도 기반(정밀). 점수 제한 없음.
+  //   'near-mode' = 얼굴 Y 진동 프록시(근사). 점수 최대 70% 제한 → 정직한 UX.
+  //   'idle'      = 아직 감지 안 됨.
+  const squatSourceRef         = useRef<'full-body' | 'near-mode' | 'idle'>('idle');
 
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceAccuracy,   setVoiceAccuracy]   = useState(0);
   const [squatCount, setSquatCount]           = useState(0);
+  const [squatMode, setSquatMode]             = useState<'full-body' | 'near-mode' | 'idle'>('idle');
 
   // ─────────────────────────────────────────────────────────────────────────
   const judge = useCallback(
@@ -222,6 +230,11 @@ export function useJudgement(): {
           squatCountState.current = closeState.count;
           setSquatCount(closeState.count);
           squatPhaseOut = closeState.phase;
+          // FIX-N: 이 증분은 근접(얼굴) 디텍터 소스. full-body 가 아직 안 잡혔으면 near-mode.
+          if (squatSourceRef.current !== 'full-body') {
+            squatSourceRef.current = 'near-mode';
+            setSquatMode('near-mode');
+          }
         }
       }
       if (template && template.genre === 'fitness' && squatLmOk) {
@@ -272,6 +285,11 @@ export function useJudgement(): {
               if (squatCountRef.current !== squatCountState.current) {
                 squatCountState.current = squatCountRef.current;
                 setSquatCount(squatCountRef.current);
+              }
+              // FIX-N: full-body 실제 무릎각도 기반 rep 완료 → 정밀 모드 확정.
+              if (squatSourceRef.current !== 'full-body') {
+                squatSourceRef.current = 'full-body';
+                setSquatMode('full-body');
               }
             }
           }
@@ -429,6 +447,12 @@ export function useJudgement(): {
                 kneeAngleOut < 115 ? 0.85 :
                 kneeAngleOut < 135 ? 0.65 : 0.45;
               score = sqScore;
+            } else if (template && template.genre === 'fitness' && squatSourceRef.current === 'near-mode' && squatCountRef.current > 0) {
+              // FIX-N: 근접 모드 — 실제 무릎각도 얻을 수 없지만 얼굴 Y 진동이 실제 신호.
+              //   가짜 점수 아님: 1 rep 당 10% 가산, 기본 30% 에서 시작, **최대 70% 제한**.
+              //   정밀 모드(full-body)로 전환되면 자동으로 위 분기가 100% 까지 올려줌.
+              const reps = squatCountRef.current;
+              score = Math.min(0.70, 0.30 + reps * 0.10);
             } else {
               // 실제 검출 없음 → 점수 0
               score = 0;
@@ -457,6 +481,7 @@ export function useJudgement(): {
         squatCount: squatCountRef.current,
         squatPhase: squatPhaseOut,
         kneeAngle: kneeAngleOut,
+        squatMode: squatSourceRef.current,
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -500,8 +525,10 @@ export function useJudgement(): {
     squatReadyRef.current          = false;
     lastKneeAngle.current   = 180;
     kneeSmootherRef.current.reset();
+    squatSourceRef.current = 'idle';
     setSquatCount(0);
+    setSquatMode('idle');
   }, []);
 
-  return { judge, voiceTranscript, voiceAccuracy, squatCount, resetVoice };
+  return { judge, voiceTranscript, voiceAccuracy, squatCount, squatMode, resetVoice };
 }

@@ -1349,7 +1349,7 @@ export default function RecordScreen() {
   const [facing, setFacing] = useState<'front'|'back'>(defaultFacing);
 
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
-  const { judge, voiceTranscript, squatCount, resetVoice } = useJudgement();
+  const { judge, voiceTranscript, squatCount, squatMode, resetVoice } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
   const [showIntro,  setShowIntro]  = useState(false);
@@ -1795,6 +1795,25 @@ export default function RecordScreen() {
 
               {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
                 <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} />
+              )}
+
+              {/* FIX-N (2026-04-22): 스쿼트 감지 모드 표시 — 정직한 UX.
+                  full-body = 무릎각도 정밀 (점수 100%), near-mode = 얼굴 Y 진동 (최대 70%) */}
+              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && squatMode !== 'idle' && (
+                <View pointerEvents="none" style={{
+                  position:'absolute', top:120, right:8, zIndex:9997,
+                  backgroundColor: squatMode === 'full-body' ? 'rgba(16,185,129,0.9)' : 'rgba(245,158,11,0.9)',
+                  paddingHorizontal:10, paddingVertical:6, borderRadius:6,
+                }}>
+                  <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>
+                    {squatMode === 'full-body' ? '✓ 전신 정밀 모드' : '⚠ 근접 모드 · 점수 최대 70%'}
+                  </Text>
+                  {squatMode === 'near-mode' && (
+                    <Text style={{ color:'#fff', fontSize:9, marginTop:2 }}>
+                      폰을 세워두고 물러서면 100%
+                    </Text>
+                  )}
+                </View>
               )}
 
               {isRecording && !showIntro && currentMission && currentMission.type!=='voice_read' && (
