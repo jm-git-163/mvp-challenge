@@ -123,7 +123,12 @@ class MicAudioBuffer {
     // 세션 2 에서 Worklet 로 교체 예정.
     this.processor = this.ac.createScriptProcessor(4096, 1, 1);
     this.source.connect(this.processor);
-    this.processor.connect(this.ac.destination);
+    // FIX-Y5 (2026-04-22): destination 으로 직결하면 마이크가 스피커로 피드백 → 하울링.
+    //   gain=0 노드를 경유해야 ScriptProcessor 가 돌면서도 출력 소리는 없음.
+    const mute = this.ac.createGain();
+    mute.gain.value = 0;
+    this.processor.connect(mute);
+    mute.connect(this.ac.destination);
 
     const targetChunkSamples = Math.floor((CHUNK_MS / 1000) * this.inputRate);
 
@@ -185,12 +190,16 @@ export class WhisperRecognizer {
   private onFinal: FinalCb | null = null;
   private onProgress: ProgressCb | null = null;
   private _stopTimer: ReturnType<typeof setTimeout> | null = null;
+  // FIX-Y5: 영어 뉴스/동화 따라 읽기 미션 지원을 위해 lang 저장.
+  private _lang: 'ko' | 'en' = 'ko';
   // 진단 카운터 (SpeechRecognizer 와 동일 인터페이스)
   public lastError: string | null = null;
   public lastTranscript = '';
   public startCount = 0;
   public endCount = 0;
   public resultCount = 0;
+  // FIX-Y5: 추론 중복 실행 방지 (backpressure). Whisper-tiny 도 모바일에서 3–5s 걸림.
+  private _inferBusy = false;
 
   constructor() {
     this.supported = typeof window !== 'undefined'
@@ -228,7 +237,7 @@ export class WhisperRecognizer {
    * @returns 중단 함수.
    */
   listen(
-    _lang: 'ko' | 'en',
+    lang: 'ko' | 'en',
     onInterim: InterimCb,
     onFinal: FinalCb,
     timeoutMs = 30_000,
@@ -239,6 +248,7 @@ export class WhisperRecognizer {
       if (!this.supported) setTimeout(() => onFinal(''), 100);
       return () => {};
     }
+    this._lang = lang;
     this._listening = true;
     this._accumulated = '';
     this._finalText = '';
@@ -287,6 +297,9 @@ export class WhisperRecognizer {
 
   private async infer(asr: any, pcm16k: Float32Array): Promise<void> {
     if (!this._listening) return;
+    // FIX-Y5: 이전 청크 추론이 끝나지 않았으면 이번 청크는 버림. 큐잉하면 지연 누적.
+    if (this._inferBusy) return;
+    this._inferBusy = true;
     try {
       // FIX-I6: 에러 원인 추적용 — fetch 가 HTML 을 돌려주면 어느 URL 이었는지
       // 로그. 단발성(첫 실패 1회) 리스너 설치.
@@ -303,7 +316,7 @@ export class WhisperRecognizer {
         };
       }
       const result = await asr(pcm16k, {
-        language: 'korean',
+        language: this._lang === 'en' ? 'english' : 'korean',
         task: 'transcribe',
         // chunk_length_s: 5,  // chunks 자동처리는 mainthread blocking 심함 → 수동 청킹
       });
@@ -321,6 +334,8 @@ export class WhisperRecognizer {
     } catch (err) {
       this.lastError = String((err as Error)?.message ?? err);
       try { console.warn('[whisper] infer failed:', err); } catch {}
+    } finally {
+      this._inferBusy = false;
     }
   }
 

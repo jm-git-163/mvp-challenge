@@ -47,10 +47,20 @@ void _sr; void _wr;
 
 let _cachedEngine: SttEngine | null = null;
 
-// FIX-I7: Whisper 엔진 일시 비활성 (Session 2 재개 전까지 강제 webkit).
-//   기존 우선순위 로직(URL·localStorage·env) 은 주석으로 보존 → Session 2 에
-//   Worker 격리 + WASM 경로 수동 지정 완료 후 복원.
-const WHISPER_ENABLED = false;
+// FIX-Y5 (2026-04-22): Whisper 엔진 재활성.
+//   webkitSpeechRecognition 이 Android Chrome 에서 `not-allowed` 로 거의 100%
+//   실패함을 실기기 테스트로 확인. 모바일에서는 Whisper 가 유일한 선택지.
+//   데스크톱은 webkit 유지 (빠르고 안정).
+const WHISPER_ENABLED = true;
+
+function isMobileUA(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  // Android / iPhone / iPad / 기타 모바일 키워드. iPad 13+ 는 MacIntel 로 위장 → touch 포인트도 확인.
+  if (/Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry/i.test(ua)) return true;
+  if (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua)) return true; // iPad desktop mode
+  return false;
+}
 
 export function resolveSttEngine(): SttEngine {
   if (_cachedEngine) return _cachedEngine;
@@ -61,7 +71,7 @@ export function resolveSttEngine(): SttEngine {
     return _cachedEngine;
   }
 
-  // ── 이하는 WHISPER_ENABLED=true 때만 유효 (Session 2 에서 복원) ──
+  // 1) URL 오버라이드 (디버그)
   const q = window.location.search;
   const m = q.match(/[?&]stt=(whisper|webkit)\b/);
   if (m) {
@@ -69,6 +79,7 @@ export function resolveSttEngine(): SttEngine {
     try { window.localStorage.setItem('motiq_stt', _cachedEngine); } catch {}
     return _cachedEngine;
   }
+  // 2) localStorage sticky
   try {
     const ls = window.localStorage.getItem('motiq_stt');
     if (ls === 'whisper' || ls === 'webkit') {
@@ -76,6 +87,7 @@ export function resolveSttEngine(): SttEngine {
       return _cachedEngine;
     }
   } catch {}
+  // 3) ENV
   // @ts-ignore
   const envEngine = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_STT_ENGINE) as
     | string
@@ -84,7 +96,8 @@ export function resolveSttEngine(): SttEngine {
     _cachedEngine = envEngine;
     return _cachedEngine;
   }
-  _cachedEngine = 'webkit';
+  // 4) 자동: 모바일 → Whisper, 데스크톱 → webkit
+  _cachedEngine = isMobileUA() ? 'whisper' : 'webkit';
   return _cachedEngine;
 }
 

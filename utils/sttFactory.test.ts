@@ -2,7 +2,7 @@
  * utils/sttFactory.test.ts — STT 엔진 선택 로직 검증.
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { resolveSttEngine, _resetSttCache } from './sttFactory';
 
 function setLocation(search: string): void {
@@ -14,36 +14,48 @@ function setLocation(search: string): void {
   });
 }
 
-describe('resolveSttEngine (WHISPER_ENABLED=false 잠금 상태)', () => {
+function setUA(ua: string): void {
+  Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+}
+
+describe('resolveSttEngine (WHISPER_ENABLED=true, FIX-Y5)', () => {
   beforeEach(() => {
     _resetSttCache();
     try { window.localStorage.clear(); } catch {}
     setLocation('');
     // @ts-ignore
     if (typeof process !== 'undefined') delete process.env.EXPO_PUBLIC_STT_ENGINE;
+    setUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
   });
 
-  // FIX-I7: 현재 Whisper 엔진은 프로덕션 미준비로 강제 webkit 잠금.
-  //   Session 2 (Worker 격리 + WASM 경로 수동 지정) 완료 후 아래 테스트들을
-  //   원래의 우선순위 검증으로 복원한다.
-
-  it('기본값은 webkit', () => {
+  it('데스크톱 UA → webkit', () => {
     expect(resolveSttEngine()).toBe('webkit');
   });
 
-  it('?stt=whisper 무시 (잠금) → webkit', () => {
+  it('Android UA → whisper (자동)', () => {
+    setUA('Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120');
+    expect(resolveSttEngine()).toBe('whisper');
+  });
+
+  it('iPhone UA → whisper (자동)', () => {
+    setUA('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605');
+    expect(resolveSttEngine()).toBe('whisper');
+  });
+
+  it('?stt=webkit 오버라이드 (모바일에서도 webkit)', () => {
+    setUA('Mozilla/5.0 (Linux; Android 13) Mobile');
+    setLocation('?stt=webkit');
+    expect(resolveSttEngine()).toBe('webkit');
+  });
+
+  it('?stt=whisper 오버라이드 (데스크톱에서도 whisper)', () => {
     setLocation('?stt=whisper');
-    expect(resolveSttEngine()).toBe('webkit');
+    expect(resolveSttEngine()).toBe('whisper');
   });
 
-  it('localStorage sticky=whisper 무시 (잠금) → webkit', () => {
-    window.localStorage.setItem('motiq_stt', 'whisper');
-    expect(resolveSttEngine()).toBe('webkit');
-  });
-
-  it('env EXPO_PUBLIC_STT_ENGINE=whisper 무시 (잠금) → webkit', () => {
-    // @ts-ignore
-    process.env.EXPO_PUBLIC_STT_ENGINE = 'whisper';
+  it('localStorage sticky 우선', () => {
+    setUA('Mozilla/5.0 (Linux; Android)');
+    window.localStorage.setItem('motiq_stt', 'webkit');
     expect(resolveSttEngine()).toBe('webkit');
   });
 

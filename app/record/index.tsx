@@ -18,6 +18,7 @@ import JudgementBurst         from '../../components/mission/JudgementBurst';
 import { usePoseDetection }          from '../../hooks/usePoseDetection';
 import { useJudgement, prewarmSpeech } from '../../hooks/useJudgement';
 import { getRecognizer as getGlobalSpeechRecognizer, resolveSttEngine } from '../../utils/sttFactory';
+import { preloadWhisper } from '../../utils/whisperRecognizer';
 import { useRecording }              from '../../hooks/useRecording';
 import { useSessionStore }           from '../../store/sessionStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
@@ -1369,6 +1370,24 @@ export default function RecordScreen() {
     landmarkCount: number; squatLmOk: boolean;
   }>({ faceY: 0, amplitude: 0, visibility: 0, velSign: 0, lastPivotType: 'none', landmarkCount: 0, squatLmOk: false });
 
+  // FIX-Y5 (2026-04-22): Whisper STT 가 선택되면 모델 40MB 다운로드가 필요.
+  //   record 페이지 마운트 시 백그라운드 프리로드 시작하여 녹화 시작 전에 준비.
+  const [whisperStatus, setWhisperStatus] = useState<'off'|'loading'|'ready'|'failed'>('off');
+  useEffect(() => {
+    if (resolveSttEngine() !== 'whisper') return;
+    const needsVoice = activeTemplate?.missions?.some((m: any) =>
+      m.type === 'voice_read' || m.type === 'loud_voice' || m.type === 'script' || m.type === 'voice'
+    );
+    if (!needsVoice) return;
+    setWhisperStatus('loading');
+    preloadWhisper()
+      .then(() => setWhisperStatus('ready'))
+      .catch((e) => {
+        try { console.warn('[record] whisper preload failed:', e); } catch {}
+        setWhisperStatus('failed');
+      });
+  }, [activeTemplate]);
+
   const [burstVisible, setBurstVisible] = useState(false);
   const [burstTag,     setBurstTag]     = useState<JudgementTag|null>(null);
   const [combo,        setCombo]        = useState(0);
@@ -1818,6 +1837,39 @@ export default function RecordScreen() {
                   RN 에선 bare attribute 가 undefined 로 해석되어 StanceGuide 가 렌더 안 되던 버그. */}
               {activeTemplate?.genre === 'fitness' && (state === 'countdown' || isRecording) && (
                 <StanceGuide visible={true} debug={squatDebug} />
+              )}
+
+              {/* FIX-Y6 (2026-04-22): Whisper 모델 로딩 배너. 모바일에서 voice 미션 템플릿
+                  선택 시, 40MB 모델 다운로드가 필요 → 상태를 숨기지 않고 명시. */}
+              {whisperStatus === 'loading' && state !== 'recording' && (
+                <View pointerEvents="none" style={{
+                  position: 'absolute', top: 116, left: 12, right: 12,
+                  backgroundColor: 'rgba(59,130,246,0.92)',
+                  borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
+                  zIndex: 9998, elevation: 19,
+                }}>
+                  <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>
+                    🎙️ 음성 인식 엔진 준비 중…
+                  </Text>
+                  <Text style={{ color:'#dbeafe', fontSize:11, marginTop:2 }}>
+                    모바일에서 정확한 STT 를 위해 Whisper 모델(~40MB)을 다운로드합니다. Wi-Fi 권장.
+                  </Text>
+                </View>
+              )}
+              {whisperStatus === 'failed' && state !== 'recording' && (
+                <View pointerEvents="none" style={{
+                  position: 'absolute', top: 116, left: 12, right: 12,
+                  backgroundColor: 'rgba(239,68,68,0.92)',
+                  borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
+                  zIndex: 9998, elevation: 19,
+                }}>
+                  <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>
+                    ⚠️ 음성 엔진 로드 실패
+                  </Text>
+                  <Text style={{ color:'#fecaca', fontSize:11, marginTop:2 }}>
+                    네트워크 확인 후 새로고침. 지금은 기본 인식기로 폴백됩니다.
+                  </Text>
+                </View>
               )}
 
               {/* FIX-Q (2026-04-22): 스쿼트 진단 HUD — 왜 카운트 안되는지 원인 표시 */}
