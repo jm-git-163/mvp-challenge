@@ -30,7 +30,11 @@ const CALIBRATION_MS = 3000;
 const CALIBRATION_MIN_SAMPLES = 15;         // 약 1.5s @10fps 이상
 const NOSE_VIS_GATE = 0.30;                 // research §4.1 완화
 const SHOULDER_VIS_GATE = 0.30;
-const CALIBRATION_SIGMA_LIMIT = 0.08;       // σ/d0 > 8% 면 "흔들림" 판정
+// FIX-CALIB (2026-04-22): 셀피 근접촬영에서 0.08 은 너무 빡빡해 사용자가
+//   완벽히 정지해도 MoveNet 랜드마크 지터만으로 σ/d0 > 8% 초과 → 캘리브가
+//   영원히 14% 근방에서 재시작 루프. 0.20 으로 완화 (연구 §4.1 관용).
+//   너무 흔들리면 여전히 unstable 이지만 정상 서있는 사용자는 통과한다.
+const CALIBRATION_SIGMA_LIMIT = 0.20;
 
 // FIX-HSS (2026-04-22): 사용자 피드백 "내려가도 1, 올라와도 2 처럼 애매하게 카운트".
 //   원인: DOWN 진입·탈출에 시간 조건이 없어 고개 까딱임으로도 싸이클 완성.

@@ -62,6 +62,7 @@ interface State {
   sttResults: number;
   sttRetry: number;
   sttLastEvent: string;
+  sttLastError: string;
   sttMsSince: number | null;
   // Audio
   micRms: number;
@@ -97,7 +98,7 @@ function initState(): State {
     lmVisCount: 0, noseVis: 0, lShVis: 0, rShVis: 0,
     hssD: 0, hssD0: 0, hssPhase: '-', hssMode: '-', hssCount: 0, hssCal: 'idle',
     sttSupported: false, sttListening: false, sttInterim: '', sttFinal: '',
-    sttStarts: 0, sttEnds: 0, sttResults: 0, sttRetry: 0, sttLastEvent: '-', sttMsSince: null,
+    sttStarts: 0, sttEnds: 0, sttResults: 0, sttRetry: 0, sttLastEvent: '-', sttLastError: '-', sttMsSince: null,
     micRms: 0,
     bgmNow: '-', bgmErr: '',
   };
@@ -271,7 +272,8 @@ export default function SelfTest() {
               hssCount: up.count,
               hssCal: up.calibration.state === 'pending'
                 ? `calibrating ${Math.round(up.calibration.progress * 100)}%`
-                : up.calibration.state === 'ready' ? 'ready' : 'unstable',
+                : up.calibration.state === 'ready' ? 'ready'
+                : `unstable σ=${(up.calibration.sigmaRatio * 100).toFixed(1)}% (너무 움직임 — 정지하거나 "건너뛰기" 버튼)`,
             });
           }
         } catch (e: any) {
@@ -293,8 +295,10 @@ export default function SelfTest() {
       try {
         const rec2 = getGlobalSpeechRecognizer();
         const d = rec2.getDiagnostic();
+        const curErr = rec2.lastError ?? '-';
         if (d.starts !== stRef.current.sttStarts || d.ends !== stRef.current.sttEnds ||
-            d.results !== stRef.current.sttResults || d.retryCount !== stRef.current.sttRetry) {
+            d.results !== stRef.current.sttResults || d.retryCount !== stRef.current.sttRetry ||
+            curErr !== stRef.current.sttLastError || d.listening !== stRef.current.sttListening) {
           patch({
             sttListening: d.listening,
             sttStarts: d.starts,
@@ -302,6 +306,7 @@ export default function SelfTest() {
             sttResults: d.results,
             sttRetry: d.retryCount,
             sttLastEvent: rec2.getLastEvent(),
+            sttLastError: curErr,
             sttMsSince: d.msSinceLastResult,
           });
         }
@@ -407,6 +412,7 @@ export default function SelfTest() {
         <Row k="starts / ends / results" v={`${st.sttStarts} / ${st.sttEnds} / ${st.sttResults}`} mono />
         <Row k="retryCount" v={String(st.sttRetry)} />
         <Row k="lastEvent" v={st.sttLastEvent} mono />
+        <Row k="lastError" v={st.sttLastError} mono />
         <Row k="msSinceLastResult" v={st.sttMsSince === null ? '-' : `${Math.round(st.sttMsSince)} ms`} />
         <Row k="interim" v={st.sttInterim || '-'} mono />
         <Row k="final" v={st.sttFinal || '-'} mono />
