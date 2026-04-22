@@ -245,41 +245,37 @@ function drawMissionCard(
   ctx.fillText(`${Math.round(score * 100)}점`, x + cardW - 16, y + 88);
 }
 
-// FIX-Y8 (2026-04-22): 템플릿 시각 고도화 — 장르별 오버레이를 레이어드 스타일로 강화.
-//   실제 Phase 5 레이어엔진 전면 도입 전까지의 과도기 개선. 각 장르에 6–10 개의
-//   동적 요소(비트 링·스파클·스캔라인·스티커·티커 등)를 추가해 "이 앱이 단순 카메라
-//   + 텍스트가 아니다" 는 인상을 즉시 준다.
+// FIX-Z2 (2026-04-22): 오버레이 성능 전면 재검토.
+//   이전 Y8 은 shadowBlur 수십 개 × 파티클 14 × EQ 24 × EKG 180pt 로 모바일 GPU 다운.
+//   — shadowBlur 전부 제거 (모바일에서 50~80% 성능 먹음)
+//   — 파티클 14→4, EQ 24→10, EKG 180→45pt
+//   — 스캔라인 (풀스크린 픽셀 스윕) 제거
+//   시각 임팩트는 유지하되 30fps 안정을 최우선.
 function drawGenreEffect(
   ctx: CanvasRenderingContext2D,
   genre: string,
   elapsed: number,
 ) {
-  // 공통 저역 비트 (120BPM 기준 2박자 = 1s)
-  const beat1 = Math.sin(elapsed * 0.00628) * 0.5 + 0.5;  // 1초 주기
-  const beat2 = Math.sin(elapsed * 0.01256) * 0.5 + 0.5;  // 0.5초 주기 (2배)
+  const beat1 = Math.sin(elapsed * 0.00628) * 0.5 + 0.5;
+  const beat2 = Math.sin(elapsed * 0.01256) * 0.5 + 0.5;
   const t = elapsed / 1000;
 
   if (genre === 'kpop' || genre === 'hiphop') {
-    // ── 1. 비트 글로우 보더 (펄스)
+    // ── 1. 비트 글로우 보더 (shadowBlur 대신 다중 stroke 로 글로우 흉내)
     ctx.save();
-    const pulse = 6 + beat2 * 12;
-    const grad = ctx.createLinearGradient(0, 0, CW, 0);
-    grad.addColorStop(0,    `rgba(233,69,96,${(0.4 + beat2 * 0.5).toFixed(2)})`);
-    grad.addColorStop(0.5,  `rgba(255,105,180,${(0.5 + beat2 * 0.4).toFixed(2)})`);
-    grad.addColorStop(1,    `rgba(123,92,255,${(0.4 + beat2 * 0.5).toFixed(2)})`);
-    ctx.strokeStyle = grad;
+    const pulse = 4 + beat2 * 8;
+    ctx.strokeStyle = `rgba(255,105,180,${(0.25 + beat2 * 0.35).toFixed(2)})`;
+    ctx.lineWidth = pulse + 6;
+    ctx.strokeRect(8, 8, CW - 16, CH - 16);
+    ctx.strokeStyle = `rgba(233,69,96,${(0.6 + beat2 * 0.4).toFixed(2)})`;
     ctx.lineWidth = pulse;
-    ctx.shadowColor = 'rgba(255,105,180,0.9)';
-    ctx.shadowBlur = 22;
-    ctx.strokeRect(6, 6, CW - 12, CH - 12);
+    ctx.strokeRect(8, 8, CW - 16, CH - 16);
     ctx.restore();
 
-    // ── 2. 모서리 네온 코너 브라켓 (고정)
+    // ── 2. 네온 코너 브라켓 (shadowBlur 제거)
     ctx.save();
-    ctx.strokeStyle = `rgba(255,215,0,${(0.7 + beat1 * 0.3).toFixed(2)})`;
+    ctx.strokeStyle = `rgba(255,215,0,${(0.75 + beat1 * 0.25).toFixed(2)})`;
     ctx.lineWidth = 4;
-    ctx.shadowColor = 'rgba(255,215,0,0.7)';
-    ctx.shadowBlur = 10;
     const corners: Array<[number, number, number, number]> = [
       [0, 0, 1, 1], [CW, 0, -1, 1], [0, CH, 1, -1], [CW, CH, -1, -1],
     ];
@@ -292,41 +288,32 @@ function drawGenreEffect(
     }
     ctx.restore();
 
-    // ── 3. 스파클/별 파티클 (결정론적 — 시드는 elapsed/200)
+    // ── 3. 스파클 파티클 4개 (shadowBlur 제거, 원으로 단순화)
     ctx.save();
-    for (let i = 0; i < 14; i++) {
-      const seed = i * 137.5 + Math.floor(elapsed / 200) * 0.7;
+    for (let i = 0; i < 4; i++) {
+      const seed = i * 137.5 + Math.floor(elapsed / 400) * 0.7;
       const x = ((Math.sin(seed) + 1) / 2) * CW;
       const y = ((Math.cos(seed * 1.3) + 1) / 2) * CH;
-      const life = (elapsed * 0.001 + i * 0.3) % 2;  // 2초 주기
+      const life = (elapsed * 0.001 + i * 0.5) % 2;
       const a = life < 1 ? life : 2 - life;
-      ctx.globalAlpha = a * 0.85;
-      ctx.fillStyle = i % 3 === 0 ? '#fff' : i % 3 === 1 ? '#ffd700' : '#ff69b4';
-      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
-      const sz = 3 + a * 3;
-      drawStar(ctx, x, y, sz, 5);
+      ctx.globalAlpha = a * 0.9;
+      ctx.fillStyle = i % 2 === 0 ? '#fff' : '#ffd700';
+      const sz = 5 + a * 4;
+      ctx.beginPath();
+      ctx.arc(x, y, sz, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
 
-    // ── 4. 상단 스캔라인 (TikTok 스타일)
+    // ── 4. 하단 비트 EQ 10 bars (shadowBlur 제거)
     ctx.save();
-    ctx.globalAlpha = 0.15;
-    for (let y = 0; y < CH; y += 4) {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, y, CW, 1);
-    }
-    ctx.restore();
-
-    // ── 5. 하단 비트 이퀄라이저
-    ctx.save();
-    const barCount = 24;
-    const barW = (CW - 40) / barCount - 2;
+    const barCount = 10;
+    const barW = (CW - 60) / barCount - 4;
     for (let i = 0; i < barCount; i++) {
-      const h = 8 + Math.abs(Math.sin(t * 5 + i * 0.6)) * 42;
-      const hue = (i * 15 + elapsed * 0.1) % 360;
+      const h = 10 + Math.abs(Math.sin(t * 4 + i * 0.7)) * 38;
+      const hue = (i * 36 + elapsed * 0.08) % 360;
       ctx.fillStyle = `hsla(${hue}, 90%, 60%, 0.85)`;
-      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
-      ctx.fillRect(20 + i * (barW + 2), CH - 30 - h, barW, h);
+      ctx.fillRect(30 + i * (barW + 4), CH - 34 - h, barW, h);
     }
     ctx.restore();
 
@@ -406,19 +393,18 @@ function drawGenreEffect(
     ctx.restore();
 
   } else if (genre === 'fitness') {
-    // ── 1. 양쪽 네온 펄스 바
+    // ── 1. 양쪽 펄스 바 (shadowBlur 제거)
     const pct = Math.sin(elapsed * 0.001) * 0.5 + 0.5;
     ctx.save();
     ctx.fillStyle = 'rgba(20,184,166,0.25)';
     ctx.fillRect(0, 92, 8, CH - 92);
     ctx.fillRect(CW - 8, 92, 8, CH - 92);
     ctx.fillStyle = '#14b8a6';
-    ctx.shadowColor = '#14b8a6'; ctx.shadowBlur = 14;
     ctx.fillRect(0,     92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
     ctx.fillRect(CW - 8,92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
     ctx.restore();
 
-    // ── 2. 좌상단 심박수 뱃지 (애니메이션)
+    // ── 2. 좌상단 심박수 뱃지
     ctx.save();
     const bpm = 120 + Math.floor(Math.sin(t * 0.3) * 15);
     ctx.fillStyle = 'rgba(239,68,68,0.92)';
@@ -438,14 +424,14 @@ function drawGenreEffect(
     ctx.fillText(`${bpm} BPM`, 72, 216);
     ctx.restore();
 
-    // ── 3. 중앙 하단 심전도 라인 (sine → 스파이크)
+    // ── 3. 하단 심전도 라인 (포인트 45개로 감축, shadowBlur 제거)
     ctx.save();
-    ctx.strokeStyle = 'rgba(34,197,94,0.85)';
+    ctx.strokeStyle = 'rgba(34,197,94,0.9)';
     ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 6;
     ctx.beginPath();
     const baseY = CH - 120;
-    for (let x = 0; x < CW; x += 4) {
+    const step = 16;
+    for (let x = 0; x < CW; x += step) {
       const phase = (x + elapsed * 0.3) * 0.03;
       const spike = Math.abs(Math.sin(phase * 0.5)) > 0.95 ? 30 * Math.sin(phase * 8) : 0;
       const y = baseY + Math.sin(phase) * 3 - spike;
@@ -454,7 +440,7 @@ function drawGenreEffect(
     ctx.stroke();
     ctx.restore();
 
-    // ── 4. 우상단 타이머 링
+    // ── 4. 우상단 타이머 링 (shadowBlur 제거)
     ctx.save();
     ctx.translate(CW - 70, 220);
     const ringT = (elapsed / 1000) % 60;
@@ -462,7 +448,6 @@ function drawGenreEffect(
     ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = '#fbbf24';
-    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10;
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(0, 0, 28, -Math.PI / 2, -Math.PI / 2 + (ringT / 60) * Math.PI * 2);
@@ -923,57 +908,65 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       // FIX-Y1 (2026-04-22): 어느 한 draw* 함수에서라도 throw 하면 rAF 체인이 끊겨
       //   카메라 피드가 얼어붙는 현상 방지. 각 블록을 try/catch 로 감싸 개별 실패를 묵음 처리.
       const drawFrame = () => {
-        const canvas = canvasRef.current;
-        const video  = videoRef.current;
-        if (!canvas || !video) { rafRef.current = requestAnimationFrame(drawFrame); return; }
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { rafRef.current = requestAnimationFrame(drawFrame); return; }
-
-        const tmpl    = templateRef.current;
-        const elap    = elapsedRef.current;
-        const isRec   = isRecordingRef.current;
-        const mission = currentMissionRef.current;
-        const score   = missionScoreRef.current;
-        const lms     = landmarksRef.current;
-        const face    = facingRef.current;
-
-        // 1. Camera — 이게 실패하면 루프 정지 위험이 가장 크므로 별도 try
-        try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
-
-        // 2. Genre effect
-        try { if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap); } catch {}
-
-        // 3. Header
-        try { if (tmpl) drawHeader(ctx, tmpl, elap, isRec); } catch {}
-
-        // 4. Subtitle
-        try {
-          if (tmpl) {
-            const timeline: { start_ms: number; end_ms: number; text: string; style?: string }[] =
-              tmpl.subtitle_timeline ?? [];
-            const sub = timeline.find((s) => elap >= s.start_ms && elap < s.end_ms);
-            if (sub) drawSubtitle(ctx, sub.text, sub.style, genreColor(tmpl.genre ?? ''));
-          }
-        } catch {}
-
-        // 5. Mission card
-        try { if (isRec && mission) drawMissionCard(ctx, mission, score); } catch {}
-
-        // 6. Skeleton — 숨김 처리 (판정용으로만 사용, 화면/최종 영상에 노출 금지)
-        void lms; void drawSkeleton;
-
-        // 7. Live judgement overlays
-        try {
-          if (isRec) {
-            const nowMs = performance.now();
-            drawCombo(ctx, comboRef.current, elap);
-            if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
-            if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
-            drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
-          }
-        } catch {}
-
+        // FIX-Z3 (2026-04-22): rAF 재스케줄링을 최상단에서 **즉시** 예약.
+        //   어떤 경로로 이 함수 밖으로 throw 되든, 다음 프레임은 이미 예약되어 있음.
+        //   이렇게 해야 화면이 '영구 freeze' 가 될 수 없다.
         rafRef.current = requestAnimationFrame(drawFrame);
+
+        try {
+          const canvas = canvasRef.current;
+          const video  = videoRef.current;
+          if (!canvas || !video) return;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+
+          const tmpl    = templateRef.current;
+          const elap    = elapsedRef.current;
+          const isRec   = isRecordingRef.current;
+          const mission = currentMissionRef.current;
+          const score   = missionScoreRef.current;
+          const lms     = landmarksRef.current;
+          const face    = facingRef.current;
+
+          // 1. Camera — 이게 실패하면 루프 정지 위험이 가장 크므로 별도 try
+          try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
+
+          // 2. Genre effect
+          try { if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap); } catch {}
+
+          // 3. Header
+          try { if (tmpl) drawHeader(ctx, tmpl, elap, isRec); } catch {}
+
+          // 4. Subtitle
+          try {
+            if (tmpl) {
+              const timeline: { start_ms: number; end_ms: number; text: string; style?: string }[] =
+                tmpl.subtitle_timeline ?? [];
+              const sub = timeline.find((s) => elap >= s.start_ms && elap < s.end_ms);
+              if (sub) drawSubtitle(ctx, sub.text, sub.style, genreColor(tmpl.genre ?? ''));
+            }
+          } catch {}
+
+          // 5. Mission card
+          try { if (isRec && mission) drawMissionCard(ctx, mission, score); } catch {}
+
+          // 6. Skeleton — 숨김 처리
+          void lms; void drawSkeleton;
+
+          // 7. Live judgement overlays
+          try {
+            if (isRec) {
+              const nowMs = performance.now();
+              drawCombo(ctx, comboRef.current, elap);
+              if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
+              if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
+              drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
+            }
+          } catch {}
+        } catch (e) {
+          // 최상위 방어막: 어떤 예외도 rAF 체인을 깨뜨리지 못함.
+          try { console.warn('[drawFrame] top-level caught:', e); } catch {}
+        }
       };
 
       rafRef.current = requestAnimationFrame(drawFrame);

@@ -1370,8 +1370,8 @@ export default function RecordScreen() {
     landmarkCount: number; squatLmOk: boolean;
   }>({ faceY: 0, amplitude: 0, visibility: 0, velSign: 0, lastPivotType: 'none', landmarkCount: 0, squatLmOk: false });
 
-  // FIX-Y5 (2026-04-22): Whisper STT 가 선택되면 모델 40MB 다운로드가 필요.
-  //   record 페이지 마운트 시 백그라운드 프리로드 시작하여 녹화 시작 전에 준비.
+  // FIX-Z1 (2026-04-22): Whisper 프리로드 제거 — WHISPER_ENABLED=false 복귀.
+  //   ?stt=whisper 디버그 모드에서만 아래 상태가 loading 으로 전환된다.
   const [whisperStatus, setWhisperStatus] = useState<'off'|'loading'|'ready'|'failed'>('off');
   useEffect(() => {
     if (resolveSttEngine() !== 'whisper') return;

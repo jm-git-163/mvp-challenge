@@ -48,11 +48,15 @@ void _sr; void _wr;
 
 let _cachedEngine: SttEngine | null = null;
 
-// FIX-Y5 (2026-04-22): Whisper 엔진 재활성.
-//   webkitSpeechRecognition 이 Android Chrome 에서 `not-allowed` 로 거의 100%
-//   실패함을 실기기 테스트로 확인. 모바일에서는 Whisper 가 유일한 선택지.
-//   데스크톱은 webkit 유지 (빠르고 안정).
-const WHISPER_ENABLED = true;
+// FIX-Z1 (2026-04-22): Whisper 다시 잠금.
+//   Y5 활성 후 실기기 재검증 결과: CDN 로드 지연 + 메인스레드 추론이
+//   MediaRecorder rAF 와 충돌하여 녹화 화면이 카운트다운 직후 멎는 현상 발생.
+//   또한 jsdelivr 의 @xenova/transformers@2.17.2 ESM 이 일부 모바일 Chrome
+//   에서 module script 파싱 실패(CSP/WASM init).
+//   근본 해결: (a) Worker 격리 (b) AudioWorklet (c) huggingface 의 .onnx
+//   파일 ServiceWorker 캐시 — 3가지 모두 갖춘 다음 세션에 재활성.
+//   일단 모바일 사용자도 webkit 로 폴백 (불완전하지만 freeze 는 없음).
+const WHISPER_ENABLED = false;
 
 function isMobileUA(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -68,6 +72,10 @@ export function resolveSttEngine(): SttEngine {
   if (typeof window === 'undefined') return 'webkit';
 
   if (!WHISPER_ENABLED) {
+    // 디버그 오버라이드만 허용 (개발자가 ?stt=whisper 로 실험 가능)
+    const q = window.location.search;
+    const m = q.match(/[?&]stt=whisper\b/);
+    if (m) { _cachedEngine = 'whisper'; return _cachedEngine; }
     _cachedEngine = 'webkit';
     return _cachedEngine;
   }

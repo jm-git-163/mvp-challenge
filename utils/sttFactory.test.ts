@@ -6,7 +6,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { resolveSttEngine, _resetSttCache } from './sttFactory';
 
 function setLocation(search: string): void {
-  // jsdom 의 window.location 은 readonly 지만 href 변경으로 검색 파라미터 갱신 가능
   const url = new URL('https://example.test/record' + search);
   Object.defineProperty(window, 'location', {
     value: { ...window.location, search: url.search, href: url.href },
@@ -18,7 +17,8 @@ function setUA(ua: string): void {
   Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
 }
 
-describe('resolveSttEngine (WHISPER_ENABLED=true, FIX-Y5)', () => {
+// FIX-Z1: Whisper 다시 잠금(프로덕션 미준비). 디버그용 ?stt=whisper 오버라이드만 통과.
+describe('resolveSttEngine (WHISPER_ENABLED=false, FIX-Z1)', () => {
   beforeEach(() => {
     _resetSttCache();
     try { window.localStorage.clear(); } catch {}
@@ -32,30 +32,18 @@ describe('resolveSttEngine (WHISPER_ENABLED=true, FIX-Y5)', () => {
     expect(resolveSttEngine()).toBe('webkit');
   });
 
-  it('Android UA → whisper (자동)', () => {
+  it('모바일 UA 도 webkit (Whisper 잠금)', () => {
     setUA('Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120');
-    expect(resolveSttEngine()).toBe('whisper');
-  });
-
-  it('iPhone UA → whisper (자동)', () => {
-    setUA('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605');
-    expect(resolveSttEngine()).toBe('whisper');
-  });
-
-  it('?stt=webkit 오버라이드 (모바일에서도 webkit)', () => {
-    setUA('Mozilla/5.0 (Linux; Android 13) Mobile');
-    setLocation('?stt=webkit');
     expect(resolveSttEngine()).toBe('webkit');
   });
 
-  it('?stt=whisper 오버라이드 (데스크톱에서도 whisper)', () => {
+  it('?stt=whisper 만 통과 (개발자 오버라이드)', () => {
     setLocation('?stt=whisper');
     expect(resolveSttEngine()).toBe('whisper');
   });
 
-  it('localStorage sticky 우선', () => {
-    setUA('Mozilla/5.0 (Linux; Android)');
-    window.localStorage.setItem('motiq_stt', 'webkit');
+  it('localStorage sticky=whisper 무시 (잠금)', () => {
+    window.localStorage.setItem('motiq_stt', 'whisper');
     expect(resolveSttEngine()).toBe('webkit');
   });
 
