@@ -91,7 +91,16 @@ export function usePoseDetection(): UsePoseDetectionReturn {
     if (!landmarker) return;
 
     const video = (window as any).__poseVideoEl as HTMLVideoElement | undefined;
-    if (!video || video.readyState < 2 || video.videoWidth === 0) return;
+    if (!video) return;
+    // FIX-Z13 (2026-04-22): 모바일에서 video.readyState 가 1(HAVE_METADATA) 에서
+    //   오래 머무는 경우가 있음. MediaPipe 는 HAVE_CURRENT_DATA(>=2) 필요하지만
+    //   videoWidth 가 0 이면 skip, 그 외에는 시도 (예외 발생 시 catch).
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+    if (video.readyState < 2) {
+      // try kick play() once per frame group to unstick autoplay-delayed video
+      try { video.play().catch(() => {}); } catch {}
+      return;
+    }
 
     try {
       const now = performance.now();
@@ -171,10 +180,16 @@ export function usePoseDetection(): UsePoseDetectionReturn {
           setStatus('ready-mock');
           setError('MediaPipe unavailable — using mock pose (dev)');
         } else {
-          useMockRef.current = false;
-          setIsReady(false);
-          setStatus('error');
-          setError('camera-not-ready');
+          // FIX-Z13 (2026-04-22): 프로덕션 모바일에서 MediaPipe CDN/WASM 실패 시에도
+          //   mock pose 폴백을 켜서 "최소한 뭔가 움직이는" 상태 유지. 완벽한 판정은
+          //   안되지만 사용자가 "아무것도 안 됨" 상태는 피함.
+          //   에러 메시지를 명시해서 DOM 뱃지에 노출 → 사용자/개발자 추적 가능.
+          useMockRef.current = true;
+          setIsReady(true);
+          setStatus('ready-mock');
+          const msg = err?.message || err?.toString?.() || 'unknown';
+          setError('MediaPipe load failed (mock fallback): ' + msg);
+          try { console.error('[PoseDetection] MediaPipe load failed, using mock:', err); } catch {}
         }
       }
     })();
