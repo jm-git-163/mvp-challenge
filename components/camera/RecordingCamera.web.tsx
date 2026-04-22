@@ -1018,7 +1018,10 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       facing: 'front' | 'back';
       vw: number; vh: number; ready: number; paused: boolean;
       msg: string;
-    }>({ phase: 'idle', facing, vw: 0, vh: 0, ready: 0, paused: true, msg: '' });
+      // FIX-Z25 (2026-04-22): 최근 video 이벤트 3개 (loadedmetadata→playing→pause…)
+      //   실기기에서 프리징이 어느 단계인지 한눈에 식별하기 위함.
+      events: string[];
+    }>({ phase: 'idle', facing, vw: 0, vh: 0, ready: 0, paused: true, msg: '', events: [] });
     const setCamDiagSafe = (patch: Partial<typeof camDiag>) =>
       setCamDiag((prev) => ({ ...prev, ...patch }));
 
@@ -1086,6 +1089,28 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         const onMeta = () => { markReady(); };
         vid.addEventListener('loadedmetadata', onMeta, { once: true });
         vid.addEventListener('playing', onMeta, { once: true });
+
+        // FIX-Z25 (2026-04-22): video 생명주기 이벤트를 모두 camDiag.events 에 누적.
+        //   실기기에서 어느 이벤트가 누락/중단됐는지 실시간 확인. ring buffer 최근 3개.
+        const pushEvent = (name: string) => {
+          setCamDiag((prev) => {
+            const next = [...prev.events, name];
+            if (next.length > 3) next.shift();
+            return { ...prev, events: next };
+          });
+        };
+        const evNames = [
+          'loadedmetadata', 'loadeddata', 'canplay', 'playing',
+          'pause', 'waiting', 'stalled', 'ended', 'error', 'emptied', 'suspend',
+        ] as const;
+        const evHandlers: Array<[string, () => void]> = evNames.map((n) => {
+          const h = () => pushEvent(n);
+          vid.addEventListener(n, h);
+          return [n, h];
+        });
+        cleanupsRef.current.push(() => {
+          for (const [n, h] of evHandlers) vid.removeEventListener(n, h);
+        });
 
         try {
           await vid.play();
@@ -1170,12 +1195,9 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
       // FIX-Y1 (2026-04-22): 어느 한 draw* 함수에서라도 throw 하면 rAF 체인이 끊겨
       //   카메라 피드가 얼어붙는 현상 방지. 각 블록을 try/catch 로 감싸 개별 실패를 묵음 처리.
-      const drawFrame = () => {
-        // FIX-Z3 (2026-04-22): rAF 재스케줄링을 최상단에서 **즉시** 예약.
-        //   어떤 경로로 이 함수 밖으로 throw 되든, 다음 프레임은 이미 예약되어 있음.
-        //   이렇게 해야 화면이 '영구 freeze' 가 될 수 없다.
-        rafRef.current = requestAnimationFrame(drawFrame);
-
+      // FIX-Z25 (2026-04-22): draw 본체는 paintOnce(), 스케줄링은 rAF + rVFC 두 경로
+      //   각각이 담당 → 중복 스케줄 방지.
+      const paintOnce = () => {
         try {
           const canvas = canvasRef.current;
           const video  = videoRef.current;
@@ -1183,10 +1205,11 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           const ctx = canvas.getContext('2d');
           if (!ctx) return;
 
-          // FIX-AA: video.paused 상태가 계속되면 1초에 한번 play() 재시도 (무음으로).
-          //   iOS 에서 백그라운드/앱전환 복귀 시 video 가 paused 로 멈춰있는 경우 복구.
+          // FIX-Z25 (2026-04-22): video.paused 면 100ms 간격으로 play() 재시도.
+          //   Android Chrome 의 autoplay gesture 정책은 페이지 내 어떤 탭이라도
+          //   이미 발생했다면 풀린다 → 자주 때릴수록 복귀가 빨라진다. 1초→100ms.
           const now = performance.now();
-          if (video.paused && now - lastPlayKick > 1000) {
+          if (video.paused && now - lastPlayKick > 100) {
             lastPlayKick = now;
             try { video.play().catch(() => {}); } catch {}
           }
@@ -1275,13 +1298,42 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           void genreColor;
         } catch (e) {
           // 최상위 방어막: 어떤 예외도 rAF 체인을 깨뜨리지 못함.
-          try { console.warn('[drawFrame] top-level caught:', e); } catch {}
+          try { console.warn('[paintOnce] top-level caught:', e); } catch {}
         }
       };
 
+      // rAF 경로: 항상 돌며, 비디오 준비 전에도 스피너/진단을 그려 UI freeze 를 절대 피한다.
+      const drawFrame = () => {
+        rafRef.current = requestAnimationFrame(drawFrame);
+        paintOnce();
+      };
       rafRef.current = requestAnimationFrame(drawFrame);
+
+      // FIX-Z25 (2026-04-22): requestVideoFrameCallback 은 video 디코더가 실제로
+      //   새 프레임을 뱉은 시점에만 콜백을 준다 → drawImage 가 "항상 최신 프레임"
+      //   을 그리게 되어 rAF 단독 대비 iOS/Android 모두에서 훨씬 안정적. rVFC 경로는
+      //   paintOnce 만 호출 (rAF 와 중복 스케줄 금지).
+      const v = videoRef.current;
+      let rvfcCancelled = false;
+      let rvfcHandle: number | null = null;
+      if (v && typeof (v as any).requestVideoFrameCallback === 'function') {
+        const tick = () => {
+          if (rvfcCancelled) return;
+          paintOnce();
+          const vv = videoRef.current;
+          if (vv && typeof (vv as any).requestVideoFrameCallback === 'function') {
+            rvfcHandle = (vv as any).requestVideoFrameCallback(tick);
+          }
+        };
+        rvfcHandle = (v as any).requestVideoFrameCallback(tick);
+      }
+
       return () => {
         if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        rvfcCancelled = true;
+        if (rvfcHandle !== null && v && typeof (v as any).cancelVideoFrameCallback === 'function') {
+          try { (v as any).cancelVideoFrameCallback(rvfcHandle); } catch {}
+        }
       };
     }, [ready]);
 
@@ -1359,6 +1411,24 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       },
 
       isRecording: () => recStateRef.current,
+
+      // FIX-Z25 (2026-04-22): 부모 컴포넌트가 유저 제스처 콜백 안에서
+      //   직접 호출 → iOS Safari autoplay gesture 정책 우회. setup() 의 play()
+      //   가 거부됐더라도 여기서 제스처 스택 위에서 한번 더 찔러주면 풀린다.
+      kickPlay: () => {
+        const vid = videoRef.current;
+        if (!vid) return;
+        try {
+          const p = vid.play();
+          if (p && typeof (p as any).catch === 'function') {
+            (p as Promise<void>).catch((err) => {
+              try { console.warn('[RecordingCamera] kickPlay rejected:', err); } catch {}
+            });
+          }
+        } catch (err) {
+          try { console.warn('[RecordingCamera] kickPlay threw:', err); } catch {}
+        }
+      },
     }));
 
     // ------------------------------------------------------------------
@@ -1455,6 +1525,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             {' '}{camDiag.vw}×{camDiag.vh} rs{camDiag.ready}
             {camDiag.paused ? ' ⏸' : ' ▶'}
             {camDiag.msg ? ` · ${camDiag.msg.slice(0, 24)}` : ''}
+            {camDiag.events.length ? `\nev: ${camDiag.events.join(' → ')}` : ''}
           </Text>
         </View>
       </View>

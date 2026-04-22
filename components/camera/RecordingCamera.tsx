@@ -23,6 +23,12 @@ export interface RecordingCameraHandle {
   startRecording: () => Promise<string>;
   stopRecording:  () => void;
   isRecording:    () => boolean;
+  // FIX-Z25 (2026-04-22): 부모가 유저 제스처 스택 안에서 video.play() 를
+  //   한번 더 찔러줄 수 있게 하는 hatch. iOS Safari 의 autoplay gesture
+  //   정책상 컴포넌트 내부 비동기 setup 에서 play() 가 거부될 때,
+  //   "챌린지 시작" 버튼 onPress 에서 이것을 호출해야 안정적으로 풀림.
+  //   네이티브 빌드에서는 no-op.
+  kickPlay?:      () => void;
 }
 
 interface Props {

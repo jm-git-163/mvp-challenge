@@ -2242,6 +2242,11 @@ export default function RecordScreen() {
                       // FIX-F: 모바일 Chrome 은 user gesture 스택 안에서 바로
                       // SpeechRecognition.start() 호출해야 함. useEffect 경로는 거부됨.
                       // FIX-U: fitness 장르면 캘리브레이션 먼저, 아니면 바로 start().
+                      // FIX-Z25 (2026-04-22): iOS Safari autoplay gesture 정책상
+                      //   컴포넌트 내부 setup() 의 video.play() 가 거부됐을 수 있음.
+                      //   이 onPress 는 확실한 유저 제스처 → 직접 kickPlay() 로
+                      //   video element 를 기동시켜 카운트다운 동안 프리뷰가 뜨게 함.
+                      try { cameraRef.current?.kickPlay?.(); } catch {}
                       beginStartFlow();
                     }}
                   >
