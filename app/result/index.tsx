@@ -1019,18 +1019,11 @@ export default function ResultScreen() {
     }
   }, []);
 
-  // ▶ Auto-compose on mount: template(intro/overlays/BGM/outro) + recording → 세로형 쇼츠 MP4
+  // FIX-V (2026-04-22): 자동 합성 제거.
+  //   기존엔 /result 진입 즉시 handleCompose() 실행 → videoCompositor 가
+  //   source video 를 speaker 로 재생하며 "시킨적도 없는데 촬영 음성이 자동 재생"되는
+  //   유저 보고 버그 발생. 이제는 "✨ 완성 영상 만들기" 버튼을 눌러야만 합성 시작.
   const autoComposedRef = useRef(false);
-  useEffect(() => {
-    if (autoComposedRef.current) return;
-    if (!videoTemplate || !rawVideoUri) return;
-    if (composedUri || composing) return;
-    autoComposedRef.current = true;
-    // 살짝 딜레이 — 애니메이션 끝난 뒤 시작
-    const t = setTimeout(() => { handleCompose(); }, 400);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoTemplate, rawVideoUri]);
 
   // Handlers
   const handleCompose = useCallback(async () => {

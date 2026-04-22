@@ -96,12 +96,12 @@ export function StanceGuide({ visible, debug }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    position: 'absolute', top: 90, left: 12, right: 12,
-    backgroundColor: 'rgba(15,18,30,0.92)',
-    borderRadius: 14, borderWidth: 1.5,
-    paddingVertical: 12, paddingHorizontal: 14,
-    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 8,
-    zIndex: 60,
+    position: 'absolute', top: 56, left: 12, right: 12,
+    backgroundColor: 'rgba(15,18,30,0.95)',
+    borderRadius: 14, borderWidth: 2,
+    paddingVertical: 14, paddingHorizontal: 16,
+    shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 10,
+    zIndex: 9999, elevation: 20,
   },
   title: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
   sub:   { fontSize: 12, color: '#cbd5e1', lineHeight: 16, marginBottom: 6 },
@@ -109,11 +109,11 @@ const styles = StyleSheet.create({
   dismiss: { alignSelf: 'flex-end', marginTop: 6, paddingVertical: 2, paddingHorizontal: 8 },
   dismissText: { fontSize: 11, color: '#64748b' },
   chip: {
-    position: 'absolute', top: 90, left: 12,
-    backgroundColor: 'rgba(15,18,30,0.75)',
+    position: 'absolute', top: 56, left: 12,
+    backgroundColor: 'rgba(15,18,30,0.82)',
     borderRadius: 14, borderWidth: 1,
     paddingVertical: 5, paddingHorizontal: 10,
-    zIndex: 60,
+    zIndex: 9999, elevation: 20,
   },
   chipText: { fontSize: 11, fontWeight: '600' },
 });

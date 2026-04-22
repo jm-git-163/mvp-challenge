@@ -217,23 +217,30 @@ export function useJudgement(): {
       //  (2) fullLeg(hip+knee+ankle)이 실제로 보일 때만 인정 (torso 폴백은 제거)
       //  (3) 동일 phase가 3프레임(≈300ms) 이상 연속돼야 전이 인정 (디바운스)
       //  (4) 첫 번째 확정 "up"을 본 뒤에만 카운터 무장 — 시작 시 down에서 바로 up으로 튀는 false positive 차단
+      // FIX-W (2026-04-22): 가짜 카운트 근절.
+      //   (1) hipKneeOnly 폴백 제거 — ratio 기반 추정이 머리/어깨 움직임만으로도 phase 뒤집혀 카운트됨.
+      //   (2) fullLeg 신뢰도 0.40 → 0.55 (MoveNet 노이즈 기준으로 안전선).
+      //   (3) close-detector 는 "full-body 가 절대 불가능한 경우에만" 작동하도록 게이트.
+      //       → 얼굴이 잘 보이는데 무릎이 안 보이면: 근접 카운트도 0.
+      //       (유저가 무릎을 안 보이게 촬영하면 정식 카운트 불가 — StanceGuide 로 안내됨)
       const conf = (i: number) =>
         (landmarks[i]?.score ?? landmarks[i]?.visibility ?? 0);
       const fullLeg = (h: number, k: number, a: number) =>
-        conf(h) > 0.40 && conf(k) > 0.40 && conf(a) > 0.40;
-      // Fallback gate: shoulder+hip+knee visible is enough for the ratio-based
-      // depth proxy in detectSquat() — ankles commonly crop on phone selfies.
-      const hipKneeOnly = (s: number, h: number, k: number) =>
-        conf(s) > 0.40 && conf(h) > 0.40 && conf(k) > 0.40;
+        conf(h) > 0.55 && conf(k) > 0.55 && conf(a) > 0.55;
       const squatLmOk = landmarks.length >= 17 && (
-        fullLeg(11, 13, 15) || fullLeg(12, 14, 16) ||
-        hipKneeOnly(5, 11, 13) || hipKneeOnly(6, 12, 14)
+        fullLeg(11, 13, 15) || fullLeg(12, 14, 16)
       );
-      // FIX-J: fitness 장르에선 근접 디텍터를 항상 병렬로 돌림.
-      //   무릎이 안 보일 때 (squatLmOk=false) 얼굴 Y 진동이 유일한 신호.
-      //   primary 와 동시에 돌아도 Math.max 로 합치므로 이중 카운트 없음.
+      // FIX-W: close-detector 는 실제로 full-body 불가능할 때만 켠다.
+      //   조건: 얼굴(0-4)은 보이는데 어느 쪽 다리도 full-leg 로 안 잡히고,
+      //   동시에 landmarks 배열 자체는 충분한 신뢰도(≥6 landmarks > 0.4).
+      const faceOk = conf(0) > 0.4 || conf(1) > 0.4 || conf(2) > 0.4;
+      const legPartiallyVisible =
+        conf(11) > 0.3 || conf(12) > 0.3 ||
+        conf(13) > 0.3 || conf(14) > 0.3 ||
+        conf(15) > 0.3 || conf(16) > 0.3;
+      const allowCloseMode = faceOk && !squatLmOk && !legPartiallyVisible;
       let lastCloseState: ReturnType<typeof closeSquatRef.current.update> | null = null;
-      if (template && template.genre === 'fitness') {
+      if (template && template.genre === 'fitness' && allowCloseMode) {
         const closeState = closeSquatRef.current.update(landmarks);
         lastCloseState = closeState;
         if (closeState.count > squatCountRef.current) {

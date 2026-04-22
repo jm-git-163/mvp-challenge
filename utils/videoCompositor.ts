@@ -2293,7 +2293,12 @@ export async function composeVideo(
     const clipUrl = URL.createObjectURL(clip.blob);
     const video = document.createElement('video');
     video.src = clipUrl;
-    video.muted = false;
+    // FIX-V (2026-04-22): 합성 중 source video 는 **반드시 muted**.
+    //   muted=false 면 HTMLMediaElement 가 기본 스피커로 오디오를 재생해
+    //   유저가 "시킨적도 없는데 촬영 음성이 자동 재생" 현상 발생.
+    //   muted 해도 createMediaElementSource 로 뽑은 오디오는 destination 에 들어가므로
+    //   최종 합성 mp4 에는 원본 마이크 음성이 정상 포함된다.
+    video.muted = true;
     video.playsInline = true;
     video.crossOrigin = 'anonymous';
 
@@ -2442,6 +2447,19 @@ export async function composeVideo(
           introMs: isLayered ? 0 : INTRO_MS,
           totalMs: legacyTemplate.duration_ms,
         });
+
+        // FIX-V: 원본 video 의 오디오를 AudioContext 에 태워
+        //   최종 합성 mp4 에 사용자 마이크 음성이 포함되도록.
+        //   video.muted=true 이므로 스피커로는 새지 않지만,
+        //   createMediaElementSource 로 뽑은 신호는 dest 에 들어간다.
+        try {
+          const voiceSrc = audioCtx.createMediaElementSource(video);
+          const voiceGain = audioCtx.createGain();
+          voiceGain.gain.value = 1.0;
+          voiceSrc.connect(voiceGain).connect(dest);
+        } catch (voiceErr) {
+          console.warn('[videoCompositor] voice audio route failed:', voiceErr);
+        }
 
         const canvasStream = canvas.captureStream(FPS);
         dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
