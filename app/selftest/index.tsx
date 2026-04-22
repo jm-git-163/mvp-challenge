@@ -332,24 +332,31 @@ export default function SelfTest() {
     patch({ hssCal: 'ready (skip, d0=0.15)', hssD0: 0.15 });
   };
 
-  // FIX-STT-GESTURE (2026-04-22): 반드시 이 함수는 Pressable onPress 로만 호출되어야
-  //   user gesture 스택 안에서 rec.rec.start() 가 호출되고 Android Chrome 이 허용.
+  // FIX-STT-GESTURE (2026-04-22): 반드시 이 함수는 버튼 클릭 핸들러 안에서 호출 —
+  //   user gesture 스택 안에서 rec.start() 되어야 Android Chrome 이 mic 허용.
+  // FIX-STT-BTN (2026-04-22): lastEvent 에 즉시 'btn-pressed' 찍어서 버튼 tap 이
+  //   실제로 핸들러 진입하는지 시각 확인. 진입 안 되면 Pressable/onPress 문제,
+  //   진입했는데 rec.listen() 에서 에러면 engine/권한 문제.
   const startStt = () => {
-    const rec = getGlobalSpeechRecognizer();
-    if (!rec.isSupported()) {
-      patch({ sttSupported: false, sttLastEvent: 'unsupported' });
-      return;
+    patch({ sttLastEvent: 'btn-pressed @ ' + new Date().toLocaleTimeString() });
+    try {
+      const rec = getGlobalSpeechRecognizer();
+      if (!rec.isSupported()) {
+        patch({ sttSupported: false, sttLastEvent: 'unsupported' });
+        return;
+      }
+      if (sttStopRef.current) { try { sttStopRef.current(); } catch {} sttStopRef.current = null; }
+      const stop = rec.listen(
+        'ko',
+        (interim) => patch({ sttInterim: interim }),
+        (fin) => patch({ sttFinal: fin }),
+        600_000,
+      );
+      sttStopRef.current = stop;
+      patch({ sttSupported: true, sttLastEvent: 'listen() called OK' });
+    } catch (err: any) {
+      patch({ sttLastEvent: 'btn-error: ' + (err?.message ?? String(err)) });
     }
-    // 이전 listen 세션 있으면 중단
-    if (sttStopRef.current) { try { sttStopRef.current(); } catch {} sttStopRef.current = null; }
-    const stop = rec.listen(
-      'ko',
-      (interim) => patch({ sttInterim: interim }),
-      (fin) => patch({ sttFinal: fin }),
-      600_000,
-    );
-    sttStopRef.current = stop;
-    patch({ sttSupported: true, sttLastEvent: 'gesture-start' });
   };
 
   const playBgm = (src: string) => {
@@ -372,7 +379,7 @@ export default function SelfTest() {
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-gesture-fix · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-btn-v3 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
@@ -388,9 +395,14 @@ export default function SelfTest() {
         </Pressable>
       </View>
       {/* FIX-STT-GESTURE: 이 버튼을 눌러야만 webkitSpeechRecognition 이 user gesture
-          스택 안에서 start() 호출 → Android Chrome 이 'not-allowed' 거부 안 함. */}
-      <Pressable style={[s.btnMini, { backgroundColor: '#16a34a', marginBottom: 12 }]} onPress={startStt}>
-        <Text style={[s.btnMiniT, { color: '#fff', fontWeight: '700' }]}>🎤 음성 인식 시작 (반드시 이 버튼을 누르세요)</Text>
+          스택 안에서 start() 호출 → Android Chrome 이 'not-allowed' 거부 안 함.
+          flex:1 제거 — btnRow 바깥이라 react-native-web 에서 width=0 되는 이슈. */}
+      <Pressable
+        style={s.sttBtn}
+        onPress={startStt}
+        accessibilityRole="button"
+      >
+        <Text style={s.sttBtnT}>🎤 음성 인식 시작 (반드시 이 버튼을 탭)</Text>
       </Pressable>
 
       <Section title="0. 환경">
@@ -497,6 +509,14 @@ const s = StyleSheet.create({
   btnRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   btnMini: { flex: 1, backgroundColor: '#232838', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   btnMiniT: { color: '#e8edf5', fontSize: 13, fontWeight: '600' },
+  sttBtn: {
+    width: '100%', backgroundColor: '#16a34a', borderRadius: 12,
+    paddingVertical: 16, paddingHorizontal: 16, alignItems: 'center',
+    marginBottom: 14, borderWidth: 2, borderColor: '#22c55e',
+    // @ts-ignore web-only cursor
+    cursor: 'pointer',
+  },
+  sttBtnT: { color: '#fff', fontSize: 15, fontWeight: '800' },
   section: { backgroundColor: '#161a22', borderRadius: 10, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#232838' },
   sectionT: { color: '#fff', fontSize: 15, fontWeight: '700', marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 5 },
