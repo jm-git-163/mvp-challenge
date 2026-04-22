@@ -33,6 +33,7 @@ import { UnloadGuard } from '../../engine/studio/unloadGuard';
 import { StanceGuide } from '../../components/record/StanceGuide';
 import { PoseCalibration } from '../../components/record/PoseCalibration';
 import { RecognitionStatusPanel } from '../../components/record/RecognitionStatusPanel';
+import VoiceDebugOverlay from '../../components/record/VoiceDebugOverlay';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1007,12 +1008,23 @@ function TemplateOverlay({ template, elapsed, isRecording }: { template: any; el
     ])).start();
   }, []);
 
+  // FIX-Z27 (2026-04-22): setState-in-render 경고 제거. 모든 hook 은 early-return 이전에.
+  const subs       = (template?.subtitle_timeline ?? []) as SubtitleEntry[];
+  const currentSub = subs.find(s => elapsed >= s.start_ms && elapsed < s.end_ms);
+  const subKey = currentSub?.text;
+  useEffect(() => {
+    if (!isRecording || !template) return;
+    if (subKey !== prevSubRef.current) {
+      prevSubRef.current = subKey;
+      subtitleAnim.setValue(0);
+      Animated.spring(subtitleAnim, { toValue:1, tension:80, friction:8, useNativeDriver:true }).start();
+    }
+  }, [subKey, subtitleAnim, isRecording, template]);
+
   if (!isRecording || !template) return null;
 
   const genre      = template.genre ?? 'daily';
   const gs         = GENRE_STYLES[genre] ?? GENRE_STYLES.daily;
-  const subs       = (template.subtitle_timeline ?? []) as SubtitleEntry[];
-  const currentSub = subs.find(s => elapsed >= s.start_ms && elapsed < s.end_ms);
   const totalMs    = (template.duration_sec ?? 30) * 1000;
   const progress   = Math.min(1, elapsed / totalMs);
   const remainSec  = Math.max(0, (template.duration_sec ?? 30) - Math.floor(elapsed / 1000));
@@ -1020,13 +1032,6 @@ function TemplateOverlay({ template, elapsed, isRecording }: { template: any; el
   const isHighlight = currentSub?.style === 'highlight';
   const isBold      = currentSub?.style === 'bold';
   const isNews      = currentSub?.style === 'news';
-
-  const subKey = currentSub?.text;
-  if (subKey !== prevSubRef.current) {
-    prevSubRef.current = subKey;
-    subtitleAnim.setValue(0);
-    Animated.spring(subtitleAnim, { toValue:1, tension:80, friction:8, useNativeDriver:true }).start();
-  }
 
   const layers: any[] = template.layers ?? [];
   const hasSpotlight  = layers.some((l:any) => l.type==='spotlight') || template.spotlights;
@@ -1355,7 +1360,8 @@ export default function RecordScreen() {
 
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, squatMode, resetVoice,
-          latestJudgement, lastSquatCountAt, micPermissionDeniedAt } = useJudgement();
+          latestJudgement, lastSquatCountAt, micPermissionDeniedAt,
+          injectSquatBaseline } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
   const [showIntro,  setShowIntro]  = useState(false);
@@ -1576,10 +1582,15 @@ export default function RecordScreen() {
     start(cameraRef.current);
   }, [isReady, activeTemplate, start]);
 
-  const finishCalibration = useCallback(() => {
+  const finishCalibration = useCallback((info?: { d0?: number }) => {
+    // Team SQUAT (2026-04-22): research §4 HeadShoulder 캘리브레이션 결과(d0) 를
+    //   HeadShoulderSquatDetector 에 주입해 촬영 시작 즉시 rep 카운트 가능.
+    if (info && typeof info.d0 === 'number' && info.d0 > 0) {
+      try { injectSquatBaseline(info.d0); } catch {}
+    }
     setCalibrating(false);
     if (cameraRef.current) start(cameraRef.current);
-  }, [start]);
+  }, [start, injectSquatBaseline]);
 
   // Cycle 29 — 데스크톱 키보드 단축키: Space = 시작/중지, Esc = 취소
   useEffect(() => {
@@ -1700,6 +1711,26 @@ export default function RecordScreen() {
       if (countdown > 0) playSound('tick'); else playSound('countdown_end');
     }
   }, [state, countdown]);
+
+  // POSE+THEME (2026-04-22): 스쿼트 카운트 +1 마다 힘찬 SFX.
+  //   useJudgement 는 카운트만 올린다 → 여기서 delta 감지해 'combo' (8-note glissando) 재생.
+  //   3/5/10 등 라운드 카운트엔 'amazing' 으로 승격해 성취감 강화.
+  const prevSquatSfxRef = useRef(0);
+  useEffect(() => {
+    if (squatCount > prevSquatSfxRef.current) {
+      prevSquatSfxRef.current = squatCount;
+      if (squatCount % 10 === 0 || squatCount === 5) {
+        playSound('amazing');
+      } else if (squatCount % 3 === 0) {
+        playSound('combo');
+      } else {
+        playSound('tick');
+      }
+    } else if (squatCount < prevSquatSfxRef.current) {
+      // 리셋 감지
+      prevSquatSfxRef.current = squatCount;
+    }
+  }, [squatCount]);
 
   useEffect(() => {
     if (state === 'recording') {
@@ -1871,7 +1902,13 @@ export default function RecordScreen() {
               lastSquatCountAt={lastSquatCountAt}
               micPermissionDeniedAt={micPermissionDeniedAt}
               liveCaptionText={speechBadge.transcript || voiceTranscript || ''}
-              showLiveCaption={true}
+              showLiveCaption={
+                // POSE+THEME (2026-04-22): 음성 미션이 있는 템플릿만 캡션 노출.
+                //   스쿼트(fitness) 템플릿에서 불필요한 음성 자막 레이어가 떠 있던 문제 차단.
+                !!activeTemplate?.missions?.some(
+                  (m: any) => m.type === 'voice_read' || m.type === 'voice' || m.type === 'loud_voice' || m.type === 'script',
+                )
+              }
             >
               {particles.map(p => <Text key={p.id} style={[r.particle, { left:p.left as any }]}>{p.emoji}</Text>)}
 
@@ -2077,6 +2114,12 @@ export default function RecordScreen() {
                 );
               })()}
 
+              {/* Team STT (2026-04-22): ?debug=1 전용 저수준 음성 진단 오버레이.
+                  retryCount, 마지막 onresult 이후 경과, 마이크 트랙 readyState 표시. */}
+              {debugOn && isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (
+                <VoiceDebugOverlay enabled={true} />
+              )}
+
               {/* FIX-Y6 (2026-04-22): Whisper 모델 로딩 배너. 모바일에서 voice 미션 템플릿
                   선택 시, 40MB 모델 다운로드가 필요 → 상태를 숨기지 않고 명시. */}
               {whisperStatus === 'loading' && state !== 'recording' && (
@@ -2277,6 +2320,7 @@ export default function RecordScreen() {
               landmarks={landmarks}
               onCalibrated={finishCalibration}
               onSkip={finishCalibration}
+              mode={activeTemplate?.genre === 'fitness' ? 'headShoulder' : 'fullBody'}
             />
           )}
 

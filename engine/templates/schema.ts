@@ -33,6 +33,9 @@ export const zCameraFraming = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rounded_rect'), x: z.number(), y: z.number(), w: z.number().positive(), h: z.number().positive(), radius: z.number().nonnegative() }),
   z.object({ kind: z.literal('hexagon'), centerX: z.number(), centerY: z.number(), size: z.number().positive() }),
   z.object({ kind: z.literal('heart'), centerX: z.number(), centerY: z.number(), size: z.number().positive() }),
+  // Team SQUAT (2026-04-22): 세로 분할 — 스쿼트 근접촬영용. 상단 2/3 얼굴·상체, 하단 1/3 바닥존.
+  //   clip 은 풀스크린으로 유지하고 visual 은 camera_frame 레이어가 커스텀 처리.
+  z.object({ kind: z.literal('portrait_split'), topRatio: z.number().min(0.1).max(0.95).default(0.67) }),
   z.object({ kind: z.literal('tv_frame'), framePath: z.string() }),
   z.object({ kind: z.literal('custom_mask'), maskPath: z.string() }),
 ]);

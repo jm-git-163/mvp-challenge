@@ -31,7 +31,10 @@ export const neonArena: Template = {
     duckingDb: -8,
   },
 
-  cameraFraming: { kind: 'hexagon', centerX: 540, centerY: 960, size: 380 },
+  // Team SQUAT (2026-04-22): hexagon → portrait_split (research §5.2).
+  //   hexagon 은 하체를 원천 절단 → HeadShoulder/knee 검출 모두 불리.
+  //   portrait_split 은 풀 9:16 프레임을 유지하면서 상단 2/3 상체·하단 1/3 바닥존 시각 분할.
+  cameraFraming: { kind: 'portrait_split', topRatio: 0.67 },
 
   layers: [
     // 배경 (zIndex 1~10) — FIX-Z25: 사이버펑크 주제성 배경 (도시 스카이라인 + 네온 튜브)
@@ -89,12 +92,13 @@ export const neonArena: Template = {
     { id: 'hud_prompt',     type: 'mission_prompt',   zIndex: 63, opacity: 1,    enabled: true, props: { text: '스쿼트 10회', neonAccent: '#FF2D95' }, activeRange: { startSec: 2.8, endSec: 5 } },
 
     // ── 메인 구간 자막 타임라인 (cue texts) ─────────────────────────
-    { id: 'cap_ready',      type: 'kinetic_text',     zIndex: 64, opacity: 1, enabled: true, props: { text: '준비', fontSize: 84, color: '#00E0FF', strokeColor: '#000000', strokeWidth: 6, mode: 'pop', position: 'top-center', startMs: 2800, staggerMs: 60 }, activeRange: { startSec: 2.8, endSec: 4.2 } },
+    // TEAM-TEMPLATE: cap_* mode='spin' 통일 (글리치 회전, neon 고유) + 시안/라임 비중 ↑
+    { id: 'cap_ready',      type: 'kinetic_text',     zIndex: 64, opacity: 1, enabled: true, props: { text: '준비', fontSize: 84, color: '#00E0FF', strokeColor: '#000000', strokeWidth: 6, mode: 'spin', position: 'top-center', startMs: 2800, staggerMs: 60 }, activeRange: { startSec: 2.8, endSec: 4.2 } },
     // FIX-Z25: GO! center(y=960, 얼굴정면) → top-center, fontSize 160→120
-    { id: 'cap_start',      type: 'kinetic_text',     zIndex: 65, opacity: 1, enabled: true, props: { text: 'GO!', fontSize: 120, color: '#39FF7D', strokeColor: '#FF2D95', strokeWidth: 10, mode: 'pop', position: 'top-center', startMs: 4200, staggerMs: 40 }, activeRange: { startSec: 4.2, endSec: 5.4 } },
-    { id: 'cap_push',       type: 'kinetic_text',     zIndex: 66, opacity: 1, enabled: true, props: { text: 'PUSH HARDER', fontSize: 72, color: '#FF2D95', strokeColor: '#000000', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 7500, staggerMs: 50 }, activeRange: { startSec: 7.5, endSec: 9 } },
+    { id: 'cap_start',      type: 'kinetic_text',     zIndex: 65, opacity: 1, enabled: true, props: { text: 'GO!', fontSize: 120, color: '#39FF7D', strokeColor: '#FF2D95', strokeWidth: 10, mode: 'spin', position: 'top-center', startMs: 4200, staggerMs: 40 }, activeRange: { startSec: 4.2, endSec: 5.4 } },
+    { id: 'cap_push',       type: 'kinetic_text',     zIndex: 66, opacity: 1, enabled: true, props: { text: 'PUSH HARDER', fontSize: 72, color: '#39FF7D', strokeColor: '#000000', strokeWidth: 6, mode: 'spin', position: 'bottom-center', startMs: 7500, staggerMs: 50 }, activeRange: { startSec: 7.5, endSec: 9 } },
     { id: 'cap_half',       type: 'kinetic_text',     zIndex: 67, opacity: 1, enabled: true, props: { text: 'HALFWAY', fontSize: 72, color: '#00E0FF', strokeColor: '#000000', strokeWidth: 6, mode: 'spin', position: 'top-center', startMs: 10000, staggerMs: 60 }, activeRange: { startSec: 10, endSec: 11.5 } },
-    { id: 'cap_final',      type: 'kinetic_text',     zIndex: 68, opacity: 1, enabled: true, props: { text: 'FINAL REPS', fontSize: 72, color: '#FF2D95', strokeColor: '#00E0FF', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 15000, staggerMs: 50 }, activeRange: { startSec: 15, endSec: 16.5 } },
+    { id: 'cap_final',      type: 'kinetic_text',     zIndex: 68, opacity: 1, enabled: true, props: { text: 'FINAL REPS', fontSize: 72, color: '#39FF7D', strokeColor: '#00E0FF', strokeWidth: 6, mode: 'spin', position: 'bottom-center', startMs: 15000, staggerMs: 50 }, activeRange: { startSec: 15, endSec: 16.5 } },
 
     // ── 하단 해시태그 스트립 (메인 구간 내내) ────────────────────
     { id: 'hashtag_strip',  type: 'news_ticker',      zIndex: 70, opacity: 0.92, enabled: true, props: { texts: ['#squat', '#fitness', '#cyberpunk', '#neon', '#challenge', '#workout', '#motiq'], separator: '   ', speedPxPerSec: 90, fontSize: 30, bgColor: 'rgba(0,0,0,0.55)', color: '#00E0FF', accentColor: '#FF2D95', position: 'bottom' }, activeRange: { startSec: 2.8, endSec: 17 } },

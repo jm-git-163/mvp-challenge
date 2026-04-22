@@ -966,6 +966,16 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const bgmConnectedRef = useRef(false);
     const recStateRef = useRef(false);
 
+    // POSE+THEME (2026-04-22): ?debug=1 URL 플래그 감지 + landmark fps 집계.
+    const __debugFlagRef = useRef<boolean>(
+      typeof window !== 'undefined'
+        ? /[?&]debug=1\b/.test(window.location.search || '')
+        : false,
+    );
+    const __lmFpsRef = useRef<{ frames: number; lastReset: number; fps: number }>(
+      { frames: 0, lastReset: typeof performance !== 'undefined' ? performance.now() : 0, fps: 0 },
+    );
+
     const mountedFacingRef = useRef(facing);
     // FIX-AA: facing 토글 race-guard 용 generation counter + cleanup 저장소.
     const generationRef = useRef(0);
@@ -1319,6 +1329,39 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
           }
 
+          // POSE+THEME (2026-04-22): ?debug=1 일 때 랜드마크 스켈레톤 + pose FPS 오버레이.
+          //   녹화 본에는 박히지 않는 것이 아니라, DOM 대체가 아닌 디버그 전용 캔버스 오버레이로
+          //   개발자가 포즈 인식 전반 동작을 눈으로 즉시 확인. URL ?debug=1 없으면 비활성.
+          try {
+            if (__debugFlagRef.current) {
+              const lmsNow = landmarksRef.current;
+              if (Array.isArray(lmsNow) && lmsNow.length > 0) {
+                drawSkeleton(ctx, lmsNow, face === 'front');
+                // landmark fps 카운터 갱신
+                const nowT = performance.now();
+                const last = __lmFpsRef.current;
+                last.frames++;
+                if (nowT - last.lastReset > 1000) {
+                  last.fps = last.frames;
+                  last.frames = 0;
+                  last.lastReset = nowT;
+                }
+              }
+              // 좌측 하단 FPS/카운트 뱃지
+              ctx.save();
+              ctx.fillStyle = 'rgba(0,0,0,0.55)';
+              ctx.fillRect(20, CH - 90, 360, 70);
+              ctx.fillStyle = '#7fffd4';
+              ctx.font = 'bold 26px monospace';
+              ctx.textAlign = 'left';
+              ctx.fillText(`POSE lm=${(landmarksRef.current||[]).length}  fps=${__lmFpsRef.current.fps}`, 30, CH - 58);
+              ctx.fillStyle = '#ffd700';
+              ctx.font = '20px monospace';
+              ctx.fillText(`debug=1 · skeleton ON`, 30, CH - 32);
+              ctx.restore();
+            }
+          } catch (e) { /* silent */ }
+
           // FIX-Z22: 온캔버스 라이브 인식 진단 오버레이 (녹화본에도 박힘).
           try {
             drawDiagnosticsOverlay(ctx, diagRef.current, {
@@ -1377,7 +1420,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
           // 미사용 참조 억제 (post-production 으로 이동)
           void tmpl; void mission; void score; void lms; void isRec;
-          void drawSkeleton; void drawGenreEffect; void drawHeader; void drawSubtitle;
+          void drawGenreEffect; void drawHeader; void drawSubtitle;
           void drawMissionCard; void drawCombo; void drawSquatCount; void drawVoiceTicker;
           void drawTagStamp; void drawIntroOverlay; void drawOutroOverlay;
           void genreColor;

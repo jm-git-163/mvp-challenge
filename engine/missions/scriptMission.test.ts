@@ -57,4 +57,20 @@ describe('ScriptMission', () => {
     expect(m.getState().started).toBe(false);
     expect(m.totalScore()).toBe(0);
   });
+
+  // Team STT (2026-04-22): 유사도 → Perfect/Good/So-so/Miss tier 매핑.
+  //   similarityToTier 는 liveCaption.ts 에 있고, drawJudgementToast 로 렌더.
+  //   scriptMission.similarity() 값이 예상한 tier 구간에 들어가는지만 경계 확인.
+  it('similarityToTier 구간 매핑', async () => {
+    const { similarityToTier } = await import('../../utils/liveCaption');
+    // 완벽 일치 → perfect (>=0.90)
+    const m1 = new ScriptMission({ script });
+    m1.begin(0); m1.update(script, 1000); m1.finish(1000);
+    expect(similarityToTier(m1.similarity())).toBe('perfect');
+
+    // 완전히 다른 말 → miss (<0.50)
+    const m2 = new ScriptMission({ script });
+    m2.begin(0); m2.update('고양이 강아지 사자', 1000); m2.finish(1000);
+    expect(similarityToTier(m2.similarity())).toBe('miss');
+  });
 });

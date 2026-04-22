@@ -63,10 +63,29 @@ async function downloadAsset(spec: AssetSpec, apiKey: string, outRoot: string): 
   void outRoot;
 }
 
+async function readKeyFromTxt(): Promise<string | null> {
+  // 사용자가 로컬에 보관하는 키 파일 (gitignore). 우선순위 순서.
+  const candidates = [
+    '픽사베이 api2.txt',
+    '픽사베이api2.txt',
+    '픽사베이api.txt',
+  ];
+  for (const name of candidates) {
+    try {
+      const p = path.resolve(process.cwd(), name);
+      const s = (await fs.readFile(p, 'utf8')).trim();
+      if (s.length >= 20) return s;
+    } catch {
+      // try next
+    }
+  }
+  return null;
+}
+
 async function main(): Promise<void> {
-  const apiKey = process.env.PIXABAY_API_KEY;
+  const apiKey = process.env.PIXABAY_API_KEY || (await readKeyFromTxt());
   if (!apiKey) {
-    console.error('✗ PIXABAY_API_KEY 가 .env.local 에 없습니다. docs/PIXABAY_ASSETS.md 참조.');
+    console.error('✗ PIXABAY_API_KEY 가 .env.local 또는 픽사베이api.txt 에 없습니다. docs/PIXABAY_ASSETS.md 참조.');
     process.exit(1);
   }
 

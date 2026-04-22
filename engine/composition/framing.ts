@@ -46,6 +46,10 @@ export function buildFramingPath(
     case 'fullscreen':
       pb.rect(0, 0, canvasW, canvasH);
       break;
+    case 'portrait_split':
+      // 카메라 영역은 전체 프레임 (하체까지 담기도록). 상/하 시각 분할은 별도 레이어.
+      pb.rect(0, 0, canvasW, canvasH);
+      break;
     case 'circle':
       pb.arc(framing.centerX, framing.centerY, framing.radius, 0, Math.PI * 2);
       break;
@@ -115,6 +119,8 @@ export function framingBox(
 ): FramingBox {
   switch (framing.kind) {
     case 'fullscreen':
+      return { x: 0, y: 0, w: canvasW, h: canvasH };
+    case 'portrait_split':
       return { x: 0, y: 0, w: canvasW, h: canvasH };
     case 'circle':
       return {

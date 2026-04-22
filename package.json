@@ -12,6 +12,7 @@
     "lint:routes": "node scripts/lint-routes.js",
     "gen:bgm": "node scripts/generate-placeholder-bgm.js",
     "analyze:bgm": "node scripts/analyze-bgm.js",
+    "fetch:assets": "node scripts/fetch-pixabay.js",
     "pretest": "node scripts/lint-routes.js",
     "test": "vitest run",
     "test:watch": "vitest",

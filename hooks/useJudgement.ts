@@ -14,6 +14,7 @@ import { detectGesture, detectSquat }   from '../utils/poseUtils';
 import { createAngleSmoother }          from '../engine/missions/angleSmoother';
 import { CloseProximitySquatDetector } from '../engine/missions/closeProximitySquat';
 import { NoseSquatDetector }           from '../engine/missions/noseSquat';
+import { HeadShoulderSquatDetector }   from '../engine/missions/headShoulderSquat';
 import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
@@ -162,6 +163,8 @@ export function useJudgement(): {
   // FIX-Z25: 마이크 권한 필요 배너 트리거 시각.
   micPermissionDeniedAt: number | null;
   resetVoice: () => void;
+  /** Team SQUAT (2026-04-22): 캘리브레이션 컴포넌트에서 d0 주입. */
+  injectSquatBaseline: (d0: number) => void;
 } {
   const { activeTemplate, appendFrameTag } = useSessionStore();
 
@@ -189,6 +192,9 @@ export function useJudgement(): {
   // FIX-Z25: nose-based 초단순 detector — PoseCalibration 없이 머리 하강-복귀만으로 카운트.
   //   두 로직(knee/close/nose) 중 가장 관대한 쪽이 이기는 max-count 정책.
   const noseSquatRef           = useRef(new NoseSquatDetector());
+  // Team SQUAT (2026-04-22): research §4 추천안 HeadShoulderSquat — primary 근접촬영 detector.
+  //   shoulder 평균 y − nose.y 차분 신호 + 3초 정적 캘리브레이션 + 첫 rep 자동 진폭 학습.
+  const hssRef                 = useRef(new HeadShoulderSquatDetector());
   const lastSquatCountAtRef    = useRef<number | null>(null);
   const latestJudgementRef     = useRef<{ tier: JudgementTier; at: number } | null>(null);
   const micDeniedAtRef         = useRef<number | null>(null);
@@ -367,28 +373,44 @@ export function useJudgement(): {
         }
       }
 
-      // FIX-Z25: nose-based squat — PoseCalibration 게이트 없이, 머리(nose) 감지만으로 카운트.
-      //   fitness 장르이고 위의 full-body/close 로직이 3초 동안 카운트 못 올릴 때만 활성.
-      //   두 로직이 동시에 카운트하면 max 정책 + 디바운스(600ms).
+      // Team SQUAT (2026-04-22): HeadShoulderSquat primary detector.
+      //   research §4. shoulder.y − nose.y 신호 + 3초 캘리브레이션 + 첫 rep 진폭 학습.
+      //   full-body(knee) 로직이 이미 카운트를 올렸다면 max-count 로 병합.
+      //   nose-only detector (noseSquatRef) 는 HSS 가 아직 calibrated 전인 "완전 스톨" 안전망.
       if (template && template.genre === 'fitness') {
-        // 나머지 로직이 최근 3초 동안 카운트 변화 없는가?
-        const stalled = (noseSquatRef.current.msSinceLastChange(now) > 3_000) || squatCountRef.current === 0;
-        if (stalled) {
-          const noseRes = noseSquatRef.current.update(landmarks, now);
-          if (noseRes.justCounted && noseRes.count > squatCountRef.current) {
-            squatCountRef.current = noseRes.count;
-            squatCountState.current = noseRes.count;
-            setSquatCount(noseRes.count);
-            squatPhaseOut = noseRes.phase;
-            lastSquatCountAtRef.current = now;
-            if (squatSourceRef.current !== 'full-body') {
-              squatSourceRef.current = 'near-mode';
-              setSquatMode('near-mode');
-            }
+        const hssRes = hssRef.current.update(landmarks, now);
+        if (hssRes.justCounted && hssRes.count > squatCountRef.current) {
+          squatCountRef.current = hssRes.count;
+          squatCountState.current = hssRes.count;
+          setSquatCount(hssRes.count);
+          squatPhaseOut = hssRes.phase;
+          lastSquatCountAtRef.current = now;
+          if (squatSourceRef.current !== 'full-body') {
+            squatSourceRef.current = 'near-mode';
+            setSquatMode('near-mode');
           }
-        } else {
-          // 여전히 history 는 업데이트해서 baseline 유지
-          noseSquatRef.current.update(landmarks, now);
+        }
+
+        // HSS 가 여전히 캘리브레이션 중이고, 다른 detector 도 3초 이상 스톨이면
+        // 최후의 안전망으로 기존 nose-only detector 도 굴린다.
+        if (!hssRef.current.isCalibrated()) {
+          const stalled = (noseSquatRef.current.msSinceLastChange(now) > 3_000) || squatCountRef.current === 0;
+          if (stalled) {
+            const noseRes = noseSquatRef.current.update(landmarks, now);
+            if (noseRes.justCounted && noseRes.count > squatCountRef.current) {
+              squatCountRef.current = noseRes.count;
+              squatCountState.current = noseRes.count;
+              setSquatCount(noseRes.count);
+              squatPhaseOut = noseRes.phase;
+              lastSquatCountAtRef.current = now;
+              if (squatSourceRef.current !== 'full-body') {
+                squatSourceRef.current = 'near-mode';
+                setSquatMode('near-mode');
+              }
+            }
+          } else {
+            noseSquatRef.current.update(landmarks, now);
+          }
         }
       }
 
@@ -637,6 +659,7 @@ export function useJudgement(): {
     // FIX-J: 근접 스쿼트 디텍터도 함께 초기화 (다음 세션용)
     try { closeSquatRef.current?.reset(); } catch {}
     try { noseSquatRef.current?.reset(); } catch {}
+    try { hssRef.current?.reset(); } catch {}
     lastSquatCountAtRef.current = null;
     latestJudgementRef.current  = null;
     micDeniedAtRef.current      = null;
@@ -679,5 +702,8 @@ export function useJudgement(): {
     lastSquatCountAt: lastSquatCountAtRef.current,
     micPermissionDeniedAt: micDeniedAtRef.current,
     resetVoice,
+    injectSquatBaseline: (d0: number) => {
+      try { hssRef.current?.injectBaseline(d0); } catch {}
+    },
   };
 }

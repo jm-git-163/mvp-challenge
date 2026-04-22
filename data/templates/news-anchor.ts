@@ -61,13 +61,14 @@ export const newsAnchor: Template = {
     { id: 'logo',        type: 'image_bg',        zIndex: 35, opacity: 0.9, enabled: true, props: { src: '/templates/news-anchor/logo.png', position: 'top-right', sizePx: 80 } },
 
     // ── 뉴스 헤드라인 로테이션 (메인 구간 자막) ────────────────
-    { id: 'head_1',      type: 'kinetic_text',    zIndex: 40, opacity: 1, enabled: true, props: { text: '안녕하십니까', fontSize: 64, color: '#FFFFFF', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 2800, staggerMs: 55 }, activeRange: { startSec: 2.8, endSec: 5 } },
-    { id: 'head_2',      type: 'kinetic_text',    zIndex: 41, opacity: 1, enabled: true, props: { text: '오늘의 날씨', fontSize: 64, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'pop', position: 'top-center', startMs: 6000, staggerMs: 55 }, activeRange: { startSec: 6, endSec: 8.5 } },
-    { id: 'head_3',      type: 'kinetic_text',    zIndex: 42, opacity: 1, enabled: true, props: { text: '맑은 하늘', fontSize: 64, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 10000, staggerMs: 55 }, activeRange: { startSec: 10, endSec: 12.5 } },
-    { id: 'head_4',      type: 'kinetic_text',    zIndex: 43, opacity: 1, enabled: true, props: { text: '뉴스 마무리', fontSize: 64, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 14000, staggerMs: 55 }, activeRange: { startSec: 14, endSec: 16.5 } },
+    { id: 'head_1',      type: 'kinetic_text',    zIndex: 40, opacity: 1, enabled: true, props: { text: '안녕하십니까', fontSize: 64, color: '#FFFFFF', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 2800, staggerMs: 90 }, activeRange: { startSec: 2.8, endSec: 5 } },
+    // TEAM-TEMPLATE: 모든 head_* mode='drop' 로 통일 (뉴스 typewriter 감성, emoji/neon 과 차별)
+    { id: 'head_2',      type: 'kinetic_text',    zIndex: 41, opacity: 1, enabled: true, props: { text: '오늘의 날씨', fontSize: 64, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 6000, staggerMs: 90 }, activeRange: { startSec: 6, endSec: 8.5 } },
+    { id: 'head_3',      type: 'kinetic_text',    zIndex: 42, opacity: 1, enabled: true, props: { text: '맑은 하늘', fontSize: 64, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 10000, staggerMs: 90 }, activeRange: { startSec: 10, endSec: 12.5 } },
+    { id: 'head_4',      type: 'kinetic_text',    zIndex: 43, opacity: 1, enabled: true, props: { text: '뉴스 마무리', fontSize: 64, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 14000, staggerMs: 90 }, activeRange: { startSec: 14, endSec: 16.5 } },
 
-    // 자막 (50)
-    { id: 'caption',     type: 'karaoke_caption', zIndex: 50, opacity: 1, enabled: true, props: { color: '#D4AF37', mutedColor: '#4A5568' } },
+    // 자막 (50) — TEAM-TEMPLATE: karaoke_caption 에 position 명시 (하단 lower-third)
+    { id: 'caption',     type: 'karaoke_caption', zIndex: 50, opacity: 1, enabled: true, props: { color: '#D4AF37', mutedColor: '#4A5568', position: 'bottom', y: 1550 } },
     { id: 'script_ghost',type: 'mission_prompt',  zIndex: 51, opacity: 0.35, enabled: true, props: { text: '안녕하십니까, 오늘의 날씨를 전해드립니다. 맑은 하늘이 예상됩니다.', size: 18, position: 'top' } },
 
     // HUD (55~65)

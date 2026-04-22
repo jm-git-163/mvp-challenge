@@ -25,10 +25,17 @@ import { JOINT_INDEX } from '../../utils/poseUtils';
 interface Props {
   /** MediaPipe PoseLandmarker 출력 (정규화 좌표 0~1) */
   landmarks: NormalizedLandmark[];
-  /** 매칭률 ≥ 80% 가 1.5 s 유지되면 호출 */
-  onCalibrated: () => void;
+  /** 매칭률 ≥ 80% 가 1.5 s 유지되면 호출. headShoulder 모드에서는 d0 인자 포함. */
+  onCalibrated: (info?: { d0?: number }) => void;
   /** "건너뛰기" 버튼으로 사용자가 수동 진행 */
   onSkip: () => void;
+  /**
+   * Team SQUAT (2026-04-22): research §4.2 "정면으로 서주세요" 3초 캘리브레이션.
+   *   - 'fullBody' (기본, 기존 스틱맨 매칭)
+   *   - 'headShoulder' (3초간 shoulder.y − nose.y 평균·표준편차 측정 → d0 계산)
+   * 스쿼트 템플릿(neon-arena 등)에서 'headShoulder' 로 호출.
+   */
+  mode?: 'fullBody' | 'headShoulder';
 }
 
 // 정면 전신 타깃 자세 — 머리 0.15, 어깨 0.28, 힙 0.55, 무릎 0.75, 발 0.90
@@ -80,7 +87,27 @@ function computeMatch(lms: NormalizedLandmark[]): { pct: number; visible: number
   return { pct, visible: counted };
 }
 
-export function PoseCalibration({ landmarks, onCalibrated, onSkip }: Props) {
+// Team SQUAT (2026-04-22): headShoulder 캘리브레이션 상수 (research §4.2)
+const HS_CALIB_MS = 3000;
+const HS_MIN_SAMPLES = 20;
+const HS_SIGMA_LIMIT = 0.08;
+const HS_NOSE_VIS = 0.30;
+const HS_SHOULDER_VIS = 0.30;
+
+export function PoseCalibration({ landmarks, onCalibrated, onSkip, mode = 'fullBody' }: Props) {
+  if (mode === 'headShoulder') {
+    return (
+      <HeadShoulderCalibration
+        landmarks={landmarks}
+        onCalibrated={onCalibrated}
+        onSkip={onSkip}
+      />
+    );
+  }
+  return <FullBodyCalibration landmarks={landmarks} onCalibrated={onCalibrated} onSkip={onSkip} />;
+}
+
+function FullBodyCalibration({ landmarks, onCalibrated, onSkip }: Props) {
   const [matchPct, setMatchPct] = useState(0);
   const [visible, setVisible] = useState(0);
   // FIX-Z25: 건너뛰기 버튼 처음부터 크게 노출.
@@ -323,3 +350,125 @@ const styles = StyleSheet.create({
   },
   skipText: { color: '#1f2937', fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
 });
+
+/**
+ * Team SQUAT (2026-04-22) — research §4.2 헤드-숄더 캘리브레이션.
+ *
+ * 3초간 landmarks 의 d = mean(shoulder.y) − nose.y 를 수집.
+ * mean(d) → d0, σ(d) 확인. σ/d0 ≤ 0.08 이면 onCalibrated({ d0 }).
+ * 흔들리면 "움직이지 마세요" 로 재시도 유도.
+ *
+ * 촬영 중 팝업 금지 규정 준수: 이 컴포넌트는 **카운트다운 이전** 단계.
+ * 녹화는 시작되지 않음.
+ */
+function HeadShoulderCalibration({ landmarks, onCalibrated, onSkip }: Props) {
+  const startedAtRef = useRef<number | null>(null);
+  const samplesRef = useRef<number[]>([]);
+  const calibratedRef = useRef(false);
+
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<'ready' | 'collecting' | 'unstable' | 'done'>('ready');
+  const [d0Display, setD0Display] = useState<number>(0);
+
+  useEffect(() => {
+    if (calibratedRef.current) return;
+    if (!landmarks || landmarks.length === 0) return;
+
+    const nose = landmarks[JOINT_INDEX.nose];
+    const lSh  = landmarks[JOINT_INDEX.left_shoulder];
+    const rSh  = landmarks[JOINT_INDEX.right_shoulder];
+    const noseVis = nose?.visibility ?? nose?.score ?? 0;
+    const lVis    = lSh?.visibility  ?? lSh?.score  ?? 0;
+    const rVis    = rSh?.visibility  ?? rSh?.score  ?? 0;
+
+    if (noseVis < HS_NOSE_VIS) return; // 얼굴 미검출
+
+    const useL = lVis >= HS_SHOULDER_VIS;
+    const useR = rVis >= HS_SHOULDER_VIS;
+    if (!useL && !useR) return; // 어깨도 없음 → nose_fallback 은 검출기 내부가 처리. 캘리브레이션은 대기.
+
+    const shY =
+      useL && useR ? (lSh.y + rSh.y) / 2 :
+      useL ? lSh.y : rSh.y;
+    const d = shY - nose.y;
+    if (!Number.isFinite(d) || d <= 0) return;
+
+    const now = performance.now();
+    if (startedAtRef.current === null) {
+      startedAtRef.current = now;
+      samplesRef.current = [];
+      setStatus('collecting');
+    }
+    samplesRef.current.push(d);
+    const elapsed = now - startedAtRef.current;
+    setProgress(Math.min(1, elapsed / HS_CALIB_MS));
+
+    if (elapsed >= HS_CALIB_MS && samplesRef.current.length >= HS_MIN_SAMPLES) {
+      const xs = samplesRef.current;
+      let s = 0; for (const x of xs) s += x;
+      const mean = s / xs.length;
+      let sq = 0; for (const x of xs) sq += (x - mean) * (x - mean);
+      const sigma = Math.sqrt(sq / xs.length);
+      const ratio = mean > 0 ? sigma / mean : Infinity;
+      if (ratio <= HS_SIGMA_LIMIT && mean > 0) {
+        calibratedRef.current = true;
+        setStatus('done');
+        setD0Display(mean);
+        onCalibrated({ d0: mean });
+      } else {
+        // 재시작
+        startedAtRef.current = null;
+        samplesRef.current = [];
+        setStatus('unstable');
+        setProgress(0);
+      }
+    }
+  }, [landmarks, onCalibrated]);
+
+  const pct = Math.round(progress * 100);
+
+  return (
+    <View style={styles.root} pointerEvents="box-none">
+      <View style={styles.topBanner} pointerEvents="none">
+        <Text style={styles.bannerTitle}>
+          🧍 정면을 보고 똑바로 서주세요
+        </Text>
+        <Text style={styles.bannerSub}>
+          {status === 'unstable'
+            ? '움직이지 말고 가만히 있어주세요 — 다시 측정합니다'
+            : '3초간 가만히 있으면 자동으로 시작됩니다'}
+        </Text>
+      </View>
+
+      <View style={styles.meterWrap} pointerEvents="none">
+        <View style={styles.meterLabelRow}>
+          <Text style={[styles.meterLabel, { color: status === 'done' ? '#10b981' : '#f1f5f9' }]}>
+            {status === 'done' ? '✅ 측정 완료' :
+             status === 'unstable' ? '⚠️ 흔들림 감지 — 재시작' :
+             '📏 기준 자세 측정 중'}
+          </Text>
+          <Text style={[styles.meterPct, { color: status === 'done' ? '#10b981' : '#f1f5f9' }]}>
+            {pct}%
+          </Text>
+        </View>
+        <View style={styles.meterBar}>
+          <View
+            style={[
+              styles.meterFill,
+              { width: `${pct}%`, backgroundColor: status === 'done' ? '#10b981' : '#3b82f6' },
+            ]}
+          />
+        </View>
+        <Text style={styles.hint}>
+          {status === 'done'
+            ? `기준 d0 = ${d0Display.toFixed(3)} · 촬영을 시작합니다`
+            : '폰은 가슴~얼굴 높이에 두고 전신이 다 안 보여도 괜찮습니다'}
+        </Text>
+      </View>
+
+      <Pressable style={styles.skipBtn} onPress={onSkip} hitSlop={12}>
+        <Text style={styles.skipText}>건너뛰기 →</Text>
+      </Pressable>
+    </View>
+  );
+}

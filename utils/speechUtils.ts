@@ -214,7 +214,25 @@ export class SpeechRecognizer {
   public resultCount = 0;
   // 신규: 단계별 라이프사이클 이벤트 기록 (실기기 콘솔 없이 화면에서 직접 확인).
   public lastEvent: string = 'init: pending';
-  getDiagnostic(): { listening: boolean; error: string | null; transcript: string; starts: number; ends: number; results: number } {
+  // Team STT (2026-04-22): 실기기 진단용 확장 필드.
+  //   - lastResultAt: 마지막 onresult 수신 performance.now() (없으면 null).
+  //   - 아래 retryCountRef 는 이미 존재 — getDiagnostic 으로 공개만 한다.
+  public lastResultAt: number | null = null;
+  getDiagnostic(): {
+    listening: boolean;
+    error: string | null;
+    transcript: string;
+    starts: number;
+    ends: number;
+    results: number;
+    /** 자동 재시도 누적 횟수 (resultCount>0 이면 0 으로 리셋됨). */
+    retryCount: number;
+    /** 마지막 onresult 수신 시점 (performance.now() 기준 ms). 한 번도 없으면 null. */
+    lastResultAt: number | null;
+    /** 마지막 onresult 이후 경과 시간 (ms). listening=true 일 때만 의미 있음. */
+    msSinceLastResult: number | null;
+  } {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     return {
       listening: this._listening,
       error: this.lastError,
@@ -222,6 +240,9 @@ export class SpeechRecognizer {
       starts: this.startCount,
       ends: this.endCount,
       results: this.resultCount,
+      retryCount: this.retryCountRef,
+      lastResultAt: this.lastResultAt,
+      msSinceLastResult: this.lastResultAt === null ? null : Math.max(0, now - this.lastResultAt),
     };
   }
 
@@ -310,7 +331,14 @@ export class SpeechRecognizer {
       this.resultCount++;
       // FIX-Z20: 결과가 도착했으면 자동 재시도 카운터 리셋.
       if (this.retryCountRef > 0) this.retryCountRef = 0;
+      // Team STT: 진단용 타임스탬프 — VoiceDebugOverlay 가 "마지막 수신 몇초 전" 표시.
+      this.lastResultAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
       this.lastEvent = `onresult #${this.resultCount} len=${e?.results?.length ?? 0}`;
+      try {
+        if (typeof window !== 'undefined' && /[?&]debug=1\b/.test(window.location?.search || '')) {
+          console.debug('[speech:onresult]', this.resultCount, this.lastTranscript);
+        }
+      } catch {}
       let interim = '';
       let newFinal = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -387,9 +415,19 @@ export class SpeechRecognizer {
       this.startCount++;
       this.lastError = null;
       this.lastEvent = `onstart #${this.startCount}`;
+      try {
+        if (typeof window !== 'undefined' && /[?&]debug=1\b/.test(window.location?.search || '')) {
+          console.debug('[speech:onstart]', this.startCount);
+        }
+      } catch {}
     };
     this.rec.onend = () => {
       this.endCount++;
+      try {
+        if (typeof window !== 'undefined' && /[?&]debug=1\b/.test(window.location?.search || '')) {
+          console.debug('[speech:onend]', this.endCount, 'listening=', this._listening);
+        }
+      } catch {}
       if (this._listening && this._gen === myGen) {
         this.lastEvent = `onend #${this.endCount} → restart`;
         // Chrome InvalidStateError 회피: 100ms 지연 후 재시작
