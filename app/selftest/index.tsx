@@ -379,7 +379,7 @@ export default function SelfTest() {
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-btn-v3 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-native-btn-v4 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
@@ -394,16 +394,35 @@ export default function SelfTest() {
           <Text style={s.btnMiniT}>⏭ 스쿼트 캘리브 건너뛰기</Text>
         </Pressable>
       </View>
-      {/* FIX-STT-GESTURE: 이 버튼을 눌러야만 webkitSpeechRecognition 이 user gesture
-          스택 안에서 start() 호출 → Android Chrome 이 'not-allowed' 거부 안 함.
-          flex:1 제거 — btnRow 바깥이라 react-native-web 에서 width=0 되는 이슈. */}
-      <Pressable
-        style={s.sttBtn}
-        onPress={startStt}
-        accessibilityRole="button"
-      >
-        <Text style={s.sttBtnT}>🎤 음성 인식 시작 (반드시 이 버튼을 탭)</Text>
-      </Pressable>
+      {/* FIX-STT-NATIVE-BTN (2026-04-22): RN-web Pressable.onPress 가 fire 되지
+          않는다는 사용자 제보. Scroll ancestor 가 pointerEvents 를 가로채거나
+          responder system 이 tap 을 consume 하는 것으로 추정. 순수 HTML <button>
+          으로 교체해서 브라우저 기본 click 이벤트 직접 수신. */}
+      {Platform.OS === 'web' ? (
+        React.createElement('button', {
+          onClick: startStt,
+          onTouchEnd: (e: any) => { e.preventDefault?.(); startStt(); },
+          style: {
+            width: '100%',
+            background: '#16a34a',
+            color: '#fff',
+            fontSize: 15,
+            fontWeight: 800,
+            padding: '16px',
+            border: '2px solid #22c55e',
+            borderRadius: 12,
+            marginBottom: 14,
+            cursor: 'pointer',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'rgba(34,197,94,0.3)',
+            fontFamily: 'inherit',
+          },
+        }, '🎤 음성 인식 시작 (반드시 이 버튼을 탭)')
+      ) : (
+        <Pressable style={s.sttBtn} onPress={startStt} accessibilityRole="button">
+          <Text style={s.sttBtnT}>🎤 음성 인식 시작 (반드시 이 버튼을 탭)</Text>
+        </Pressable>
+      )}
 
       <Section title="0. 환경">
         <Row k="User Agent" v={st.ua} mono />
