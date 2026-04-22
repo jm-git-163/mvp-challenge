@@ -89,6 +89,12 @@ export const neonArena: Template = {
     // ── 하단 해시태그 스트립 (메인 구간 내내) ────────────────────
     { id: 'hashtag_strip',  type: 'news_ticker',      zIndex: 70, opacity: 0.92, enabled: true, props: { texts: ['#squat', '#fitness', '#cyberpunk', '#neon', '#challenge', '#workout', '#motiq'], separator: '   ', speedPxPerSec: 90, fontSize: 30, bgColor: 'rgba(0,0,0,0.55)', color: '#00E0FF', accentColor: '#FF2D95', position: 'bottom' }, activeRange: { startSec: 2.8, endSec: 17 } },
 
+    // FIX-Z22: 메인 구간 내내 비트 플래시·렌즈플레어·추가 버스트로 시각 자극 강화
+    { id: 'main_beat_flash', type: 'beat_flash',       zIndex: 71, opacity: 1, enabled: true, props: { color: '#FF2D95', maxAlpha: 0.35, curve: 'quad' }, reactive: { onBeat: { every: 2, property: 'opacity', amount: 0.35, easing: 'standard', durationMs: 120 } }, activeRange: { startSec: 2.8, endSec: 17 } },
+    { id: 'main_lens_flare', type: 'lens_flare',       zIndex: 72, opacity: 0.7, enabled: true, props: { color: '#00E0FF', x: 540, y: 400 }, activeRange: { startSec: 4, endSec: 17 } },
+    { id: 'main_burst_mid',  type: 'particle_burst',   zIndex: 73, opacity: 1, enabled: true, props: { burstCount: 50, colors: ['#FF2D95', '#00E0FF'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 900, speedMin: 150, speedMax: 400, origin: 'center' }, activeRange: { startSec: 8, endSec: 9 } },
+    { id: 'main_chromatic',  type: 'chromatic_pulse',  zIndex: 74, opacity: 1, enabled: true, props: { peakPx: 4 }, reactive: { onOnset: { property: 'opacity', amount: 0.5, easing: 'standard', durationMs: 180 } }, activeRange: { startSec: 2.8, endSec: 17 } },
+
     // ── OUTRO (17 ~ 20s) : 점수·별점·CTA ───────────────────────
     { id: 'outro_flash',    type: 'beat_flash',       zIndex: 75, opacity: 1, enabled: true, props: { color: '#00E0FF', peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
     { id: 'outro_title',    type: 'kinetic_text',     zIndex: 76, opacity: 1, enabled: true, props: { text: 'CHALLENGE COMPLETE', fontSize: 88, color: '#FF2D95', strokeColor: '#00E0FF', strokeWidth: 8, mode: 'pop', position: 'center', startMs: 17100, staggerMs: 55 }, activeRange: { startSec: 17, endSec: 20 } },

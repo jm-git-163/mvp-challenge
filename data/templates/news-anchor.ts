@@ -77,6 +77,12 @@ export const newsAnchor: Template = {
     // ── 하단 해시태그 스트립 (메인 구간) ─────────────────────────
     { id: 'hashtag_strip', type: 'news_ticker',   zIndex: 72, opacity: 0.9, enabled: true, props: { texts: ['#news', '#breaking', '#live', '#anchor', '#speed', '#motiq'], separator: '   ', speedPxPerSec: 80, fontSize: 28, bgColor: 'rgba(11,24,40,0.7)', color: '#D4AF37', accentColor: '#FF3B5C', position: { y: 1720 } }, activeRange: { startSec: 2.5, endSec: 17 } },
 
+    // FIX-Z22: 속보 배지 반복, 시보 비트, 포인트 flash 로 시네마틱 뉴스 분위기 강화
+    { id: 'pulse_breaking', type: 'beat_flash',    zIndex: 73, opacity: 1, enabled: true, props: { color: '#FF3B5C', maxAlpha: 0.18, curve: 'linear' }, reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.18, easing: 'standard', durationMs: 180 } }, activeRange: { startSec: 2.5, endSec: 17 } },
+    { id: 'main_mission_prompt', type: 'mission_prompt', zIndex: 52, opacity: 1, enabled: true, props: { text: '대본을 또박또박 읽어주세요', color: '#D4AF37' }, activeRange: { startSec: 2.5, endSec: 4.5 } },
+    { id: 'main_counter',  type: 'counter_hud',    zIndex: 57, opacity: 1, enabled: true, props: { target: 4, format: '{n} / 4 문장', fontSize: 44, fontFamily: 'Pretendard, sans-serif' }, activeRange: { startSec: 2.5, endSec: 17 } },
+    { id: 'gold_particles', type: 'particle_ambient', zIndex: 48, opacity: 0.6, enabled: true, props: { preset: 'glitter_down', count: 25 } },
+
     // ── OUTRO (17 ~ 20s) : 속보 종료 + 점수 + 시보 ─────────────
     { id: 'outro_flash',   type: 'beat_flash',    zIndex: 74, opacity: 1, enabled: true, props: { color: '#D4AF37', peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
     { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: '속보 종료', fontSize: 96, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 8, mode: 'pop', position: 'center', startMs: 17100, staggerMs: 60 }, activeRange: { startSec: 17, endSec: 20 } },

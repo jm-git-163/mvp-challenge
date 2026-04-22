@@ -98,6 +98,13 @@ export const emojiExplosion: Template = {
     // ── 하단 해시태그 스트립 ─────────────────────────────────────
     { id: 'hashtag_strip', type: 'news_ticker',   zIndex: 72, opacity: 0.92, enabled: true, props: { texts: ['#kpop', '#love', '#star', '#cute', '#smile', '#challenge', '#motiq'], separator: '  ', speedPxPerSec: 110, fontSize: 30, bgColor: 'rgba(255,45,149,0.6)', color: '#FFFFFF', accentColor: '#FFD700', position: 'bottom' }, activeRange: { startSec: 2.5, endSec: 16.5 } },
 
+    // FIX-Z22: 다중 시점 이모지 버스트, 핑크 confetti, 비트 flash, 스마일 프롬프트 스포트라이트
+    { id: 'burst_scene1',  type: 'particle_burst', zIndex: 84, opacity: 1, enabled: true, props: { burstCount: 60, colors: ['#FF2D95', '#FFD700'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 1200, speedMin: 200, speedMax: 500, shape: 'star', origin: 'center' }, activeRange: { startSec: 3.5, endSec: 4.2 } },
+    { id: 'burst_scene2',  type: 'particle_burst', zIndex: 85, opacity: 1, enabled: true, props: { burstCount: 60, colors: ['#39FF7D', '#00E0FF'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 1200, speedMin: 200, speedMax: 500, shape: 'star', origin: 'center' }, activeRange: { startSec: 9, endSec: 9.7 } },
+    { id: 'burst_scene3',  type: 'particle_burst', zIndex: 86, opacity: 1, enabled: true, props: { burstCount: 70, colors: ['#FF8A3D', '#FF2D95'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 1400, speedMin: 250, speedMax: 550, shape: 'star', origin: 'center' }, activeRange: { startSec: 13.5, endSec: 14.3 } },
+    { id: 'pink_flash',    type: 'beat_flash',     zIndex: 73, opacity: 1, enabled: true, props: { color: '#FF2D95', maxAlpha: 0.3, curve: 'quad' }, reactive: { onBeat: { every: 2, property: 'opacity', amount: 0.3, easing: 'bounce', durationMs: 140 } }, activeRange: { startSec: 2.5, endSec: 16.5 } },
+    { id: 'main_lens_flare', type: 'lens_flare',   zIndex: 79, opacity: 0.55, enabled: true, props: { color: '#FFD700', x: 540, y: 500 }, activeRange: { startSec: 5, endSec: 16 } },
+
     // ── OUTRO (16 ~ 18.5s) : 무지개 컨페티 + 점수 + CTA ─────────
     { id: 'outro_flash',   type: 'beat_flash',    zIndex: 74, opacity: 1, enabled: true, props: { color: '#FFD700', peakOpacity: 0.6 }, activeRange: { startSec: 16, endSec: 16.5 } },
     { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: 'SO CUTE! 💖', fontSize: 110, color: '#FF2D95', strokeColor: '#FFFFFF', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 16100, staggerMs: 55 }, activeRange: { startSec: 16, endSec: 18.5 } },

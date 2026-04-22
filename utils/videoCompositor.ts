@@ -2719,7 +2719,9 @@ function layeredToLegacy(lt: LayeredTemplate): VideoTemplate {
   };
 }
 
-function renderLayeredFrame(
+// FIX-Z22 (2026-04-22): 테스트에서 각 템플릿 시점별 합성 결과 차별화를
+// 검증하기 위해 export. 기존 내부 호출 경로에는 영향 없음.
+export function renderLayeredFrame(
   ctx: CanvasRenderingContext2D,
   template: LayeredTemplate,
   tMs: number,
