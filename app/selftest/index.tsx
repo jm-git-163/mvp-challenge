@@ -457,6 +457,99 @@ export default function SelfTest() {
   const pureSttKo  = () => pureSttRun('ko-KR', false);
   const pureSttEn  = () => pureSttRun('en-US', false);
   const pureSttCont = () => pureSttRun('ko-KR', true);
+
+  // FIX-LOOPBACK-STT (2026-04-22): 핵심 실험.
+  //   1) 3초 마이크 녹음 (MediaRecorder) — 사용자가 대본 말함
+  //   2) 마이크 완전 해제 → 스피커로 방금 녹음본 재생 (최대 볼륨)
+  //   3) 동시에 webkitSpeechRecognition 시작 — 스피커 → 마이크 루프백으로 SR 이 전사
+  //   4) 전사 결과 alert 로 표시
+  // 에코 캔슬러 가 스피커 되울림을 지우면 SR 이 무음 → 실패. 실기기에서 검증 필수.
+  const loopbackSttTest = async () => {
+    try {
+      // 0) 기존 getUserMedia/SR 리소스 완전 정리
+      const pre = streamRef.current ?? (window as any).__permissionStream;
+      if (pre && typeof pre.getTracks === 'function') {
+        pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
+      }
+      const prevRec = (window as any).__pureRec;
+      if (prevRec) { try { prevRec.abort?.(); } catch {} try { prevRec.stop?.(); } catch {} }
+      if (sttStopRef.current) { try { sttStopRef.current(); } catch {} sttStopRef.current = null; }
+
+      // 1) 3초 녹음
+      window.alert('[1/4] 3초간 "한국어 테스트 일 이 삼" 이라고 또렷하게 말하세요. 확인 누르면 녹음 시작.');
+      const audioOnly = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        } as any,
+      });
+      const mimeCand = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', ''];
+      let mime = '';
+      for (const m of mimeCand) { if (!m || (window as any).MediaRecorder?.isTypeSupported?.(m)) { mime = m; break; } }
+      const mr = new MediaRecorder(audioOnly, mime ? { mimeType: mime } : undefined);
+      const chunks: BlobPart[] = [];
+      mr.ondataavailable = (e: any) => { if (e.data?.size > 0) chunks.push(e.data); };
+      const recDone: Promise<Blob> = new Promise((resolve) => {
+        mr.onstop = () => resolve(new Blob(chunks, { type: mime || 'audio/webm' }));
+      });
+      mr.start();
+      await new Promise((r) => setTimeout(r, 3000));
+      mr.stop();
+      const blob = await recDone;
+      audioOnly.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+
+      // 2) 마이크가 정말 해제됐는지 잠시 대기
+      await new Promise((r) => setTimeout(r, 400));
+      window.alert(`[2/4] 녹음 완료 (${(blob.size / 1024).toFixed(1)} KB). 확인 누르면 스피커로 재생 + SR 시작.`);
+
+      // 3) 스피커 재생 + SR 동시 시작
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      a.volume = 1.0;
+      (a as any).playsInline = true;
+
+      const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SR) { window.alert('SR 없음'); URL.revokeObjectURL(url); return; }
+      const r = new SR();
+      r.lang = 'ko-KR';
+      r.continuous = true;
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      let transcript = '';
+      let errLog = '';
+      r.onresult = (e: any) => {
+        let t = '';
+        for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript + ' ';
+        transcript = t.trim();
+      };
+      r.onerror = (e: any) => { errLog = String(e?.error ?? e); };
+      r.onend = () => { /* noop */ };
+      r.start();
+
+      // 재생 시작 (SR onstart 후에)
+      await new Promise((r2) => setTimeout(r2, 300));
+      await a.play().catch((e) => { errLog += ' play-err:' + e.message; });
+
+      // 재생 끝날 때까지 기다림
+      await new Promise<void>((resolve) => {
+        a.onended = () => resolve();
+        setTimeout(() => resolve(), 5000);
+      });
+      await new Promise((r2) => setTimeout(r2, 800));
+      try { r.stop(); } catch {}
+      URL.revokeObjectURL(url);
+
+      window.alert(`[3/4] 전사 결과: "${transcript || '(empty)'}"${errLog ? '\nerror: ' + errLog : ''}`);
+
+      // 4) 유사도 계산
+      const { textSimilarity } = require('../../utils/speechUtils');
+      const sim = textSimilarity('한국어 테스트 일 이 삼', transcript);
+      window.alert(`[4/4] 유사도: ${(sim * 100).toFixed(1)}%  (성공 = 이 접근법이 작동)`);
+    } catch (err: any) {
+      window.alert('LOOPBACK 에러: ' + (err?.message ?? String(err)));
+    }
+  };
   const mkPureBtn = (key: string, label: string, bg: string, border: string, bottom: number, handler: () => void) =>
     React.createElement('button', {
       key,
@@ -483,6 +576,7 @@ export default function SelfTest() {
   const PureSttButton = Platform.OS === 'web' ? mkPureBtn('stt-pure-ko',   '🧪 PURE KO (ko-KR, cont=false)',  '#ea580c', '#fdba74', 80,  pureSttKo)  : null;
   const PureSttButtonEn = Platform.OS === 'web' ? mkPureBtn('stt-pure-en', '🧪 PURE EN (en-US, cont=false)',  '#2563eb', '#93c5fd', 140, pureSttEn)  : null;
   const PureSttButtonCont = Platform.OS === 'web' ? mkPureBtn('stt-pure-cont','🧪 PURE KO-CONT (continuous)', '#7c3aed', '#c4b5fd', 200, pureSttCont): null;
+  const LoopbackSttButton = Platform.OS === 'web' ? mkPureBtn('stt-loopback', '🔁 LOOPBACK: 녹음→스피커재생→SR전사 (핵심 실험)', '#be123c', '#fda4af', 260, loopbackSttTest) : null;
 
   return (
     <>
@@ -490,12 +584,13 @@ export default function SelfTest() {
     {PureSttButton}
     {PureSttButtonEn}
     {PureSttButtonCont}
+    {LoopbackSttButton}
     <ScrollView style={s.root} contentContainerStyle={s.inner}>
       <Text style={s.title}>🩺 MotiQ 실기기 자가진단</Text>
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-audio-release-pure-v9 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-loopback-v10 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
@@ -608,7 +703,7 @@ export default function SelfTest() {
         <Text style={s.hint}>각 버튼 누르면 1~2초 안에 소리가 나야 정상. 에러 메시지가 뜨면 해당 파일이 없거나 코덱 미지원.</Text>
       </Section>
 
-      <View style={{ height: 100 }} />
+      <View style={{ height: 340 }} />
     </ScrollView>
     </>
   );
