@@ -58,7 +58,16 @@ export const travelCheckin: Template = {
   hashtags: ['travel', 'checkin', 'adventure', 'passport', 'explore', 'motiq'],
 
   missionTimeline: [
-    { id: 'travel_read', startSec: 2, endSec: 16, mission: { kind: 'read_script', script: '안녕하세요, 오늘은 여행지에 도착했어요. 함께 구경해볼까요?' }, scoreWeight: 1.0, hudBinding: 'caption' },
+    { id: 'travel_read', startSec: 2, endSec: 16, mission: { kind: 'read_script', script: [
+      '안녕하세요, 오늘은 여행지에 도착했어요. 함께 구경해볼까요?',
+      '여러분 반갑습니다. 드디어 이곳에 도착했네요. 풍경이 정말 멋집니다.',
+      '비행기에서 내리자마자 설레는 마음이에요. 첫 스팟 공개합니다.',
+      '이 도시의 첫인상은 정말 놀라워요. 거리가 아름답고 무척 활기찹니다.',
+      '오늘의 목적지는 정말 인기 명소예요. 기대하셔도 좋습니다.',
+      '아침 공기가 상쾌하네요. 여행의 첫날이 시작됐습니다. 출발합시다.',
+      '현지 음식도 기대되고 풍경도 기대돼요. 구독자 여러분과 함께합니다.',
+      '드디어 떠나왔습니다. 오늘 하루 알차게 보낼 예정이에요. 따라오세요.',
+    ] }, scoreWeight: 1.0, hudBinding: 'caption' },
   ],
 
   postProcess: [

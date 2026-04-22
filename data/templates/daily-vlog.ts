@@ -56,7 +56,15 @@ export const dailyVlog: Template = {
   hashtags: ['daily', 'vlog', 'lofi', 'life', 'diary', 'motiq'],
 
   missionTimeline: [
-    { id: 'vlog_read', startSec: 2, endSec: 16, mission: { kind: 'read_script', script: '오늘은 특별한 하루였어요. 좋은 일들이 많이 있었습니다.' }, scoreWeight: 1.0, hudBinding: 'caption' },
+    { id: 'vlog_read', startSec: 2, endSec: 16, mission: { kind: 'read_script', script: [
+      '오늘은 특별한 하루였어요. 좋은 일들이 많이 있었습니다.',
+      '오늘 하루도 열심히 살았어요. 여러분은 어떠셨나요?',
+      '아침부터 기분이 좋았어요. 날씨도 맑고 산뜻했습니다.',
+      '오늘은 친구들과 즐거운 시간을 보냈어요. 정말 행복한 하루였습니다.',
+      '새로운 것을 도전해본 하루였어요. 뿌듯한 마음이 가득합니다.',
+      '조용한 하루였지만 편안하고 좋았습니다. 잘 자요 여러분.',
+      '오늘 작은 행복을 발견했어요. 내일도 기대되네요.',
+    ] }, scoreWeight: 1.0, hudBinding: 'caption' },
   ],
 
   postProcess: [

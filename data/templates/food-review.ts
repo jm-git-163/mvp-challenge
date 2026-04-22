@@ -59,7 +59,15 @@ export const foodReview: Template = {
   hashtags: ['food', 'review', 'yum', 'tasty', 'kitchen', 'motiq'],
 
   missionTimeline: [
-    { id: 'food_read', startSec: 2, endSec: 16, mission: { kind: 'read_script', script: '맛있어 보이네요. 한 번 먹어볼게요. 음, 정말 맛있어요!' }, scoreWeight: 1.0, hudBinding: 'caption' },
+    { id: 'food_read', startSec: 2, endSec: 16, mission: { kind: 'read_script', script: [
+      '맛있어 보이네요. 한 번 먹어볼게요. 음, 정말 맛있어요!',
+      '향이 정말 좋네요. 한 입 먹어보겠습니다. 아, 환상적인 맛이에요!',
+      '색깔이 정말 예뻐요. 맛도 기대되네요. 와, 진짜 맛있습니다!',
+      '바삭한 식감이 일품이에요. 양념도 완벽해요. 적극 추천합니다!',
+      '이 집 대박이네요. 꼭 드셔보세요. 후회 안 하실 거예요.',
+      '달콤하고 부드러워요. 입안에서 살살 녹아내립니다. 최고예요!',
+      '담백하고 깔끔한 맛이에요. 건강하게 잘 먹겠습니다. 감사합니다.',
+    ] }, scoreWeight: 1.0, hudBinding: 'caption' },
   ],
 
   postProcess: [

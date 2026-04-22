@@ -58,7 +58,16 @@ export const storybookReading: Template = {
   hashtags: ['storybook', 'reading', 'kids', 'fairy', 'pastel', 'motiq'],
 
   missionTimeline: [
-    { id: 'read_story', startSec: 2, endSec: 17, mission: { kind: 'read_script', script: '옛날 옛적에, 아름다운 숲속에 귀여운 토끼가 살고 있었습니다.' }, scoreWeight: 1.0, hudBinding: 'caption' },
+    { id: 'read_story', startSec: 2, endSec: 17, mission: { kind: 'read_script', script: [
+      '옛날 옛적에, 아름다운 숲속에 귀여운 토끼가 살고 있었습니다.',
+      '깊은 바닷속에 착한 인어공주가 있었어요. 그녀는 노래를 무척 좋아했습니다.',
+      '어느 날 작은 새가 하늘을 날고 있었어요. 날개가 반짝반짝 빛났습니다.',
+      '산속 오두막에 친절한 할머니가 살았어요. 매일 아침 따뜻한 빵을 구웠답니다.',
+      '작은 마을에 용감한 소년이 있었습니다. 그는 언제나 모험을 꿈꾸었어요.',
+      '눈부신 들판에 노란 꽃이 피었어요. 나비들이 예쁘게 춤을 추었습니다.',
+      '별이 빛나는 밤, 아기 곰이 잠들었습니다. 달님이 포근히 지켜주고 있었어요.',
+      '마법의 숲에 신비로운 요정이 살았습니다. 요정은 착한 아이만 만나주었어요.',
+    ] }, scoreWeight: 1.0, hudBinding: 'caption' },
   ],
 
   postProcess: [

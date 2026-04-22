@@ -60,7 +60,16 @@ export const englishSpeaking: Template = {
   hashtags: ['english', 'speaking', 'toefl', 'study', 'learn', 'motiq'],
 
   missionTimeline: [
-    { id: 'read_en', startSec: 2, endSec: 17, mission: { kind: 'read_script', script: 'Hello, this is my English speaking challenge. Thank you for watching.' }, scoreWeight: 1.0, hudBinding: 'caption' },
+    { id: 'read_en', startSec: 2, endSec: 17, mission: { kind: 'read_script', script: [
+      'Hello, this is my English speaking challenge. Thank you for watching.',
+      'Today I want to share something interesting with all of you. Listen carefully please.',
+      'English is fun when you speak with confidence. Let us try together now.',
+      'I believe practice makes perfect. Every day I get a little bit better.',
+      'Never give up on your dreams. Keep moving forward every single day.',
+      'Good morning everyone. I hope you are having a wonderful day today.',
+      'Life is full of amazing moments. Let us enjoy every single one of them.',
+      'Thank you so much for watching. Please subscribe and see you next time.',
+    ] }, scoreWeight: 1.0, hudBinding: 'caption' },
   ],
 
   postProcess: [

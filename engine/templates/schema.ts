@@ -144,7 +144,9 @@ export const zMissionSpec = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('gesture'), gesture: z.string(), sequence: z.array(z.string()).optional() }),
   z.object({ kind: z.literal('pose_hold'), pose: z.string(), holdMs: z.number().positive() }),
   z.object({ kind: z.literal('loud_voice'), minDb: z.number(), durationMs: z.number().positive() }),
-  z.object({ kind: z.literal('read_script'), script: z.string().min(1) }),
+  // FIX-SCRIPT-POOL (2026-04-22): script 가 string 이면 고정, 배열이면 세션마다
+  //   missionRunner 가 무작위로 하나 선택 (재시도마다 다른 대본 → 재미·리플레이성).
+  z.object({ kind: z.literal('read_script'), script: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]) }),
 ]);
 
 export const zMissionEvent = z.object({
