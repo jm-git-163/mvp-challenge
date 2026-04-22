@@ -22,12 +22,16 @@ import type { NormalizedLandmark } from '../../utils/poseUtils';
 
 const FACE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
+// FIX-T (2026-04-22): near-mode 는 스쿼트가 아니라 "머리만 위아래 흔들림"에서도 발동해
+//   false-positive 가 많았음. 진폭·시간 임계 강화로 실제 스쿼트만 카운트.
+//   연구: MediaPipe fitness 표준은 "무릎 각도 hip-knee-ankle" 기반이 정석이나,
+//   얼굴만 보이는 근접 시나리오용 폴백으로는 아래 값들로 충분히 보수적으로 동작.
 const MIN_VIS = 0.3;
-const MIN_PIVOT_AMPL  = 0.05;    // 5% — pivot 간 최소 진폭 (실제 스쿼트 다운 폭)
-const MIN_REP_MS      = 400;     // rep 최소 시간 (이보다 짧으면 머리 끄덕임)
-const MAX_REP_MS      = 3500;    // rep 최대 시간 (이보다 길면 스쿼트 아님)
-const VELOCITY_EPS    = 0.0005;  // 프레임 당 y 변화 무시 임계(float 노이즈만 컷)
-const SMOOTHING_ALPHA = 0.4;     // EMA 스무딩
+const MIN_PIVOT_AMPL  = 0.08;    // 8% — 실제 스쿼트 downY 평균 12~20% 이므로 8% 는 최소선
+const MIN_REP_MS      = 600;     // rep 최소 시간 (700ms 스쿼트 표준 기준)
+const MAX_REP_MS      = 4000;    // rep 최대 시간
+const VELOCITY_EPS    = 0.0008;  // 프레임 당 y 변화 무시 임계 — 노이즈 컷
+const SMOOTHING_ALPHA = 0.35;    // EMA 스무딩 (좀 더 강하게)
 
 export interface CloseSquatState {
   phase: 'up' | 'down' | 'unknown';

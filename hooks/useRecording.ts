@@ -66,15 +66,7 @@ export function useRecording(): UseRecordingReturn {
       }
     }, 100);
 
-    // FIX-R: BGM 을 시작한 뒤(최대 500ms 대기) MediaRecorder 를 켠다.
-    //   순서가 뒤집히면 BgmPlayer 의 gain 노드가 아직 생성 전이라
-    //   RecordingCamera.web.tsx 의 오디오 믹서가 BGM 을 못 잡아 결과 영상에 BGM 누락.
-    try {
-      const startedAt = Date.now();
-      while (!getBgmPlayer().getOutputNode() && Date.now() - startedAt < 500) {
-        await new Promise(r => setTimeout(r, 40));
-      }
-    } catch {}
+    // FIX-S: 녹화 중 BGM 재생 없음 → 대기 불필요. 바로 MediaRecorder 시작.
 
     cameraHandle.startRecording().then((uri) => {
       setVideoUri(uri);

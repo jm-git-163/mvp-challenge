@@ -28,6 +28,7 @@ import type { JudgementTag }         from '../../types/session';
 import { Claude } from '../../constants/claudeTheme';
 import type { TemplateIntro, TemplateOutro } from '../../types/template';
 import { UnloadGuard } from '../../engine/studio/unloadGuard';
+import { StanceGuide } from '../../components/record/StanceGuide';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1541,6 +1542,20 @@ export default function RecordScreen() {
       setSquatPhase(result.squatPhase);
       setSquatDebug(result.squatDebug);
     }
+
+    // FIX-U (2026-04-22): 포스트 컴포지터에서 레이어 트리거에 쓸
+    //   이벤트 타임라인 수집. 중복·고빈도 이벤트는 건너뛴다.
+    try {
+      const push = (useSessionStore.getState() as any).pushTimelineEvent;
+      if (push) {
+        if (result.tag === 'perfect' || result.tag === 'great') {
+          push({ tMs: elapsed, type: 'score_spike', payload: { tag: result.tag, score: result.score } });
+        }
+        if (result.currentMission && result.currentMission.seq !== prevMissionSeqRef.current) {
+          push({ tMs: elapsed, type: 'mission_start', payload: { missionType: result.currentMission.type, seq: result.currentMission.seq } });
+        }
+      }
+    } catch {}
     if (result.currentMission && result.currentMission.seq !== prevMissionSeqRef.current) {
       prevMissionSeqRef.current = result.currentMission.seq;
       animateMissionIn();
@@ -1549,10 +1564,8 @@ export default function RecordScreen() {
       // 대신 짧은 안내만 — 자막 화면에 텍스트가 크게 표시되므로 TTS 음성이 마이크 입력을 오염시키지 않도록 차단.
       if (m.type === 'voice_read') {
         // no speakMission — 가이드는 자막 렌더로만 처리
-        // BGM 덕킹: 사용자 음성이 잘 들리도록 배경음 볼륨 저하
-        try { getBgmPlayer().duck(0.22); } catch {}
+        // FIX-S: 녹화 중 BGM 재생 안 함 → duck/unduck 불필요
       } else {
-        try { getBgmPlayer().unduck(); } catch {}
         if (m.guide_text) speakMission(m.guide_text);
       }
     }
@@ -1591,28 +1604,23 @@ export default function RecordScreen() {
       playSound('start');
       setCharState('idle'); comboRef.current = 0; setCombo(0);
       prevMissionSeqRef.current = null; scoreAccumRef.current = [];
+      // FIX-U: 새 녹화 시작 시 이전 타임라인 초기화
+      try { (useSessionStore.getState() as any).resetTimeline?.(); } catch {}
       if (activeTemplate?.intro && !introShownRef.current) {
         introShownRef.current = true;
         setShowIntro(true);
       }
-      // Real MP3 BGM — SoundHelix curated per-genre track
+      // FIX-S (2026-04-22): 녹화 중 BGM 재생 제거.
+      //   이유: 스피커에서 BGM 이 나와 마이크로 다시 들어가며 "오디오 누출" 발생.
+      //   대신 장르별 BGM URL 을 세션 스토어에 저장해, "완성 영상 만들기" 단계의
+      //   포스트 컴포지터가 원본 클립 위에 BGM 을 믹싱하도록 이관.
       try {
         const url = getBgmTrackUrl(activeTemplate?.genre ?? 'daily');
-        const player = getBgmPlayer();
-        player.play({ url, volume: 0.32, loop: true, fadeInMs: 1500 }).catch((e) => {
-          console.warn('[BGM] MP3 play failed, fallback to synth:', e);
-          try {
-            const audioCtx = initAudio();
-            if (bgmStopRef.current) bgmStopRef.current();
-            bgmStopRef.current = createGameBGM(audioCtx, { genre: 'lofi', bpm: 120, volume: 0.35 }, audioCtx.destination);
-          } catch {}
-        });
-        // Provide a stop handle
-        if (bgmStopRef.current) bgmStopRef.current();
-        bgmStopRef.current = () => player.stop();
-      } catch (e) {
-        console.warn('[BGM] 초기화 실패:', e);
-      }
+        try {
+          const { useSessionStore } = require('../../store/sessionStore');
+          useSessionStore.getState().setPendingBgmUrl?.(url);
+        } catch {}
+      } catch {}
     } else {
       if (bgmStopRef.current) { bgmStopRef.current(); bgmStopRef.current = null; }
       try { getBgmPlayer().stop(); } catch {}
@@ -1804,6 +1812,11 @@ export default function RecordScreen() {
 
               {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
                 <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} />
+              )}
+
+              {/* FIX-T: 스쿼트 자세 가이드 — 정면/측면 안내 + 랜드마크 상태 기반 tip */}
+              {activeTemplate?.genre === 'fitness' && (state === 'countdown' || isRecording) && (
+                <StanceGuide visible debug={squatDebug} />
               )}
 
               {/* FIX-Q (2026-04-22): 스쿼트 진단 HUD — 왜 카운트 안되는지 원인 표시 */}

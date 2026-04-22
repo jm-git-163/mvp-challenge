@@ -722,50 +722,12 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             ? (canvas as any).captureStream(30)
             : (canvas as any).mozCaptureStream(30);
 
-          // FIX-R (2026-04-22): 마이크 + BGM 을 Web Audio API 로 믹스해서
-          // 단일 오디오 트랙으로 만들어 MediaRecorder 에 넣는다.
-          // 기존엔 mic track 만 addTrack 해서 결과 mp4 에 BGM 이 빠졌고,
-          // 안드로이드 크롬에선 raw mic track addTrack 이 가끔 무음으로 기록됨.
-          try {
-            const bgm = getBgmPlayer();
-            const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
-            // BGM 이 이미 AudioContext 를 만들어 놨으면 그걸 재사용 (같은 컨텍스트여야 노드 연결 가능)
-            const mixCtx: AudioContext = bgm.getAudioContext() ?? new Ctx();
-            mixAudioCtxRef.current = mixCtx;
-            const dest = mixCtx.createMediaStreamDestination();
-            mixDestRef.current = dest;
-
-            // 1) 마이크 트랙 → Web Audio source → 믹스 destination
-            const audioTracks = stream.getAudioTracks();
-            if (audioTracks.length > 0) {
-              // 카메라 stream 에서 오디오만 빼서 별도 MediaStream 으로 감싸야
-              // createMediaStreamSource 가 정상 동작 (비디오 트랙 섞이면 에러 가능)
-              const micOnly = new MediaStream([audioTracks[0]]);
-              const micSrc = mixCtx.createMediaStreamSource(micOnly);
-              const micGain = mixCtx.createGain();
-              micGain.gain.value = 1.0; // 마이크 원음 유지
-              micSrc.connect(micGain).connect(dest);
-              micSrcRef.current = micSrc;
-            }
-
-            // 2) BGM 출력 노드 → 믹스 destination (재생 중일 때만)
-            const bgmOut = bgm.getOutputNode();
-            if (bgmOut) {
-              try { bgmOut.connect(dest); } catch { /* 이미 연결됨 */ }
-              bgmConnectedRef.current = true;
-            }
-
-            // 믹스된 오디오 트랙을 캔버스 스트림에 추가
-            dest.stream.getAudioTracks().forEach((t) => {
-              try { canvasStream.addTrack(t); } catch { /* ignore */ }
-            });
-          } catch (mixErr) {
-            // 믹싱 실패 시 마이크 원본 트랙만 추가 (기존 동작 폴백)
-            console.warn('[RecordingCameraWeb] audio mix failed, falling back to raw mic:', mixErr);
-            stream.getAudioTracks().forEach((t) => {
-              try { canvasStream.addTrack(t); } catch { /* ignore */ }
-            });
-          }
+          // FIX-S (2026-04-22): 녹화 중 BGM 재생 안 함 → 마이크 원본 트랙만 추가.
+          //   BGM·SFX·레이어는 "완성 영상 만들기" 단계에서 포스트 컴포지터가 입힌다.
+          //   녹화 클립은 순수 camera + raw mic.
+          stream.getAudioTracks().forEach((t) => {
+            try { canvasStream.addTrack(t); } catch { /* ignore */ }
+          });
 
           const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
             ? 'video/webm;codecs=vp9'
@@ -799,7 +761,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         if (recRef.current && recRef.current.state !== 'inactive') {
           recRef.current.stop();
         }
-        // FIX-R: 오디오 믹스 노드 disconnect — BGM 은 계속 재생해야 하므로 ctx 는 닫지 않음
+        // FIX-S: 믹싱 파이프라인 비활성. 남은 ref 는 cleanup 만.
         try { micSrcRef.current?.disconnect(); } catch {}
         micSrcRef.current = null;
         if (bgmConnectedRef.current) {
