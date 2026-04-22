@@ -1151,7 +1151,25 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           //   촬영 중 실시간 UX 피드백(스쿼트 카운트/음성 자막)은
           //   app/record/index.tsx 의 DOM 뱃지로 이미 노출 — 이것은 captureStream
           //   에 들어가지 않으므로 녹화본은 오염되지 않음.
-          try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
+          // FIX-Z21 (2026-04-22): 이전엔 drawCamera 가 early-return 하면 캔버스에
+          //   이전 프레임이 그대로 남아 "카메라 멈춤" 으로 보였음. 매 프레임 먼저
+          //   검은 배경 + 부드러운 펄스 힌트로 초기화 → drawCamera 가 그리지 못한
+          //   경우에도 "현재 로딩 중" 상태가 시각적으로 드러난다.
+          if (video.readyState < 2 || !video.videoWidth) {
+            ctx.fillStyle = '#0a0a12';
+            ctx.fillRect(0, 0, CW, CH);
+            const t = performance.now() * 0.002;
+            const pulse = 0.4 + 0.3 * Math.sin(t);
+            ctx.fillStyle = `rgba(255,255,255,${pulse.toFixed(3)})`;
+            ctx.font = 'bold 36px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('카메라 준비 중…', CW / 2, CH / 2 - 10);
+            ctx.font = '22px system-ui, sans-serif';
+            ctx.fillStyle = 'rgba(200,200,220,0.7)';
+            ctx.fillText(`rs=${video.readyState} ${video.videoWidth}×${video.videoHeight}`, CW / 2, CH / 2 + 30);
+          } else {
+            try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
+          }
 
           // 미사용 참조 억제 (post-production 으로 이동)
           void tmpl; void mission; void score; void lms; void isRec;
@@ -1285,10 +1303,21 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     // ------------------------------------------------------------------
     return (
       <View style={st.container}>
+        {/* FIX-Z21 (2026-04-22): iOS Safari 는 `display:none` <video> 의
+              디코더를 일시 정지/해제해 videoWidth=0, readyState<2 로 유지되어
+              → drawImage 로 아무 것도 안 그려짐 (canvas freeze) →
+              MediaPipe 도 landmarks=0 → 포즈/스쿼트 전부 작동 불가.
+              화면 밖으로 1×1 로 위치시켜 DOM 에 살아있게 한다. */}
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video
           ref={videoRef}
-          style={{ display: 'none' }}
+          style={{
+            position: 'absolute' as any,
+            width: 1, height: 1,
+            left: -9999, top: -9999,
+            opacity: 0.01,
+            pointerEvents: 'none' as any,
+          }}
           autoPlay
           playsInline
           muted

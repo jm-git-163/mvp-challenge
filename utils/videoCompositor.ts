@@ -1513,12 +1513,16 @@ function resolveGenreBgmFile(genre: BgmSpec['genre']): string | null {
 
 async function createFileBGM(
   audioCtx: AudioContext,
-  spec: BgmSpec,
+  spec: BgmSpec & { src?: string },
   dest: AudioNode,
   opts?: { introMs?: number; totalMs?: number },
 ): Promise<SimpleBGMHandle | null> {
   if (spec.genre === 'none') return { stop: () => {} };
-  const url = resolveGenreBgmFile(spec.genre);
+  // FIX-Z21 (2026-04-22): 템플릿이 직접 지정한 bgm.src 를 최우선 사용.
+  //   이전엔 mood → style → genre 의 3단 매핑을 거쳐 `pop_candy → vlog` 같은
+  //   미등록 분기에서 null 리턴 → emoji-explosion 이 무음·오실레이터 폴백으로
+  //   귀결되는 버그가 있었다. spec.src 가 있으면 장르 무시하고 그 파일 로딩.
+  const url = (spec as any).src || resolveGenreBgmFile(spec.genre);
   if (!url) return null;
   try {
     const res = await fetch(url);
@@ -2698,6 +2702,10 @@ function layeredToLegacy(lt: LayeredTemplate): VideoTemplate {
     bgStyle: style as any,
     duration_ms: lt.duration * 1000,
     bgm: {
+      // FIX-Z21 (2026-04-22): 레이어드 템플릿이 명시한 src 를 그대로 레거시로 전달.
+      //   mood→style→genre 의 불완전 매핑으로 `vlog` 같은 미등록 분기가 null 을 만들어
+      //   emoji-explosion 등이 무음이 되던 문제 해결.
+      src: lt.bgm.src,
       genre: style as any,
       bpm: 128,
       volume: lt.bgm.volume,
