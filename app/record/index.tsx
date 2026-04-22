@@ -1849,6 +1849,22 @@ export default function RecordScreen() {
               combo={combo}
               squatCount={squatCount}
               voiceTranscript={voiceTranscript}
+              showDiagnostics={true}
+              diagVoiceListening={!!speechBadge.listening}
+              diagVoiceTranscript={speechBadge.transcript || voiceTranscript || ''}
+              diagVoiceError={speechBadge.err}
+              diagVoicePreCheckOk={speechBadge.preCheck?.ok ?? null}
+              diagVoiceSupported={speechBadge.preCheck?.ok !== false
+                || !/SpeechRecognition API 없음/.test(speechBadge.preCheck?.reason || '')}
+              diagPoseStatus={poseStatus}
+              diagPoseLandmarkCount={landmarks.length}
+              diagIsRealPose={!!isRealPose}
+              diagSquatCount={squatCount}
+              diagSquatTarget={10}
+              diagSquatPhase={squatPhase}
+              diagSquatReady={!!squatDebug.ready}
+              diagSquatFaceOk={!!squatDebug.faceOk}
+              diagSquatBodyOk={!!squatDebug.squatLmOk}
             >
               {particles.map(p => <Text key={p.id} style={[r.particle, { left:p.left as any }]}>{p.emoji}</Text>)}
 

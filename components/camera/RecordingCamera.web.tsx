@@ -26,6 +26,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 import { getBgmPlayer } from '../../utils/bgmLibrary';
+import { drawDiagnosticsOverlay } from '../../utils/diagnosticsOverlay';
 
 // ---------------------------------------------------------------------------
 // Canvas dimensions (9:16 portrait)
@@ -865,6 +866,25 @@ export interface RecordingCameraWebProps {
   combo?:              number;
   squatCount?:         number;
   voiceTranscript?:    string;
+  // FIX-Z22 (2026-04-22): 온캔버스 라이브 인식 진단 오버레이.
+  //   DOM 뱃지는 풀스크린 촬영 중 잘 안보여 유저가 "인식 됐는지" 확인 불가.
+  //   이 prop 들은 녹화 캔버스 자체에 박혀 유저가 즉시 눈으로 본다.
+  //   모두 optional — 기존 사용처 훼손 없음.
+  showDiagnostics?:      boolean;             // default true
+  diagVoiceListening?:   boolean;
+  diagVoiceTranscript?:  string;
+  diagVoiceError?:       string | null;
+  diagVoicePreCheckOk?:  boolean | null;     // null=아직 체크 전
+  diagVoiceSupported?:   boolean;            // false=iOS Safari 등
+  diagPoseStatus?:       string;             // 'ready-real'|'ready-mock'|'loading'|'error'|...
+  diagPoseLandmarkCount?: number;
+  diagIsRealPose?:       boolean;
+  diagSquatCount?:       number;
+  diagSquatTarget?:      number;             // 목표 rep (default 10)
+  diagSquatPhase?:       string;             // 'up'|'down'|'unknown'|'idle'
+  diagSquatReady?:       boolean;
+  diagSquatFaceOk?:      boolean;
+  diagSquatBodyOk?:      boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -889,6 +909,21 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
       combo         = 0,
       squatCount    = 0,
       voiceTranscript = '',
+      showDiagnostics = true,
+      diagVoiceListening = false,
+      diagVoiceTranscript = '',
+      diagVoiceError = null,
+      diagVoicePreCheckOk = null,
+      diagVoiceSupported = true,
+      diagPoseStatus = 'idle',
+      diagPoseLandmarkCount = 0,
+      diagIsRealPose = false,
+      diagSquatCount = 0,
+      diagSquatTarget = 10,
+      diagSquatPhase = 'idle',
+      diagSquatReady = false,
+      diagSquatFaceOk = false,
+      diagSquatBodyOk = false,
     },
     ref,
   ) => {
@@ -924,6 +959,24 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     const comboRef          = useRef(combo);
     const squatCountRef     = useRef(squatCount);
     const voiceTranscriptRef = useRef(voiceTranscript);
+    // FIX-Z22: 온캔버스 진단 오버레이용 refs (매 render 최신값 주입)
+    const diagRef = useRef({
+      show: showDiagnostics,
+      vListen: diagVoiceListening,
+      vText: diagVoiceTranscript,
+      vErr: diagVoiceError,
+      vPre: diagVoicePreCheckOk,
+      vSup: diagVoiceSupported,
+      pStat: diagPoseStatus,
+      pLm: diagPoseLandmarkCount,
+      pReal: diagIsRealPose,
+      sCnt: diagSquatCount,
+      sTgt: diagSquatTarget,
+      sPh: diagSquatPhase,
+      sRdy: diagSquatReady,
+      sFace: diagSquatFaceOk,
+      sBody: diagSquatBodyOk,
+    });
 
     elapsedRef.current        = elapsed;
     isRecordingRef.current     = isRecording;
@@ -937,6 +990,23 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     comboRef.current           = combo;
     squatCountRef.current      = squatCount;
     voiceTranscriptRef.current = voiceTranscript;
+    diagRef.current = {
+      show: showDiagnostics,
+      vListen: diagVoiceListening,
+      vText: diagVoiceTranscript,
+      vErr: diagVoiceError,
+      vPre: diagVoicePreCheckOk,
+      vSup: diagVoiceSupported,
+      pStat: diagPoseStatus,
+      pLm: diagPoseLandmarkCount,
+      pReal: diagIsRealPose,
+      sCnt: diagSquatCount,
+      sTgt: diagSquatTarget,
+      sPh: diagSquatPhase,
+      sRdy: diagSquatReady,
+      sFace: diagSquatFaceOk,
+      sBody: diagSquatBodyOk,
+    };
 
     const [denied, setDenied] = useState(false);
     const [ready, setReady]   = useState(false);
@@ -1170,6 +1240,14 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           } else {
             try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
           }
+
+          // FIX-Z22: 온캔버스 라이브 인식 진단 오버레이 (녹화본에도 박힘).
+          try {
+            drawDiagnosticsOverlay(ctx, diagRef.current, {
+              elapsedSec: elap / 1000,
+              isRecording: isRec,
+            });
+          } catch (e) { /* silent */ }
 
           // 미사용 참조 억제 (post-production 으로 이동)
           void tmpl; void mission; void score; void lms; void isRec;
