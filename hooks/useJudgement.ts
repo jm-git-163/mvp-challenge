@@ -79,24 +79,26 @@ function getVolume(): number {
  */
 export function prewarmSpeech(): void {
   const sr = getGlobalSpeechRecognizer();
-  if (!sr.isSupported()) return;
-  if (_voiceActive) return;
+  if (!sr.isSupported()) {
+    if (typeof console !== 'undefined') {
+      console.warn('[prewarmSpeech] SpeechRecognition API 미지원 (iOS Safari 또는 비 Chrome 브라우저)');
+    }
+    return;
+  }
+  // 이미 listen() 이 실제로 실행 중이면(_voiceStopFn 존재) 재시작 금지.
+  // FIX-Z11 (2026-04-22): 기존엔 _voiceActive=true 만 확인했으나,
+  //   실패 경로에서도 이 플래그가 남을 수 있어 이후 재시도가 막히는 버그가 있었다.
+  if (_voiceActive && _voiceStopFn) return;
 
-  // FIX-F (2026-04-21): 모바일 크롬 대응.
-  //   모바일 Chrome 은 webkitSpeechRecognition.start() 가 "사용자 제스처"
-  //   스택 안에서 호출되지 않으면 NotAllowedError / 무반응.
-  //   기존 구조: 녹화 버튼 클릭 → state=recording → useEffect → judge() → sr.listen()
-  //   useEffect 여러 틱 뒤에 실행되므로 모바일이 제스처 타임아웃 → 실패.
-  //   해결: 녹화 버튼 onPress 안에서 prewarmSpeech() 즉시 호출하여
-  //   제스처 스택 안에서 listen() 시작. judge() 는 _voiceActive=true 감지하고
-  //   start 스킵 (기존 else-if 분기 그대로 사용), 콜백만 교체.
-  _voiceActive = true;
-
+  // FIX-F (2026-04-21): 모바일 크롬 대응 — user gesture 스택 안에서 바로 start() 호출.
+  // FIX-Z11: listen() 이 내부 start() 실패해도 우리가 플래그를 미리 true 로 세워버리면
+  //   judge() / 다음 gesture 재호출이 모두 no-op 이 되어 음성 인식이 "아예 안 되는"
+  //   현상의 원인이 됨. 따라서 listen() 호출 성공 후에만 플래그 세운다.
   const bridgedInterim = wrapInterimCallback((t: string) => _interimCb?.(t));
   const bridgedFinal   = wrapFinalCallback((t: string) => _finalCb?.(t));
 
   try {
-    _voiceStopFn = sr.listen(
+    const stopFn = sr.listen(
       'ko',
       bridgedInterim,
       bridgedFinal,
@@ -104,8 +106,11 @@ export function prewarmSpeech(): void {
       _currentTarget,
       (s: number) => _progressCb?.(s),
     );
+    _voiceStopFn = stopFn;
+    _voiceActive = true;
   } catch (e) {
     _voiceActive = false;
+    _voiceStopFn = null;
     if (typeof console !== 'undefined') console.warn('[prewarmSpeech] listen failed:', e);
   }
 }
@@ -131,6 +136,11 @@ export function useJudgement(): {
       lastPivotType: 'top' | 'bottom' | 'none';
       landmarkCount: number;
       squatLmOk: boolean;
+      faceOk: boolean;
+      allowCloseMode: boolean;
+      candidatePhase: 'up' | 'down' | 'unknown';
+      candidateFrames: number;
+      ready: boolean;
     };
   };
   voiceTranscript: string;
@@ -279,8 +289,12 @@ export function useJudgement(): {
           phaseIn = smoothed < 115 ? 'down' : smoothed > 150 ? 'up' : sq.phase;
         }
 
-        // 디바운스: 같은 phase가 연속 프레임으로 들어오는지 추적
-        const DEBOUNCE_FRAMES = 3;
+        // 디바운스: 같은 phase가 연속 프레임으로 들어오는지 추적.
+        // FIX-Z17 (2026-04-22): 3 → 2 프레임 완화.
+        //   MoveNet 실기기 fps ~10. 3 프레임 = 300ms = 사용자가 이미 다음 phase 로
+        //   넘어가는 경우 있음 → 카운트 누락. 2 프레임(~200ms) 이면 여전히 단발
+        //   스파이크는 거절되면서 일반적 스쿼트 템포(1rep ≥1s) 에 여유 있음.
+        const DEBOUNCE_FRAMES = 2;
         const sqPhase = phaseIn;
         if (sqPhase === 'unknown') {
           squatCandidateFrames.current = 0;
@@ -511,6 +525,11 @@ export function useJudgement(): {
           lastPivotType: lastCloseState?.lastPivotType ?? 'none',
           landmarkCount: landmarks.length,
           squatLmOk,
+          faceOk,
+          allowCloseMode,
+          candidatePhase: squatCandidatePhaseRef.current,
+          candidateFrames: squatCandidateFrames.current,
+          ready: squatReadyRef.current,
         },
       };
     },

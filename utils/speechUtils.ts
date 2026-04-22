@@ -467,7 +467,17 @@ export async function checkSpeechCapability(): Promise<{ ok: boolean; reason?: s
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SpeechRec) {
-    return { ok: false, reason: 'SpeechRecognition API 없음 (Chrome/Safari 필요)' };
+    // FIX-Z11 (2026-04-22): iOS Safari 는 webkitSpeechRecognition 미지원 → 명시적 안내.
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+                  (/Macintosh/i.test(ua) && (navigator as any).maxTouchPoints > 1);
+    if (isIOS) {
+      return {
+        ok: false,
+        reason: 'iOS Safari 는 음성 인식 미지원 — Android Chrome 또는 데스크톱 Chrome 에서 열어주세요',
+      };
+    }
+    return { ok: false, reason: 'SpeechRecognition API 없음 (Chrome/Edge 권장)' };
   }
   // permissions.query 는 브라우저별 지원 편차가 커서 실패해도 무시.
   try {

@@ -1370,7 +1370,11 @@ export default function RecordScreen() {
     faceY: number; amplitude: number; visibility: number;
     velSign: -1 | 0 | 1; lastPivotType: 'top'|'bottom'|'none';
     landmarkCount: number; squatLmOk: boolean;
-  }>({ faceY: 0, amplitude: 0, visibility: 0, velSign: 0, lastPivotType: 'none', landmarkCount: 0, squatLmOk: false });
+    faceOk: boolean; allowCloseMode: boolean;
+    candidatePhase: 'up'|'down'|'unknown'; candidateFrames: number; ready: boolean;
+  }>({ faceY: 0, amplitude: 0, visibility: 0, velSign: 0, lastPivotType: 'none',
+       landmarkCount: 0, squatLmOk: false, faceOk: false, allowCloseMode: false,
+       candidatePhase: 'unknown', candidateFrames: 0, ready: false });
 
   // FIX-Z1 (2026-04-22): Whisper 프리로드 제거 — WHISPER_ENABLED=false 복귀.
   //   ?stt=whisper 디버그 모드에서만 아래 상태가 loading 으로 전환된다.
@@ -1482,7 +1486,15 @@ export default function RecordScreen() {
   }, [sessionKey]); // eslint-disable-line
 
   // 화면 진입 시 음성 인식 권한 미리 요청 (녹화 중 팝업 방지)
+  // FIX-Z11 (2026-04-22): 모바일은 mount-path prewarm 스킵.
+  //   모바일 Chrome 은 webkitSpeechRecognition.start() 가 user-gesture 스택
+  //   안에서만 허용. setTimeout(800) 은 이미 gesture context 를 벗어났으므로
+  //   실패. 과거엔 실패해도 _voiceActive=true 로 오염되어 이후 gesture path 도 no-op.
+  //   따라서 데스크톱만 mount 시 prewarm, 모바일은 beginStartFlow 의 gesture path 에 의존.
   useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    if (isMobile) return;
     const t = setTimeout(prewarmSpeech, 800);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
@@ -1910,28 +1922,80 @@ export default function RecordScreen() {
               )}
 
               {/* FIX-Z5 (2026-04-22): 항상 보이는 DOM 뱃지 — 카운트 / 포즈 감지 상태.
-                  캔버스 오버레이가 성능 문제로 늦게 그려지든 말든, 이 DOM 은 즉시 반영.
-                  유저가 "카운트 되는지 확인 조차 안됨" 문제를 해결. */}
-              {activeTemplate?.genre === 'fitness' && isRecording && (
+                  FIX-Z17 (2026-04-22): 진단 정보 확장. 실기기에서 "왜 카운트가 안 되는지"를
+                  한눈에 파악할 수 있도록 5줄 + mock 모드 경고 추가. */}
+              {activeTemplate?.genre === 'fitness' && isRecording && (() => {
+                const isMock = poseStatus === 'ready-mock';
+                const badgeBg = isMock ? 'rgba(234,88,12,0.95)'
+                              : poseStatus === 'error' ? 'rgba(220,38,38,0.95)'
+                              : 'rgba(20,184,166,0.95)';
+                const gateStr = `lm${squatDebug.landmarkCount} ` +
+                  `face${squatDebug.faceOk ? '✓' : '✗'} ` +
+                  `body${squatDebug.squatLmOk ? '✓' : '✗'} ` +
+                  `close${squatDebug.allowCloseMode ? '✓' : '✗'}`;
+                return (
                 <View pointerEvents="none" style={{
                   position:'absolute', top: 200, left: 12,
-                  backgroundColor:'rgba(20,184,166,0.95)',
+                  backgroundColor: badgeBg,
                   borderRadius: 14, paddingVertical: 10, paddingHorizontal: 16,
                   zIndex: 9997, elevation: 18,
                   shadowColor:'#000', shadowOpacity:0.4, shadowRadius:8,
+                  maxWidth: 240,
                 }}>
                   <Text style={{ color:'#fff', fontSize:11, fontWeight:'600', opacity: 0.9 }}>SQUATS</Text>
                   <Text style={{ color:'#fff', fontSize:32, fontWeight:'800', lineHeight: 36 }}>
                     {squatCount}
                   </Text>
-                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2 }}>
-                    {squatMode === 'full-body' ? '✅ 풀바디' :
-                     squatMode === 'near-mode' ? '🟡 근접 모드 (최대 70%)' :
-                     squatDebug.landmarkCount > 0 ? `감지중… (lm ${squatDebug.landmarkCount})` :
-                     '⚠️ 포즈 미감지'}
+                  {/* 1: 포즈 엔진 상태 */}
+                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.9, marginTop:2, fontWeight:'700' }}>
+                    {isMock ? '🟠 MOCK 모드 (실제 카운트 불가)'
+                     : poseStatus === 'ready-real' ? '🟢 실제 포즈 감지 중'
+                     : poseStatus === 'error' ? '🔴 포즈 엔진 실패'
+                     : poseStatus === 'loading' ? '⏳ 모델 로딩 중' : `… ${poseStatus}`}
                   </Text>
-                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.75, marginTop:2 }}>
-                    무릎각 {Math.round(squatKneeAngle)}° · {squatPhase === 'down' ? '⬇️ 내려감' : squatPhase === 'up' ? '⬆️ 올라옴' : '—'}
+                  {/* 2: 판정 모드 */}
+                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2 }}>
+                    {squatMode === 'full-body' ? '✅ 풀바디 (정밀)' :
+                     squatMode === 'near-mode' ? '🟡 근접 (최대 70%)' :
+                     squatDebug.landmarkCount > 0 ? `탐지중… (lm ${squatDebug.landmarkCount})` :
+                     '⚠️ 랜드마크 0'}
+                  </Text>
+                  {/* 3: 무릎각 + phase + ready */}
+                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2, fontFamily:'monospace' }}>
+                    {Math.round(squatKneeAngle)}° {squatPhase === 'down' ? '⬇DOWN' : squatPhase === 'up' ? '⬆UP' : '—'}
+                    {' '}cand:{squatDebug.candidatePhase}×{squatDebug.candidateFrames}
+                    {squatDebug.ready ? ' armed' : ' idle'}
+                  </Text>
+                  {/* 4: 게이트 플래그 */}
+                  <Text style={{ color:'#fff', fontSize:9, opacity: 0.8, marginTop:2, fontFamily:'monospace' }}>
+                    {gateStr}
+                  </Text>
+                  {/* 5: mock 경고 배너 */}
+                  {isMock && (
+                    <Text style={{ color:'#fff', fontSize:10, marginTop:4, fontWeight:'700', backgroundColor:'rgba(0,0,0,0.35)', paddingHorizontal:6, paddingVertical:3, borderRadius:4 }}>
+                      포즈 엔진 로딩 실패 — 타이머는 흐르지만 스쿼트 카운트는 0 유지됩니다. 새로고침 권장.
+                    </Text>
+                  )}
+                </View>
+                );
+              })()}
+
+              {/* FIX-Z11 (2026-04-22): 촬영 시작 전 음성 미지원 경고.
+                  iOS Safari 는 webkitSpeechRecognition 자체가 없으므로 사용자가 녹화 전에
+                  Android Chrome / 데스크톱 Chrome 으로 이동하도록 명시적으로 안내. */}
+              {!isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice')
+                && speechBadge.preCheck && !speechBadge.preCheck.ok && (
+                <View pointerEvents="none" style={{
+                  position:'absolute', top: 80, right: 12, left: 12,
+                  backgroundColor: 'rgba(220,38,38,0.96)',
+                  borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
+                  zIndex: 9998, elevation: 20,
+                }}>
+                  <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom: 4 }}>
+                    ⚠️ 음성 인식 미지원
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:12, lineHeight: 16 }}>
+                    {speechBadge.preCheck?.reason ?? '알 수 없음'}
                   </Text>
                 </View>
               )}
