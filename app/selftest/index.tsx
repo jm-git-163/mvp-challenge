@@ -214,23 +214,14 @@ export default function SelfTest() {
       patch({ mpStatus: 'err', mpMsg: `${err?.name ?? 'Error'}: ${err?.message ?? String(err)}` });
     }
 
-    // 5) STT
+    // 5) STT 지원 여부만 체크. 실제 listen() 은 별도 버튼(startStt)에서 호출 —
+    //   FIX-STT-GESTURE (2026-04-22): Android Chrome 에서 webkitSpeechRecognition.start() 는
+    //   반드시 user gesture 스택 내부에서 호출되어야 함 (getUserMedia 허용과는 별개 권한).
+    //   이 async 함수 흐름(await getUserMedia → await MediaPipe 로드)이 끝난 뒤엔 이미
+    //   gesture 스택 밖 → Chrome 이 조용히 'not-allowed' 로 거부.
+    //   따라서 listen() 은 별도 버튼의 onPress(= fresh gesture)에서 호출해야 한다.
     const rec = getGlobalSpeechRecognizer();
-    if (!rec.isSupported()) {
-      patch({ sttSupported: false, sttLastEvent: 'unsupported' });
-    } else {
-      patch({ sttSupported: true });
-      // FIX-STT (2026-04-22): selftest 는 사용자가 여러 번 말해가며 관찰해야 하므로
-      //   30s/60s 타임아웃으로 끊기면 "results=0, listening=off" 로 고정되어 디버깅 불가.
-      //   10분으로 넉넉하게 두고, 페이지 떠날 때만 stop.
-      const stop = rec.listen(
-        'ko',
-        (interim) => patch({ sttInterim: interim }),
-        (fin) => patch({ sttFinal: fin }),
-        600_000,
-      );
-      sttStopRef.current = stop;
-    }
+    patch({ sttSupported: rec.isSupported() });
 
     // 6) Main loop — MediaPipe detect + HSS + audio RMS + STT diag
     fpsRef.current = { t: performance.now(), n: 0 };
@@ -341,6 +332,26 @@ export default function SelfTest() {
     patch({ hssCal: 'ready (skip, d0=0.15)', hssD0: 0.15 });
   };
 
+  // FIX-STT-GESTURE (2026-04-22): 반드시 이 함수는 Pressable onPress 로만 호출되어야
+  //   user gesture 스택 안에서 rec.rec.start() 가 호출되고 Android Chrome 이 허용.
+  const startStt = () => {
+    const rec = getGlobalSpeechRecognizer();
+    if (!rec.isSupported()) {
+      patch({ sttSupported: false, sttLastEvent: 'unsupported' });
+      return;
+    }
+    // 이전 listen 세션 있으면 중단
+    if (sttStopRef.current) { try { sttStopRef.current(); } catch {} sttStopRef.current = null; }
+    const stop = rec.listen(
+      'ko',
+      (interim) => patch({ sttInterim: interim }),
+      (fin) => patch({ sttFinal: fin }),
+      600_000,
+    );
+    sttStopRef.current = stop;
+    patch({ sttSupported: true, sttLastEvent: 'gesture-start' });
+  };
+
   const playBgm = (src: string) => {
     if (bgmAudioRef.current) { try { bgmAudioRef.current.pause(); } catch {} }
     const a = new Audio(src);
@@ -361,7 +372,7 @@ export default function SelfTest() {
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: 92fba7e · 2026-04-22 · STT+HSS+cache</Text>
+      <Text style={s.version}>build: STT-gesture-fix · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
@@ -376,6 +387,11 @@ export default function SelfTest() {
           <Text style={s.btnMiniT}>⏭ 스쿼트 캘리브 건너뛰기</Text>
         </Pressable>
       </View>
+      {/* FIX-STT-GESTURE: 이 버튼을 눌러야만 webkitSpeechRecognition 이 user gesture
+          스택 안에서 start() 호출 → Android Chrome 이 'not-allowed' 거부 안 함. */}
+      <Pressable style={[s.btnMini, { backgroundColor: '#16a34a', marginBottom: 12 }]} onPress={startStt}>
+        <Text style={[s.btnMiniT, { color: '#fff', fontWeight: '700' }]}>🎤 음성 인식 시작 (반드시 이 버튼을 누르세요)</Text>
+      </Pressable>
 
       <Section title="0. 환경">
         <Row k="User Agent" v={st.ua} mono />
