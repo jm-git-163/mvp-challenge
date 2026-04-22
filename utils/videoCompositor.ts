@@ -2448,18 +2448,12 @@ export async function composeVideo(
           totalMs: legacyTemplate.duration_ms,
         });
 
-        // FIX-V: 원본 video 의 오디오를 AudioContext 에 태워
-        //   최종 합성 mp4 에 사용자 마이크 음성이 포함되도록.
-        //   video.muted=true 이므로 스피커로는 새지 않지만,
-        //   createMediaElementSource 로 뽑은 신호는 dest 에 들어간다.
-        try {
-          const voiceSrc = audioCtx.createMediaElementSource(video);
-          const voiceGain = audioCtx.createGain();
-          voiceGain.gain.value = 1.0;
-          voiceSrc.connect(voiceGain).connect(dest);
-        } catch (voiceErr) {
-          console.warn('[videoCompositor] voice audio route failed:', voiceErr);
-        }
+        // FIX-Y1 (2026-04-22): createMediaElementSource 사용 중단.
+        //   일부 브라우저에서 blob URL 비디오 + crossOrigin='anonymous' + muted=true 조합이
+        //   MediaElementAudioSourceNode 생성 실패 → video 'error' 이벤트 → "Video load error".
+        //   원본 클립의 음성은 이미 raw download/share 경로로 유저에게 제공되므로,
+        //   합성 mp4 에서는 BGM 만 들어가고 마이크 음성은 일단 제외.
+        //   (Track D 포스트 컴포지터 재설계 시 정규 방식으로 복원 예정)
 
         const canvasStream = canvas.captureStream(FPS);
         dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));

@@ -1814,9 +1814,10 @@ export default function RecordScreen() {
                 <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} />
               )}
 
-              {/* FIX-T: 스쿼트 자세 가이드 — 정면/측면 안내 + 랜드마크 상태 기반 tip */}
+              {/* FIX-T: 스쿼트 자세 가이드. FIX-Y1(2026-04-22): `visible` 를 명시적 boolean 으로.
+                  RN 에선 bare attribute 가 undefined 로 해석되어 StanceGuide 가 렌더 안 되던 버그. */}
               {activeTemplate?.genre === 'fitness' && (state === 'countdown' || isRecording) && (
-                <StanceGuide visible debug={squatDebug} />
+                <StanceGuide visible={true} debug={squatDebug} />
               )}
 
               {/* FIX-Q (2026-04-22): 스쿼트 진단 HUD — 왜 카운트 안되는지 원인 표시 */}

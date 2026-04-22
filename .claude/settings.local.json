@@ -124,7 +124,9 @@
       "Bash(python -c \"import json,sys; [print\\(t['id'],'|',t['genre'],'|',t['name']\\) for t in json.load\\(sys.stdin\\)]\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('TOTAL:',len\\(d\\)\\); [print\\(t['id'],'|',t['genre'],'|',t['name']\\) for t in d]\")",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\)['hits'][0]; print\\('tags:',d['tags']\\); print\\('user:',d['user']\\); print\\('url:',d['webformatURL']\\)\")",
-      "Bash(node scripts/fix-bad-thumbnails-round2.js)"
+      "Bash(node scripts/fix-bad-thumbnails-round2.js)",
+      "Bash(cd C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\mvp)",
+      "Bash(xargs grep *)"
     ]
   }
 }

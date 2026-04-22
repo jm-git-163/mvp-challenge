@@ -647,6 +647,8 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     useEffect(() => {
       if (!ready) return;
 
+      // FIX-Y1 (2026-04-22): 어느 한 draw* 함수에서라도 throw 하면 rAF 체인이 끊겨
+      //   카메라 피드가 얼어붙는 현상 방지. 각 블록을 try/catch 로 감싸 개별 실패를 묵음 처리.
       const drawFrame = () => {
         const canvas = canvasRef.current;
         const video  = videoRef.current;
@@ -662,37 +664,41 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         const lms     = landmarksRef.current;
         const face    = facingRef.current;
 
-        // 1. Camera
-        drawCamera(ctx, video, face);
+        // 1. Camera — 이게 실패하면 루프 정지 위험이 가장 크므로 별도 try
+        try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
 
         // 2. Genre effect
-        if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap);
+        try { if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap); } catch {}
 
         // 3. Header
-        if (tmpl) drawHeader(ctx, tmpl, elap, isRec);
+        try { if (tmpl) drawHeader(ctx, tmpl, elap, isRec); } catch {}
 
         // 4. Subtitle
-        if (tmpl) {
-          const timeline: { start_ms: number; end_ms: number; text: string; style?: string }[] =
-            tmpl.subtitle_timeline ?? [];
-          const sub = timeline.find((s) => elap >= s.start_ms && elap < s.end_ms);
-          if (sub) drawSubtitle(ctx, sub.text, sub.style, genreColor(tmpl.genre ?? ''));
-        }
+        try {
+          if (tmpl) {
+            const timeline: { start_ms: number; end_ms: number; text: string; style?: string }[] =
+              tmpl.subtitle_timeline ?? [];
+            const sub = timeline.find((s) => elap >= s.start_ms && elap < s.end_ms);
+            if (sub) drawSubtitle(ctx, sub.text, sub.style, genreColor(tmpl.genre ?? ''));
+          }
+        } catch {}
 
         // 5. Mission card
-        if (isRec && mission) drawMissionCard(ctx, mission, score);
+        try { if (isRec && mission) drawMissionCard(ctx, mission, score); } catch {}
 
         // 6. Skeleton — 숨김 처리 (판정용으로만 사용, 화면/최종 영상에 노출 금지)
         void lms; void drawSkeleton;
 
         // 7. Live judgement overlays
-        if (isRec) {
-          const nowMs = performance.now();
-          drawCombo(ctx, comboRef.current, elap);
-          if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
-          if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
-          drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
-        }
+        try {
+          if (isRec) {
+            const nowMs = performance.now();
+            drawCombo(ctx, comboRef.current, elap);
+            if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
+            if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
+            drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
+          }
+        } catch {}
 
         rafRef.current = requestAnimationFrame(drawFrame);
       };

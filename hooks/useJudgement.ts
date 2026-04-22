@@ -449,11 +449,10 @@ export function useJudgement(): {
           case 'timing':
           case 'expression':
           default: {
-            // fitness 장르: lower-body-only framing is common on phone selfies;
-            // accept 8+ keypoints at 0.25 (was 10 at 0.3) — compatible with detectSquat's fallback.
-            const hasRealLandmarks = landmarks.length >= 17 &&
-              landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.25).length >= 8;
-            if (template && template.genre === 'fitness' && hasRealLandmarks && kneeAngleOut < 140) {
+            // FIX-Y4 (2026-04-22): fitness 폴백 점수를 **squatLmOk (실제 무릎 visible)** 로 게이트.
+            //   기존엔 hasRealLandmarks(8 keypoints @0.25) 만 통과하면 kneeAngleOut 으로 점수 → 상체 랜드마크
+            //   만으로도 "perfect" 가 떠버림. 이제는 full-body 검출이 성공했을 때만 점수 부여.
+            if (template && template.genre === 'fitness' && squatLmOk && kneeAngleOut < 140) {
               const sqScore =
                 kneeAngleOut < 95  ? 1.00 :
                 kneeAngleOut < 115 ? 0.85 :
