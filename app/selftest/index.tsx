@@ -338,10 +338,18 @@ export default function SelfTest() {
   //   실제로 핸들러 진입하는지 시각 확인. 진입 안 되면 Pressable/onPress 문제,
   //   진입했는데 rec.listen() 에서 에러면 engine/권한 문제.
   const startStt = () => {
-    // FIX-STT-ALERT (2026-04-22): alert 로 명확히 click 수신 여부 확인.
-    try { if (typeof window !== 'undefined' && window.alert) window.alert('STT 버튼 탭됨 @ ' + new Date().toLocaleTimeString()); } catch {}
     patch({ sttLastEvent: 'btn-pressed @ ' + new Date().toLocaleTimeString() });
     try {
+      // FIX-STT-AUDIO-CONFLICT (2026-04-22): Android Chrome 에서 getUserMedia 가
+      //   audio track 을 잡고 있으면 webkitSpeechRecognition 이 onresult 를 못 받음.
+      //   STT 테스트 동안 audio track 만 잠시 stop (video 는 유지).
+      const pre = streamRef.current ?? (window as any).__permissionStream;
+      if (pre && typeof pre.getAudioTracks === 'function') {
+        pre.getAudioTracks().forEach((t: MediaStreamTrack) => {
+          try { t.stop(); } catch {}
+          try { pre.removeTrack(t); } catch {}
+        });
+      }
       const rec = getGlobalSpeechRecognizer();
       if (!rec.isSupported()) {
         patch({ sttSupported: false, sttLastEvent: 'unsupported' });
@@ -355,7 +363,7 @@ export default function SelfTest() {
         600_000,
       );
       sttStopRef.current = stop;
-      patch({ sttSupported: true, sttLastEvent: 'listen() called OK' });
+      patch({ sttSupported: true, sttLastEvent: 'listen() called OK (audio-track released)' });
     } catch (err: any) {
       patch({ sttLastEvent: 'btn-error: ' + (err?.message ?? String(err)) });
     }
@@ -411,7 +419,7 @@ export default function SelfTest() {
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-fixed-overlay-v5 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-audio-release-v6 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
