@@ -219,11 +219,14 @@ export default function SelfTest() {
       patch({ sttSupported: false, sttLastEvent: 'unsupported' });
     } else {
       patch({ sttSupported: true });
+      // FIX-STT (2026-04-22): selftest 는 사용자가 여러 번 말해가며 관찰해야 하므로
+      //   30s/60s 타임아웃으로 끊기면 "results=0, listening=off" 로 고정되어 디버깅 불가.
+      //   10분으로 넉넉하게 두고, 페이지 떠날 때만 stop.
       const stop = rec.listen(
         'ko',
         (interim) => patch({ sttInterim: interim }),
         (fin) => patch({ sttFinal: fin }),
-        60_000,
+        600_000,
       );
       sttStopRef.current = stop;
     }

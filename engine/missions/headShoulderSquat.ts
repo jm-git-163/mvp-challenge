@@ -32,11 +32,15 @@ const NOSE_VIS_GATE = 0.30;                 // research §4.1 완화
 const SHOULDER_VIS_GATE = 0.30;
 const CALIBRATION_SIGMA_LIMIT = 0.08;       // σ/d0 > 8% 면 "흔들림" 판정
 
-// 절대·상대 threshold 의 max. d0 가 작은 근접 프레이밍에서도 실질 임계를 확보.
-const ABS_DOWN_THRESHOLD = 0.04;
-const REL_DOWN_THRESHOLD = 0.15;
-const ABS_UP_THRESHOLD   = 0.015;
-const REL_UP_THRESHOLD   = 0.05;
+// FIX-HSS (2026-04-22): 사용자 피드백 "내려가도 1, 올라와도 2 처럼 애매하게 카운트".
+//   원인: DOWN 진입·탈출에 시간 조건이 없어 고개 까딱임으로도 싸이클 완성.
+//   대응: (a) 임계를 상향(0.04→0.06 abs, 0.15→0.22 rel) (b) DOWN 최소 지속시간 300ms
+//        (c) DOWN 깊이 검증 — minDSinceDown 이 baseline-effDeep(0.5x 학습진폭) 이하여야 rep 인정.
+const ABS_DOWN_THRESHOLD = 0.06;
+const REL_DOWN_THRESHOLD = 0.22;
+const ABS_UP_THRESHOLD   = 0.02;
+const REL_UP_THRESHOLD   = 0.08;
+const MIN_DOWN_DWELL_MS  = 300;
 
 // UP 구간 baseline 미세조정 EMA (drift 억제)
 const BASELINE_EMA_ALPHA = 0.02;
@@ -227,8 +231,15 @@ export class HeadShoulderSquatDetector {
         this.minDSinceDown = d;
       }
       if (d > effUp) {
-        // 1 rep 완료
-        if (nowMs - this.lastCountAt >= MIN_REP_INTERVAL_MS) {
+        // FIX-HSS (2026-04-22): rep 인정 3-조건 AND
+        //   1) 마지막 rep 으로부터 600ms 이상 (디바운스)
+        //   2) DOWN 페이즈 300ms 이상 유지 (고개 까딱 탈락)
+        //   3) DOWN 중 최저점이 baseline-0.035 이하 (진짜 내려간 적 있어야)
+        const dwell = nowMs - this.lastChangeAt;
+        const depthOk = this.minDSinceDown !== null && (this.d0 - this.minDSinceDown) >= 0.035;
+        const intervalOk = nowMs - this.lastCountAt >= MIN_REP_INTERVAL_MS;
+        const dwellOk = dwell >= MIN_DOWN_DWELL_MS;
+        if (intervalOk && dwellOk && depthOk) {
           this.count += 1;
           this.lastCountAt = nowMs;
           justCounted = true;
