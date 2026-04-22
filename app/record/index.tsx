@@ -1839,6 +1839,66 @@ export default function RecordScreen() {
                 <StanceGuide visible={true} debug={squatDebug} />
               )}
 
+              {/* FIX-Z5 (2026-04-22): 항상 보이는 DOM 뱃지 — 카운트 / 포즈 감지 상태.
+                  캔버스 오버레이가 성능 문제로 늦게 그려지든 말든, 이 DOM 은 즉시 반영.
+                  유저가 "카운트 되는지 확인 조차 안됨" 문제를 해결. */}
+              {activeTemplate?.genre === 'fitness' && isRecording && (
+                <View pointerEvents="none" style={{
+                  position:'absolute', top: 200, left: 12,
+                  backgroundColor:'rgba(20,184,166,0.95)',
+                  borderRadius: 14, paddingVertical: 10, paddingHorizontal: 16,
+                  zIndex: 9997, elevation: 18,
+                  shadowColor:'#000', shadowOpacity:0.4, shadowRadius:8,
+                }}>
+                  <Text style={{ color:'#fff', fontSize:11, fontWeight:'600', opacity: 0.9 }}>SQUATS</Text>
+                  <Text style={{ color:'#fff', fontSize:32, fontWeight:'800', lineHeight: 36 }}>
+                    {squatCount}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2 }}>
+                    {squatMode === 'full-body' ? '✅ 풀바디' :
+                     squatMode === 'near-mode' ? '🟡 근접 모드 (최대 70%)' :
+                     squatDebug.landmarkCount > 0 ? `감지중… (lm ${squatDebug.landmarkCount})` :
+                     '⚠️ 포즈 미감지'}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.75, marginTop:2 }}>
+                    무릎각 {Math.round(squatKneeAngle)}° · {squatPhase === 'down' ? '⬇️ 내려감' : squatPhase === 'up' ? '⬆️ 올라옴' : '—'}
+                  </Text>
+                </View>
+              )}
+
+              {/* FIX-Z6: 음성 인식 상태 뱃지 — voice_read 미션 중. */}
+              {isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (() => {
+                let srDiag: any = null;
+                try { srDiag = getGlobalSpeechRecognizer().getDiagnostic(); } catch {}
+                const listening = srDiag?.listening;
+                const err = srDiag?.error;
+                const raw = srDiag?.transcript || voiceTranscript || '';
+                const shown = raw ? (raw.length > 50 ? '…' + raw.slice(-50) : raw) : '';
+                return (
+                  <View pointerEvents="none" style={{
+                    position:'absolute', top: 116, right: 12, left: 12,
+                    backgroundColor: err ? 'rgba(239,68,68,0.92)' : listening ? 'rgba(59,130,246,0.92)' : 'rgba(100,116,139,0.92)',
+                    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14,
+                    zIndex: 9997, elevation: 18,
+                  }}>
+                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>
+                      {err ? `⚠️ 음성 인식 오류: ${err}` :
+                       listening ? '🎤 듣는 중…' :
+                       '🎤 대기 중'}
+                    </Text>
+                    {shown ? (
+                      <Text style={{ color:'#fff', fontSize:14, fontWeight:'600', marginTop:2 }}>
+                        {shown}
+                      </Text>
+                    ) : (
+                      <Text style={{ color:'#fff', fontSize:11, opacity:0.85, marginTop:2 }}>
+                        {listening ? '큰 소리로 또박또박 읽어 주세요' : '모바일 브라우저에서는 음성 인식 불안정 — 데스크톱 권장'}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })()}
+
               {/* FIX-Y6 (2026-04-22): Whisper 모델 로딩 배너. 모바일에서 voice 미션 템플릿
                   선택 시, 40MB 모델 다운로드가 필요 → 상태를 숨기지 않고 명시. */}
               {whisperStatus === 'loading' && state !== 'recording' && (

@@ -233,20 +233,22 @@ export function useJudgement(): {
       //       (유저가 무릎을 안 보이게 촬영하면 정식 카운트 불가 — StanceGuide 로 안내됨)
       const conf = (i: number) =>
         (landmarks[i]?.score ?? landmarks[i]?.visibility ?? 0);
+      // FIX-Z5 (2026-04-22): 실사용 기준으로 완화.
+      //   이전 Y4 에서 0.55 로 올렸더니 실기기(카메라 2m 거리)에서 MoveNet 무릎
+      //   신뢰도가 거의 0.45~0.55 주변 → 거의 squatLmOk 를 못 얻어 카운트 0.
+      //   0.40 로 되돌리되, 가짜 카운트는 phase 디바운스(300ms)·속도·각도 복합
+      //   조건으로 억제 (detectSquat 내부 로직).
       const fullLeg = (h: number, k: number, a: number) =>
-        conf(h) > 0.55 && conf(k) > 0.55 && conf(a) > 0.55;
+        conf(h) > 0.40 && conf(k) > 0.40 && conf(a) > 0.40;
       const squatLmOk = landmarks.length >= 17 && (
         fullLeg(11, 13, 15) || fullLeg(12, 14, 16)
       );
-      // FIX-W: close-detector 는 실제로 full-body 불가능할 때만 켠다.
-      //   조건: 얼굴(0-4)은 보이는데 어느 쪽 다리도 full-leg 로 안 잡히고,
-      //   동시에 landmarks 배열 자체는 충분한 신뢰도(≥6 landmarks > 0.4).
-      const faceOk = conf(0) > 0.4 || conf(1) > 0.4 || conf(2) > 0.4;
-      const legPartiallyVisible =
-        conf(11) > 0.3 || conf(12) > 0.3 ||
-        conf(13) > 0.3 || conf(14) > 0.3 ||
-        conf(15) > 0.3 || conf(16) > 0.3;
-      const allowCloseMode = faceOk && !squatLmOk && !legPartiallyVisible;
+      // FIX-Z5: close-detector 게이트 완화.
+      //   얼굴이 보이고 full-body 가 안 잡히면 항상 근접 모드 허용.
+      //   "다리가 부분적으로 보이면 금지" 제약 제거 — 실제로는 무릎이 살짝
+      //   보이는 근접 촬영이 가장 흔한 케이스인데 기존엔 이걸 다 막아버림.
+      const faceOk = conf(0) > 0.35 || conf(1) > 0.35 || conf(2) > 0.35;
+      const allowCloseMode = faceOk && !squatLmOk;
       let lastCloseState: ReturnType<typeof closeSquatRef.current.update> | null = null;
       if (template && template.genre === 'fitness' && allowCloseMode) {
         const closeState = closeSquatRef.current.update(landmarks);

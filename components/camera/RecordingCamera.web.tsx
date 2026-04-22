@@ -145,6 +145,110 @@ function rrect(
   }
 }
 
+// FIX-Z7 (2026-04-22): 인트로/아웃트로 카드 — 녹화 첫 2초, 마지막 2초에 실제 시각 장치.
+//   기존엔 카운트다운 후 곧바로 빈 카메라 + 텍스트 → "html 수준" 인상.
+//   이제: 인트로는 검은 커튼 스윕 + 템플릿 이름 줌인, 아웃트로는 "COMPLETE!" + 별.
+function drawIntroOverlay(
+  ctx: CanvasRenderingContext2D,
+  template: any,
+  elapsed: number,
+) {
+  const INTRO_MS = 2000;
+  if (elapsed > INTRO_MS) return;
+  const p = elapsed / INTRO_MS; // 0 → 1
+  const color = genreColor(template?.genre ?? '');
+
+  // 검은 커튼 스윕 (왼→오로 빠지면서 카메라 공개)
+  const sweepX = CW * p;
+  ctx.save();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(sweepX, 0, CW - sweepX, CH);
+  // 커튼 앞에 accent color 스트립
+  ctx.fillStyle = color;
+  ctx.fillRect(sweepX - 6, 0, 6, CH);
+  ctx.restore();
+
+  // 중앙 카드 (0.2s 에 페이드인 → 1.5s 에 위로 이동 → 2.0s 에 사라짐)
+  const cardP = p < 0.1 ? 0 : p < 0.5 ? (p - 0.1) / 0.4 : p < 0.85 ? 1 : 1 - (p - 0.85) / 0.15;
+  if (cardP <= 0) return;
+  const scale = 0.7 + cardP * 0.3;
+  const ty = p < 0.75 ? 0 : -80 * ((p - 0.75) / 0.25);
+  ctx.save();
+  ctx.globalAlpha = cardP;
+  ctx.translate(CW / 2, CH / 2 + ty);
+  ctx.scale(scale, scale);
+  // 카드 배경 (글래스)
+  ctx.fillStyle = 'rgba(15,18,30,0.88)';
+  ctx.beginPath(); rrect(ctx, -260, -100, 520, 200, 28); ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 3;
+  ctx.beginPath(); rrect(ctx, -260, -100, 520, 200, 28); ctx.stroke();
+  // 이모지
+  ctx.font = '80px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(template?.theme_emoji ?? '🎬', 0, -40);
+  // 템플릿 이름
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillStyle = color;
+  ctx.fillText(template?.name ?? 'Challenge', 0, 30);
+  // "START" 서브
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText(`▶  START  ◀`, 0, 70);
+  ctx.restore();
+}
+
+function drawOutroOverlay(
+  ctx: CanvasRenderingContext2D,
+  template: any,
+  elapsed: number,
+) {
+  const OUTRO_MS = 2000;
+  const totalMs = (template?.duration_sec ?? 0) * 1000;
+  if (!totalMs) return;
+  const remain = totalMs - elapsed;
+  if (remain > OUTRO_MS || remain < 0) return;
+  const p = 1 - (remain / OUTRO_MS); // 0 → 1
+  const color = genreColor(template?.genre ?? '');
+
+  // 배경 페이드
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${(p * 0.55).toFixed(2)})`;
+  ctx.fillRect(0, 0, CW, CH);
+  ctx.restore();
+
+  // 중앙 "COMPLETE" + 별
+  const cardP = p < 0.15 ? p / 0.15 : 1;
+  const scale = 0.5 + cardP * 0.6;
+  ctx.save();
+  ctx.globalAlpha = cardP;
+  ctx.translate(CW / 2, CH / 2);
+  ctx.scale(scale, scale);
+  // 폴라로이드 카드
+  ctx.fillStyle = 'rgba(255,253,240,0.96)';
+  ctx.beginPath(); rrect(ctx, -280, -140, 560, 280, 24); ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 4;
+  ctx.beginPath(); rrect(ctx, -280, -140, 560, 280, 24); ctx.stroke();
+  // 별 (5개)
+  ctx.fillStyle = '#fbbf24';
+  for (let i = 0; i < 5; i++) {
+    const sx = -120 + i * 60;
+    drawStar(ctx, sx, -70, 18, 5);
+  }
+  // COMPLETE!
+  ctx.font = 'bold 56px sans-serif';
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('COMPLETE!', 0, 10);
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = color;
+  ctx.fillText(`${template?.name ?? ''}`, 0, 60);
+  ctx.font = '600 16px sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('결과 화면으로 이동합니다…', 0, 95);
+  ctx.restore();
+}
+
 function drawHeader(
   ctx: CanvasRenderingContext2D,
   template: any,
@@ -961,6 +1065,14 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
               if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
               drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
+            }
+          } catch {}
+
+          // 8. FIX-Z7: 인트로/아웃트로 카드 (녹화 중에만).
+          try {
+            if (isRec && tmpl) {
+              drawIntroOverlay(ctx, tmpl, elap);
+              drawOutroOverlay(ctx, tmpl, elap);
             }
           } catch {}
         } catch (e) {
