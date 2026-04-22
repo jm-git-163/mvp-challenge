@@ -503,44 +503,56 @@ export default function SelfTest() {
       await new Promise((r) => setTimeout(r, 400));
       window.alert(`[2/4] 녹음 완료 (${(blob.size / 1024).toFixed(1)} KB). 확인 누르면 스피커로 재생 + SR 시작.`);
 
-      // 3) 스피커 재생 + SR 동시 시작
-      const url = URL.createObjectURL(blob);
-      const a = new Audio(url);
-      a.volume = 1.0;
-      (a as any).playsInline = true;
+      // 3) Web Audio API 로 볼륨 5배 증폭 재생 + SR 동시 시작
+      //    <audio>.volume 은 1.0 상한 → Google 앱 에코 캔슬러를 뚫기 어려움.
+      //    AudioContext + GainNode 로 clip 감수하고 amplify.
+      const AC: any = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AC();
+      const arrayBuf = await blob.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
+      const gain = ctx.createGain();
+      gain.gain.value = 5.0; // 5배 증폭 (클리핑 발생하지만 SR 감지율이 중요)
+      gain.connect(ctx.destination);
 
       const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SR) { window.alert('SR 없음'); URL.revokeObjectURL(url); return; }
+      if (!SR) { window.alert('SR 없음'); try { ctx.close(); } catch {} return; }
       const r = new SR();
       r.lang = 'ko-KR';
       r.continuous = true;
       r.interimResults = true;
-      r.maxAlternatives = 1;
+      r.maxAlternatives = 3; // 대안 늘림 — 왜곡된 신호에 가장 가까운 후보 선택 기회
       let transcript = '';
       let errLog = '';
+      let eventLog = '';
+      r.onstart = () => { eventLog += 'start '; };
       r.onresult = (e: any) => {
+        eventLog += `res(${e.results.length}) `;
         let t = '';
         for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript + ' ';
         transcript = t.trim();
       };
-      r.onerror = (e: any) => { errLog = String(e?.error ?? e); };
-      r.onend = () => { /* noop */ };
+      r.onerror = (e: any) => { errLog += (e?.error ?? e) + ';'; eventLog += `err(${e?.error}) `; };
+      r.onend = () => { eventLog += 'end '; };
       r.start();
 
-      // 재생 시작 (SR onstart 후에)
-      await new Promise((r2) => setTimeout(r2, 300));
-      await a.play().catch((e) => { errLog += ' play-err:' + e.message; });
+      // SR 이 세션 열 시간 부여 (1초)
+      await new Promise((r2) => setTimeout(r2, 1000));
 
-      // 재생 끝날 때까지 기다림
-      await new Promise<void>((resolve) => {
-        a.onended = () => resolve();
-        setTimeout(() => resolve(), 5000);
-      });
-      await new Promise((r2) => setTimeout(r2, 800));
+      // 증폭된 오디오 재생
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(gain);
+      src.start(0);
+      const playDur = audioBuf.duration * 1000;
+
+      // 재생 끝날 때까지 + 여유 1.5초
+      await new Promise((r2) => setTimeout(r2, playDur + 1500));
+      try { src.stop(); } catch {}
       try { r.stop(); } catch {}
-      URL.revokeObjectURL(url);
+      await new Promise((r2) => setTimeout(r2, 400));
+      try { ctx.close(); } catch {}
 
-      window.alert(`[3/4] 전사 결과: "${transcript || '(empty)'}"${errLog ? '\nerror: ' + errLog : ''}`);
+      window.alert(`[3/4] 전사: "${transcript || '(empty)'}"\n이벤트: ${eventLog}${errLog ? '\n에러: ' + errLog : ''}`);
 
       // 4) 유사도 계산
       const { textSimilarity } = require('../../utils/speechUtils');
@@ -590,7 +602,7 @@ export default function SelfTest() {
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-loopback-v10 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-loopback-amp-v11 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
