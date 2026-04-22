@@ -338,6 +338,8 @@ export default function SelfTest() {
   //   실제로 핸들러 진입하는지 시각 확인. 진입 안 되면 Pressable/onPress 문제,
   //   진입했는데 rec.listen() 에서 에러면 engine/권한 문제.
   const startStt = () => {
+    // FIX-STT-ALERT (2026-04-22): alert 로 명확히 click 수신 여부 확인.
+    try { if (typeof window !== 'undefined' && window.alert) window.alert('STT 버튼 탭됨 @ ' + new Date().toLocaleTimeString()); } catch {}
     patch({ sttLastEvent: 'btn-pressed @ ' + new Date().toLocaleTimeString() });
     try {
       const rec = getGlobalSpeechRecognizer();
@@ -373,13 +375,43 @@ export default function SelfTest() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // FIX-STT-FIXED-OVERLAY (2026-04-22): ScrollView 안에서 Pressable/button 둘 다
+  //   안 눌린다는 제보 → ScrollView 바깥 position:fixed DOM 에 버튼을 렌더. React
+  //   Fragment 최상단에 둬서 RN-web ScrollView wrapper 의 event 가로채기를 우회.
+  const FixedSttButton = Platform.OS === 'web' ? React.createElement('button', {
+    key: 'stt-fixed-btn',
+    onClick: startStt,
+    onTouchEnd: (e: any) => { e.preventDefault?.(); e.stopPropagation?.(); startStt(); },
+    style: {
+      position: 'fixed',
+      bottom: 16,
+      left: 16,
+      right: 16,
+      zIndex: 99999,
+      background: '#16a34a',
+      color: '#fff',
+      fontSize: 15,
+      fontWeight: 800,
+      padding: '18px 16px',
+      border: '3px solid #fde047',
+      borderRadius: 14,
+      cursor: 'pointer',
+      touchAction: 'manipulation',
+      WebkitTapHighlightColor: 'rgba(253,224,71,0.5)',
+      fontFamily: 'inherit',
+      boxShadow: '0 6px 16px rgba(0,0,0,0.5)',
+    },
+  }, '🎤 FIXED: 음성 인식 시작 (탭)') : null;
+
   return (
+    <>
+    {FixedSttButton}
     <ScrollView style={s.root} contentContainerStyle={s.inner}>
       <Text style={s.title}>🩺 MotiQ 실기기 자가진단</Text>
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-native-btn-v4 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-fixed-overlay-v5 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
@@ -492,8 +524,9 @@ export default function SelfTest() {
         <Text style={s.hint}>각 버튼 누르면 1~2초 안에 소리가 나야 정상. 에러 메시지가 뜨면 해당 파일이 없거나 코덱 미지원.</Text>
       </Section>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: 100 }} />
     </ScrollView>
+    </>
   );
 }
 
