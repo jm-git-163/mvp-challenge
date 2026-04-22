@@ -36,15 +36,29 @@ const SHOULDER_VIS_GATE = 0.30;
 //   너무 흔들리면 여전히 unstable 이지만 정상 서있는 사용자는 통과한다.
 const CALIBRATION_SIGMA_LIMIT = 0.20;
 
-// FIX-HSS-v2 (2026-04-22): v1 (0.06 + dwell 300 + depth 0.035) 은 과민 해결했지만
-//   "타이트하게 안될 때가 있고" — 실제 스쿼트까지 탈락. 중간값으로 재조정.
-//   abs 0.05 / rel 0.18 / dwell 200ms / depth 0.025 = 고개 까딱은 탈락, 실제 스쿼트는 통과.
+// FIX-HSS-v3 (2026-04-22): 사용자 실기기 제보 — "했는데 안세고, 안했는데 셈".
+//   v2 는 threshold 만 튜닝 → 한계. 신호 자체가 landmark 지터로 스파이크/드롭.
+//   해결: (1) d 신호 EMA 스무딩 (1~2 프레임 스파이크 흡수)
+//        (2) 첫 3 rep 진폭 평균화 (첫 rep 가 얕거나 깊으면 전 세션 왜곡)
+//        (3) 연속 N 프레임 조건화 (DOWN 진입 2 프레임 연속 crossed) — 단일 프레임 튐 차단
+//        (4) 깊이 gate 0.028 로 소폭 강화
 const ABS_DOWN_THRESHOLD = 0.05;
 const REL_DOWN_THRESHOLD = 0.18;
 const ABS_UP_THRESHOLD   = 0.018;
 const REL_UP_THRESHOLD   = 0.06;
 const MIN_DOWN_DWELL_MS  = 200;
-const MIN_DEPTH_FOR_REP  = 0.025;
+const MIN_DEPTH_FOR_REP  = 0.028;
+
+// HSS-v3: d 신호 EMA 스무딩. 0.45 = 반응성/안정성 균형 (MoveNet @ 10~20fps 가정).
+//   너무 낮으면 반응 지연 → 빠른 스쿼트 못 잡음. 너무 높으면 스파이크 못 거름.
+const SIGNAL_EMA_ALPHA = 0.45;
+
+// HSS-v3: DOWN/UP 전이 시 N 프레임 연속 threshold 초과 요구 (단일 프레임 튐 차단).
+const CONSECUTIVE_DOWN_FRAMES = 2;
+const CONSECUTIVE_UP_FRAMES   = 2;
+
+// HSS-v3: 진폭 학습을 첫 3 rep 평균으로 (첫 1회의 극단값 고정 방지).
+const LEARN_REP_COUNT = 3;
 
 // UP 구간 baseline 미세조정 EMA (drift 억제)
 const BASELINE_EMA_ALPHA = 0.02;
@@ -90,9 +104,16 @@ export class HeadShoulderSquatDetector {
   private lastCountAt = 0;
   private lastChangeAt = 0;
 
-  // 첫 rep 진폭 학습
+  // HSS-v3: 신호 EMA 상태
+  private dEma: number | null = null;
+  // HSS-v3: 연속 프레임 카운터 (전이 직전)
+  private belowDownFrames = 0;
+  private aboveUpFrames = 0;
+
+  // 진폭 학습 (HSS-v3: 첫 N rep 평균)
   private minDSinceDown: number | null = null;
   private learnedAmp: number | null = null;
+  private learnAmpSamples: number[] = [];
 
   reset(): void {
     this.calibrationSamples = [];
@@ -107,6 +128,10 @@ export class HeadShoulderSquatDetector {
     this.lastChangeAt = 0;
     this.minDSinceDown = null;
     this.learnedAmp = null;
+    this.learnAmpSamples = [];
+    this.dEma = null;
+    this.belowDownFrames = 0;
+    this.aboveUpFrames = 0;
   }
 
   /** 외부에서 사전 측정한 d0 를 주입 (캘리브레이션 컴포넌트에서 전달) */
@@ -158,18 +183,25 @@ export class HeadShoulderSquatDetector {
       return this.freeze(false, 0, nowMs);
     }
 
-    let d: number;
+    let dRaw: number;
     if (lOk || rOk) {
       const shY = (lOk && rOk) ? (lShY + rShY) / 2 : (lOk ? lShY : rShY);
       // 정상 서있는 자세: 어깨가 코 아래 → shY > noseY → d > 0
-      d = shY - noseY;
+      dRaw = shY - noseY;
       this.mode = 'hs';
     } else {
       // A 폴백: nose.y 단독. "내려가면 y 증가" 이므로 부호 반전해서 d 를 "위쪽 여유" 로 표현.
       //   → d = (1 − noseY). 이렇게 하면 hs 모드와 방향(내려가면 d 감소)이 일치.
-      d = 1 - noseY;
+      dRaw = 1 - noseY;
       this.mode = 'nose_fallback';
     }
+
+    // HSS-v3: EMA 스무딩 — 1~2 프레임 landmark 스파이크 흡수 (false count 주범).
+    //   캘리브레이션·카운트 로직 모두 d 를 사용.
+    this.dEma = this.dEma === null
+      ? dRaw
+      : SIGNAL_EMA_ALPHA * dRaw + (1 - SIGNAL_EMA_ALPHA) * this.dEma;
+    const d = this.dEma;
 
     // 캘리브레이션 단계
     if (!this.calibrated) {
@@ -222,11 +254,19 @@ export class HeadShoulderSquatDetector {
     let justCounted = false;
 
     if (this.phase === 'up' || this.phase === 'unknown') {
+      // HSS-v3: DOWN 진입 = 연속 N 프레임 below effDown (단일 프레임 튐 차단)
       if (d < effDown) {
+        this.belowDownFrames += 1;
+      } else {
+        this.belowDownFrames = 0;
+      }
+      if (this.belowDownFrames >= CONSECUTIVE_DOWN_FRAMES) {
         this.phase = 'down';
         this.minDSinceDown = d;
         this.lastChangeAt = nowMs;
-      } else {
+        this.belowDownFrames = 0;
+        this.aboveUpFrames = 0;
+      } else if (d >= effUp) {
         // UP 구간에서만 baseline EMA (드리프트 억제)
         this.d0 = this.d0 * (1 - BASELINE_EMA_ALPHA) + d * BASELINE_EMA_ALPHA;
       }
@@ -234,11 +274,17 @@ export class HeadShoulderSquatDetector {
       if (this.minDSinceDown === null || d < this.minDSinceDown) {
         this.minDSinceDown = d;
       }
+      // HSS-v3: UP 복귀 = 연속 N 프레임 above effUp
       if (d > effUp) {
+        this.aboveUpFrames += 1;
+      } else {
+        this.aboveUpFrames = 0;
+      }
+      if (this.aboveUpFrames >= CONSECUTIVE_UP_FRAMES) {
         // FIX-HSS (2026-04-22): rep 인정 3-조건 AND
         //   1) 마지막 rep 으로부터 600ms 이상 (디바운스)
-        //   2) DOWN 페이즈 300ms 이상 유지 (고개 까딱 탈락)
-        //   3) DOWN 중 최저점이 baseline-0.035 이하 (진짜 내려간 적 있어야)
+        //   2) DOWN 페이즈 200ms 이상 유지 (고개 까딱 탈락)
+        //   3) DOWN 중 최저점이 baseline-0.028 이하 (진짜 내려간 적 있어야)
         const dwell = nowMs - this.lastChangeAt;
         const depthOk = this.minDSinceDown !== null && (this.d0 - this.minDSinceDown) >= MIN_DEPTH_FOR_REP;
         const intervalOk = nowMs - this.lastCountAt >= MIN_REP_INTERVAL_MS;
@@ -248,15 +294,22 @@ export class HeadShoulderSquatDetector {
           this.lastCountAt = nowMs;
           justCounted = true;
 
-          // 첫 rep 이후 진폭 학습 한 번만
-          if (this.learnedAmp === null && this.minDSinceDown !== null) {
+          // HSS-v3: 첫 N rep 진폭 평균으로 학습 — 첫 rep 의 극단값 (과도하게 깊은 1회 또는
+          //   얕은 1회) 이 전 세션 threshold 고정시키는 문제 해결.
+          if (this.minDSinceDown !== null) {
             const amp = this.d0 - this.minDSinceDown;
-            if (amp > 0.02) this.learnedAmp = amp;
+            if (amp > 0.02 && this.learnAmpSamples.length < LEARN_REP_COUNT) {
+              this.learnAmpSamples.push(amp);
+              const sum = this.learnAmpSamples.reduce((a, b) => a + b, 0);
+              this.learnedAmp = sum / this.learnAmpSamples.length;
+            }
           }
         }
         this.phase = 'up';
         this.minDSinceDown = null;
         this.lastChangeAt = nowMs;
+        this.aboveUpFrames = 0;
+        this.belowDownFrames = 0;
       }
     }
 

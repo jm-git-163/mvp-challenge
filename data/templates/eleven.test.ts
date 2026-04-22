@@ -50,9 +50,10 @@ describe('11개 독립 템플릿 기본 품질', () => {
       expect(() => parseTemplate(t)).not.toThrow();
     });
 
-    it(`${name}: layers 10~25 (news-anchor 기존 26허용)`, () => {
-      // news-anchor / squat-master 레퍼런스 기존 템플릿은 레거시라 예외.
-      const max = name === 'news-anchor' ? 40 : 14;
+    it(`${name}: layers 10~30 (CLAUDE.md §3 "15+ 레이어" 지침 수용, news-anchor 40까지)`, () => {
+      // TEAM-TEMPLATE-v2 (2026-04-22): CLAUDE.md §3 "레이어 10개 미만 금지, 15개 이상 권장"
+      //   에 맞춰 상한 확대. 실기기 성능 한계는 Phase 7 에서 tier 감지로 레이어 자동 삭감.
+      const max = name === 'news-anchor' ? 40 : 30;
       expect(t.layers.length, `${name} 레이어 ${t.layers.length}`).toBeGreaterThanOrEqual(10);
       expect(t.layers.length, `${name} 레이어 ${t.layers.length}`).toBeLessThanOrEqual(max);
     });

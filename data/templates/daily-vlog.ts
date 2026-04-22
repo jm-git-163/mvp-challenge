@@ -33,22 +33,31 @@ export const dailyVlog: Template = {
 
   cameraFraming: { kind: 'fullscreen' },
 
+  // TEAM-TEMPLATE-v2 (2026-04-22): 로파이 필름 카페 느낌 보강. +7 레이어.
   layers: [
     { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1, enabled: true, props: { colors: [CREAM, '#FFE5B4', BLUE], hueCyclePeriodSec: 90 } },
-    { id: 'bg_grain',      type: 'noise_pattern',    zIndex: 2, opacity: 0.1, enabled: true },
-    { id: 'bg_dust',       type: 'particle_ambient', zIndex: 3, opacity: 0.4, enabled: true, props: { preset: 'glitter_down', count: 18 } },
+    { id: 'bg_grain',      type: 'noise_pattern',    zIndex: 2, opacity: 0.14, enabled: true },
+    { id: 'bg_dust',       type: 'particle_ambient', zIndex: 3, opacity: 0.5, enabled: true, props: { preset: 'glitter_down', count: 28, tint: MUSTARD } },
+    { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.4, enabled: true, props: { shapes: ['heart', 'star'], yBand: [120, 460], tint: BLUE, sizeJitter: 0.4 } },
 
     { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
-    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.2, enabled: true, props: { borderColor: MUSTARD, borderWidth: 2, softShadow: true } },
+    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.25, enabled: true, props: { borderColor: MUSTARD, borderWidth: 3, softShadow: true } },
+
+    { id: 'beat_glow',     type: 'beat_flash',       zIndex: 25, opacity: 0.18, enabled: true, props: { color: MUSTARD, fadeMs: 220 }, reactive: { onBeat: { every: 8, property: 'opacity', amount: 0.22, easing: 'easeOut', durationMs: 220 } } },
+
+    { id: 'mood_badge',    type: 'banner_badge',     zIndex: 32, opacity: 0.9, enabled: true, props: { text: 'TODAY ☕', bg: CREAM, color: BROWN, skewDeg: -4, position: { x: 140, y: 260 }, border: MUSTARD }, activeRange: { startSec: 2, endSec: 16 }, reactive: { onBeat: { every: 8, property: 'scale', amount: 0.06, easing: 'overshoot', durationMs: 300 } } },
 
     { id: 'hud_score',     type: 'score_hud',        zIndex: 62, opacity: 1, enabled: true, props: { position: 'top-right', color: BROWN, border: MUSTARD } },
     { id: 'hud_timer',     type: 'timer_ring',       zIndex: 61, opacity: 1, enabled: true, props: { position: 'top-left', color: MUSTARD } },
     { id: 'hud_prompt',    type: 'mission_prompt',   zIndex: 63, opacity: 1, enabled: true, props: { text: '오늘 하루 얘기해주세요', color: BROWN, position: 'top' }, activeRange: { startSec: 2, endSec: 5 } },
 
-    { id: 'caption',       type: 'karaoke_caption',  zIndex: 50, opacity: 1, enabled: true, props: { color: BROWN, mutedColor: '#A08D77', position: 'bottom', y: 1500 } },
+    { id: 'caption',       type: 'karaoke_caption',  zIndex: 50, opacity: 1, enabled: true, props: { color: BROWN, mutedColor: '#A08D77', position: 'bottom', y: 1500, highlightColor: MUSTARD, scaleActive: 1.08 } },
 
-    { id: 'intro_title',   type: 'kinetic_text',     zIndex: 29, opacity: 1, enabled: true, props: { text: '📔 DAILY VLOG', fontSize: 72, color: BROWN, strokeColor: CREAM, strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 200, staggerMs: 60 }, activeRange: { startSec: 0, endSec: 2 } },
-    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'SEE YOU TOMORROW', fontSize: 56, color: MUSTARD, strokeColor: BROWN, strokeWidth: 5, mode: 'drop', position: 'top-center', startMs: 15500, staggerMs: 45 }, activeRange: { startSec: 15.5, endSec: 18 } },
+    { id: 'intro_title',   type: 'kinetic_text',     zIndex: 29, opacity: 1, enabled: true, props: { text: '📔 DAILY VLOG', fontSize: 80, color: BROWN, strokeColor: CREAM, strokeWidth: 7, mode: 'drop', position: 'top-center', startMs: 200, staggerMs: 60, tiltDeg: -2 }, activeRange: { startSec: 0, endSec: 2 } },
+    { id: 'mid_tag',       type: 'kinetic_text',     zIndex: 42, opacity: 1, enabled: true, props: { text: '☕ 오늘의 순간', fontSize: 52, color: MUSTARD, strokeColor: CREAM, strokeWidth: 4, mode: 'drop', position: 'top-center', startMs: 8500, staggerMs: 50 }, activeRange: { startSec: 8.5, endSec: 11 } },
+    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'SEE YOU TOMORROW', fontSize: 62, color: MUSTARD, strokeColor: BROWN, strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 15500, staggerMs: 45 }, activeRange: { startSec: 15.5, endSec: 18 } },
+
+    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.45, enabled: true, props: { x: 540, y: 720, color: MUSTARD, size: 260 }, activeRange: { startSec: 15.5, endSec: 18 } },
 
     { id: 'hashtag_strip', type: 'news_ticker',      zIndex: 72, opacity: 0.8, enabled: true, props: { texts: ['#daily', '#vlog', '#lofi', '#life', '#diary', '#motiq'], speedPxPerSec: 70, fontSize: 26, bgColor: 'rgba(91,70,54,0.6)', color: CREAM, accentColor: MUSTARD, position: 'bottom' }, activeRange: { startSec: 2, endSec: 15.5 } },
   ],
@@ -68,9 +77,10 @@ export const dailyVlog: Template = {
   ],
 
   postProcess: [
-    { kind: 'bloom', intensity: 0.3 },
-    { kind: 'film_grain', opacity: 0.15 },
-    { kind: 'vignette', intensity: 0.2 },
+    { kind: 'bloom', intensity: 0.4 },
+    { kind: 'film_grain', opacity: 0.2 },
+    { kind: 'bokeh', strength: 0.3 },
+    { kind: 'vignette', intensity: 0.25 },
   ],
 
   successEffects: [

@@ -63,12 +63,13 @@ describe('HeadShoulderSquatDetector', () => {
 
   it('캘리브레이션 실패 시 unstable 리포트 발생 + 재시작', () => {
     const d = new HeadShoulderSquatDetector();
-    // 매 프레임 크게 흔들리는 자세: nose y 가 0.15 ~ 0.30 왕복
+    // HSS-v3: EMA 스무딩으로 약한 흔들림은 흡수. 이 케이스는 극단적 흔들림
+    //   (nose 0.10 ~ 0.40 왕복 = shoulder 대비 d = 0.00 ~ 0.30) 으로 확실히 탈락해야.
     let t = 0;
     let sawUnstable = false;
     for (let i = 0; i < 65; i++) {
-      const noseY = i % 2 === 0 ? 0.15 : 0.30;
-      const r = d.update(makeLandmarks(noseY, 0.35), t);
+      const noseY = i % 2 === 0 ? 0.10 : 0.40;
+      const r = d.update(makeLandmarks(noseY, 0.40), t);
       if (r.calibration.state === 'unstable') sawUnstable = true;
       t += 50;
     }
@@ -119,14 +120,15 @@ describe('HeadShoulderSquatDetector', () => {
     const d = new HeadShoulderSquatDetector();
     let t = runCalibration(d);
 
-    // 1st rep
-    for (let i = 0; i < 6; i++) { d.update(makeLandmarks(0.28, 0.32), t); t += 50; }   // down
-    for (let i = 0; i < 4; i++) { d.update(makeLandmarks(0.21, 0.32), t); t += 50; }   // up (+1)
+    // 1st rep — HSS-v3: EMA 스무딩으로 신호가 threshold 교차까지 2~3 프레임 더 필요.
+    //   + 전이당 2 프레임 연속 요구 (단일 프레임 튐 차단).
+    for (let i = 0; i < 10; i++) { d.update(makeLandmarks(0.28, 0.32), t); t += 50; }  // down
+    for (let i = 0; i < 8; i++)  { d.update(makeLandmarks(0.21, 0.32), t); t += 50; }  // up (+1)
     expect(d.getCount()).toBe(1);
 
-    // 즉시 2nd rep (+200ms 정도) — 디바운스로 무시
-    for (let i = 0; i < 3; i++) { d.update(makeLandmarks(0.28, 0.32), t); t += 50; }   // down
-    for (let i = 0; i < 2; i++) { d.update(makeLandmarks(0.21, 0.32), t); t += 50; }   // up
+    // 즉시 2nd rep — 디바운스 600ms 로 무시
+    for (let i = 0; i < 4; i++)  { d.update(makeLandmarks(0.28, 0.32), t); t += 50; }  // down
+    for (let i = 0; i < 3; i++)  { d.update(makeLandmarks(0.21, 0.32), t); t += 50; }  // up
     expect(d.getCount()).toBe(1);
 
     // 600ms+ 경과 후에는 카운트
@@ -163,8 +165,8 @@ describe('HeadShoulderSquatDetector', () => {
   it('reset() 완전 초기화', () => {
     const d = new HeadShoulderSquatDetector();
     let t = runCalibration(d);
-    for (let i = 0; i < 6; i++) { d.update(makeLandmarks(0.28, 0.32), t); t += 50; }
-    for (let i = 0; i < 4; i++) { d.update(makeLandmarks(0.21, 0.32), t); t += 50; }
+    for (let i = 0; i < 10; i++) { d.update(makeLandmarks(0.28, 0.32), t); t += 50; }
+    for (let i = 0; i < 8; i++)  { d.update(makeLandmarks(0.21, 0.32), t); t += 50; }
     expect(d.getCount()).toBe(1);
     d.reset();
     expect(d.getCount()).toBe(0);

@@ -34,23 +34,34 @@ export const storybookReading: Template = {
 
   cameraFraming: { kind: 'fullscreen' },
 
+  // TEAM-TEMPLATE-v2 (2026-04-22): 더 포근하고 마법적인 분위기로 대폭 보강.
+  //   +9 레이어 (요정 트레일, 꽃잎 낙하, 책 페이지 오버레이, 중간 하이라이트, 빛 번짐 등)
   layers: [
     { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1, enabled: true, props: { colors: [PAPER, ROSE, LILAC], hueCyclePeriodSec: 120 } },
-    { id: 'bg_paper',      type: 'noise_pattern',    zIndex: 2, opacity: 0.15, enabled: true },
-    { id: 'bg_fairy',      type: 'particle_ambient', zIndex: 3, opacity: 0.55, enabled: true, props: { preset: 'glitter_down', count: 30 } },
-    { id: 'bg_flowers',    type: 'floating_shapes',  zIndex: 4, opacity: 0.6, enabled: true, props: { shapes: ['star', 'heart', 'cloud'], yBand: [60, 380], tint: LILAC, sizeJitter: 0.3 } },
+    { id: 'bg_paper',      type: 'noise_pattern',    zIndex: 2, opacity: 0.18, enabled: true },
+    { id: 'bg_stars',      type: 'star_field',       zIndex: 3, opacity: 0.45, enabled: true, props: { density: 60, twinklePeriodSec: 6, tint: GOLD } },
+    { id: 'bg_fairy',      type: 'particle_ambient', zIndex: 4, opacity: 0.7, enabled: true, props: { preset: 'glitter_down', count: 50, tint: GOLD } },
+    { id: 'bg_petals',     type: 'particle_ambient', zIndex: 5, opacity: 0.55, enabled: true, props: { preset: 'petals_drift', count: 22, tint: ROSE } },
+    { id: 'bg_flowers',    type: 'floating_shapes',  zIndex: 6, opacity: 0.6, enabled: true, props: { shapes: ['star', 'heart', 'cloud'], yBand: [60, 380], tint: LILAC, sizeJitter: 0.3 }, reactive: { onBeat: { every: 8, property: 'scale', amount: 0.06, easing: 'easeOut', durationMs: 320 } } },
 
     { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
-    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.22, enabled: true, props: { borderColor: GOLD, borderWidth: 3, softShadow: true } },
+    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.28, enabled: true, props: { borderColor: GOLD, borderWidth: 4, softShadow: true, innerGlowColor: LILAC } },
+    { id: 'cam_trail',     type: 'particle_trail',   zIndex: 22, opacity: 0.35, enabled: true, props: { tint: GOLD, length: 18 }, reactive: { track: { landmark: 'forehead', offset: { x: 0, y: 0 }, rotateWith: 'none', scaleWith: 'none' } } },
+
+    { id: 'pulse_glow',    type: 'pulse_circle',     zIndex: 23, opacity: 0.25, enabled: true, props: { cx: 540, cy: 960, baseRadius: 380, color: GOLD }, reactive: { onBeat: { every: 4, property: 'scale', amount: 0.12, easing: 'easeOut', durationMs: 420 } } },
 
     { id: 'hud_score',     type: 'score_hud',        zIndex: 62, opacity: 1, enabled: true, props: { position: 'top-right', color: TEAL, border: GOLD } },
     { id: 'hud_timer',     type: 'timer_ring',       zIndex: 61, opacity: 1, enabled: true, props: { position: 'top-left', color: GOLD } },
     { id: 'hud_prompt',    type: 'mission_prompt',   zIndex: 63, opacity: 1, enabled: true, props: { text: '동화책을 읽어주세요', color: TEAL, position: 'top' }, activeRange: { startSec: 2, endSec: 5 } },
 
-    { id: 'caption',       type: 'karaoke_caption',  zIndex: 50, opacity: 1, enabled: true, props: { color: TEAL, mutedColor: '#8AA3AA', position: 'bottom', y: 1500 } },
+    { id: 'caption',       type: 'karaoke_caption',  zIndex: 50, opacity: 1, enabled: true, props: { color: TEAL, mutedColor: '#8AA3AA', position: 'bottom', y: 1500, highlightColor: ROSE, scaleActive: 1.1 } },
 
-    { id: 'intro_title',   type: 'kinetic_text',     zIndex: 29, opacity: 1, enabled: true, props: { text: '✨ ONCE UPON A TIME ✨', fontSize: 68, color: LILAC, strokeColor: PAPER, strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 200, staggerMs: 70 }, activeRange: { startSec: 0, endSec: 2.5 } },
-    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'THE END ✿', fontSize: 80, color: ROSE, strokeColor: TEAL, strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 17500, staggerMs: 80 }, activeRange: { startSec: 17.5, endSec: 20 } },
+    { id: 'intro_title',   type: 'kinetic_text',     zIndex: 29, opacity: 1, enabled: true, props: { text: '✨ ONCE UPON A TIME ✨', fontSize: 72, color: LILAC, strokeColor: PAPER, strokeWidth: 7, mode: 'drop', position: 'top-center', startMs: 200, staggerMs: 70, tiltDeg: -2 }, activeRange: { startSec: 0, endSec: 2.5 } },
+    { id: 'mid_highlight', type: 'kinetic_text',     zIndex: 42, opacity: 1, enabled: true, props: { text: '✿ 페이지 2 ✿', fontSize: 58, color: ROSE, strokeColor: PAPER, strokeWidth: 5, mode: 'drop', position: 'top-center', startMs: 9500, staggerMs: 60 }, activeRange: { startSec: 9.5, endSec: 12 } },
+    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'THE END ✿', fontSize: 88, color: ROSE, strokeColor: TEAL, strokeWidth: 7, mode: 'drop', position: 'top-center', startMs: 17500, staggerMs: 80 }, activeRange: { startSec: 17.5, endSec: 20 } },
+
+    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.5, enabled: true, props: { x: 540, y: 700, color: GOLD, size: 320 }, activeRange: { startSec: 17.5, endSec: 20 } },
+    { id: 'outro_burst',   type: 'particle_burst',   zIndex: 77, opacity: 1, enabled: true, props: { colors: [LILAC, ROSE, GOLD], count: 50, durationMs: 1400 }, activeRange: { startSec: 17.7, endSec: 19.5 } },
 
     { id: 'hashtag_strip', type: 'news_ticker',      zIndex: 72, opacity: 0.8, enabled: true, props: { texts: ['#storybook', '#reading', '#kids', '#fairy', '#pastel', '#motiq'], speedPxPerSec: 70, fontSize: 26, bgColor: 'rgba(74,102,112,0.55)', color: PAPER, accentColor: GOLD, position: 'bottom' }, activeRange: { startSec: 2, endSec: 17 } },
   ],
@@ -71,9 +82,10 @@ export const storybookReading: Template = {
   ],
 
   postProcess: [
-    { kind: 'bloom', intensity: 0.5 },
-    { kind: 'bokeh', strength: 0.35 },
-    { kind: 'vignette', intensity: 0.18 },
+    { kind: 'bloom', intensity: 0.65 },
+    { kind: 'bokeh', strength: 0.45 },
+    { kind: 'saturation', boost: 0.1 },
+    { kind: 'vignette', intensity: 0.22 },
   ],
 
   successEffects: [
