@@ -23,9 +23,9 @@ export const motivationSpeech: Template = {
   mood: 'cinematic_news',
 
   bgm: {
-    src: '/bgm/diamond_tunes-no-copyright-intro-music-18457.mp3',
+    src: '/bgm/anomy5-dark-electronic-464393.mp3',
     volume: 0.5,
-    beatsJson: '/bgm/diamond_tunes-no-copyright-intro-music-18457.beats.json',
+    beatsJson: '/bgm/anomy5-dark-electronic-464393.beats.json',
     loop: true,
     duckingDb: -10,
   },

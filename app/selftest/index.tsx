@@ -70,11 +70,17 @@ interface State {
   bgmErr: string;
 }
 
+// FIX-BGM (2026-04-22): wav 제거, 현재 public/bgm/ 12개 mp3 1:1.
 const BGM_FILES = [
-  '/bgm/synthwave-128.wav',
+  '/bgm/alexzavesa-dance-playful-night-510786.mp3',
+  '/bgm/anomy5-aggressive-sport-phonk-464391.mp3',
+  '/bgm/anomy5-dark-electronic-464393.mp3',
+  '/bgm/anomy5-neon-night-phonk-house-by-anomy5-178380.mp3',
+  '/bgm/anomy5-phonk-phonk-music-467523.mp3',
+  '/bgm/anomy5-sad-chill-phonk-464392.mp3',
+  '/bgm/anomy5-time-trigger-phonk-house-by-anomy5-180413.mp3',
   '/bgm/atlasaudio-jazz-490623.mp3',
   '/bgm/backgroundmusicforvideos-no-copyright-music-334863.mp3',
-  '/bgm/backgroundmusicforvideos-no-copyright-music-334863 (1).mp3',
   '/bgm/diamond_tunes-no-copyright-intro-music-18457.mp3',
   '/bgm/pulsebox-a-background-jazz-no-copyright-448459.mp3',
   '/bgm/pulsebox-a-no-copyright-jazz-background-448471.mp3',

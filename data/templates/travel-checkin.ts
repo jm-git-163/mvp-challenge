@@ -24,9 +24,9 @@ export const travelCheckin: Template = {
   mood: 'pop_candy',
 
   bgm: {
-    src: '/bgm/backgroundmusicforvideos-no-copyright-music-334863 (1).mp3',
+    src: '/bgm/alexzavesa-dance-playful-night-510786.mp3',
     volume: 0.6,
-    beatsJson: '/bgm/backgroundmusicforvideos-no-copyright-music-334863 (1).beats.json',
+    beatsJson: '/bgm/alexzavesa-dance-playful-night-510786.beats.json',
     loop: true,
     duckingDb: -8,
   },

@@ -24,9 +24,9 @@ export const foodReview: Template = {
   mood: 'warm_asmr',
 
   bgm: {
-    src: '/bgm/diamond_tunes-no-copyright-intro-music-18457.mp3',
+    src: '/bgm/anomy5-sad-chill-phonk-464392.mp3',
     volume: 0.55,
-    beatsJson: '/bgm/diamond_tunes-no-copyright-intro-music-18457.beats.json',
+    beatsJson: '/bgm/anomy5-sad-chill-phonk-464392.beats.json',
     loop: true,
     duckingDb: -9,
   },

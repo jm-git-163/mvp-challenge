@@ -24,9 +24,9 @@ export const socialViral: Template = {
   mood: 'neon_cyberpunk',
 
   bgm: {
-    src: '/bgm/synthwave-128.wav',
+    src: '/bgm/anomy5-phonk-phonk-music-467523.mp3',
     volume: 0.7,
-    beatsJson: '/bgm/synthwave-128.beats.json',
+    beatsJson: '/bgm/anomy5-phonk-phonk-music-467523.beats.json',
     loop: true,
     duckingDb: -8,
   },

@@ -24,9 +24,9 @@ export const englishSpeaking: Template = {
   mood: 'cinematic_news',
 
   bgm: {
-    src: '/bgm/atlasaudio-jazz-490623.mp3',
+    src: '/bgm/diamond_tunes-no-copyright-intro-music-18457.mp3',
     volume: 0.5,
-    beatsJson: '/bgm/atlasaudio-jazz-490623.beats.json',
+    beatsJson: '/bgm/diamond_tunes-no-copyright-intro-music-18457.beats.json',
     loop: true,
     duckingDb: -10,
   },

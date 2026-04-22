@@ -129,7 +129,12 @@
       "Bash(xargs grep *)",
       "Bash(git pull *)",
       "Bash(git fetch *)",
-      "Bash(grep -n \"position:\\\\|pointerEvents:\\\\|left: -9999\\\\|videoRef\\\\\\\\s*=\\\\\\\\s*useRef\\\\\\\\|<video\" components/camera/RecordingCamera.web.tsx)"
+      "Bash(grep -n \"position:\\\\|pointerEvents:\\\\|left: -9999\\\\|videoRef\\\\\\\\s*=\\\\\\\\s*useRef\\\\\\\\|<video\" components/camera/RecordingCamera.web.tsx)",
+      "Bash(grep -ri \"51[0-9]\\\\{6,\\\\}-[a-z0-9]\\\\{30,\\\\}\" '/c/Users/user/Desktop/mvp/' --include=\"*.md\" --include=\"*.json\" --include=\"*.ts\" --include=\"*.js\")",
+      "Bash(find data/templates -name \"*.ts\" -exec basename {} \\\\;)",
+      "Bash(npx --no-install tsc --noEmit --jsx react --target esnext --module esnext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --strict false app/selftest/index.tsx)",
+      "Bash(git -c commit.gpgsign=false commit -m 'fix\\(cache\\): prevent mobile from using stale HTML shell without manual refresh *)",
+      "Bash(git -c commit.gpgsign=false commit -m 'fix\\(bgm\\): 11 challenges → 12 unique mp3 BGMs \\(1:1 mapping\\), drop .wav refs *)"
     ]
   }
 }

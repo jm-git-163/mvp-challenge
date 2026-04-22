@@ -28,9 +28,9 @@ export const squatMaster: Template = {
   mood: 'neon_cyberpunk',
 
   bgm: {
-    src: '/bgm/synthwave-128.wav',
+    src: '/bgm/anomy5-aggressive-sport-phonk-464391.mp3',
     volume: 0.7,
-    beatsJson: '/bgm/synthwave-128.beats.json',
+    beatsJson: '/bgm/anomy5-aggressive-sport-phonk-464391.beats.json',
     loop: true,
     duckingDb: -8,
   },

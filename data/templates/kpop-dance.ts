@@ -28,9 +28,9 @@ export const kpopDance: Template = {
   mood: 'neon_cyberpunk',
 
   bgm: {
-    src: '/bgm/backgroundmusicforvideos-no-copyright-music-334863.mp3',
+    src: '/bgm/anomy5-neon-night-phonk-house-by-anomy5-178380.mp3',
     volume: 0.75,
-    beatsJson: '/bgm/backgroundmusicforvideos-no-copyright-music-334863.beats.json',
+    beatsJson: '/bgm/anomy5-neon-night-phonk-house-by-anomy5-178380.beats.json',
     loop: true,
     duckingDb: -7,
   },
