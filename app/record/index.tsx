@@ -1567,7 +1567,7 @@ export default function RecordScreen() {
     try {
       const push = (useSessionStore.getState() as any).pushTimelineEvent;
       if (push) {
-        if (result.tag === 'perfect' || result.tag === 'great') {
+        if (result.tag === 'perfect' || result.tag === 'good') {
           push({ tMs: elapsed, type: 'score_spike', payload: { tag: result.tag, score: result.score } });
         }
         if (result.currentMission && result.currentMission.seq !== prevMissionSeqRef.current) {
