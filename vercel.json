@@ -21,7 +21,6 @@
       ]
     },
     {
-      "_comment": "FIX-CACHE (2026-04-22): SPA rewrite 대상 URL(확장자 없는 모든 경로)에도 no-cache 부여. 모바일이 오래된 HTML 쉘을 캐시에서 꺼내 쓰는 문제 방지.",
       "source": "/((?!.*\\.(?:mp3|wav|ogg|m4a|mp4|webm|png|jpg|jpeg|svg|gif|webp|ico|json|task|tflite|wasm|onnx|glb|gltf|ttf|otf|woff|woff2|map|xml|txt|csv|js|css|html)$).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate, s-maxage=0" },
