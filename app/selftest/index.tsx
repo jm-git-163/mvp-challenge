@@ -359,6 +359,9 @@ export default function SelfTest() {
     <ScrollView style={s.root} contentContainerStyle={s.inner}>
       <Text style={s.title}>🩺 MotiQ 실기기 자가진단</Text>
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
+      {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
+          이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
+      <Text style={s.version}>build: 92fba7e · 2026-04-22 · STT+HSS+cache</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
@@ -470,7 +473,8 @@ const s = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 48 },
   nonweb: { flex: 1, padding: 24, backgroundColor: '#0b0d12', justifyContent: 'center' },
   title: { color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  sub: { color: '#aab', fontSize: 13, marginBottom: 16 },
+  sub: { color: '#aab', fontSize: 13, marginBottom: 4 },
+  version: { color: '#7fe57a', fontSize: 11, marginBottom: 14, fontFamily: 'monospace' },
   p: { color: '#ccc', fontSize: 14, textAlign: 'center' },
   btnHero: { backgroundColor: '#FF2D95', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 12 },
   btnHeroT: { color: '#fff', fontWeight: '800', fontSize: 16 },

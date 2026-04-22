@@ -136,7 +136,8 @@
       "Bash(git -c commit.gpgsign=false commit -m 'fix\\(cache\\): prevent mobile from using stale HTML shell without manual refresh *)",
       "Bash(git -c commit.gpgsign=false commit -m 'fix\\(bgm\\): 11 challenges → 12 unique mp3 BGMs \\(1:1 mapping\\), drop .wav refs *)",
       "Bash(git -c commit.gpgsign=false commit -m 'fix\\(hss,stt\\): squat overcounting + selftest STT timeout *)",
-      "Bash(git -c commit.gpgsign=false commit -m 'fix\\(hss,selftest\\): relax calibration sigma + expose STT lastError *)"
+      "Bash(git -c commit.gpgsign=false commit -m 'fix\\(hss,selftest\\): relax calibration sigma + expose STT lastError *)",
+      "Bash(git -c commit.gpgsign=false commit -m 'feat\\(selftest\\): visible build version stamp for cache verification *)"
     ]
   }
 }
