@@ -135,7 +135,7 @@ export function useJudgement(): {
   // ── Stable refs ────────────────────────────────────────────────────────────
   const lastAppendRef     = useRef(0);
   const lastMissionSeqRef = useRef<number | null>(null);
-  const voiceScoreRef     = useRef(0.10);
+  const voiceScoreRef     = useRef(0);  // FIX-P: 시작 0 점 (가짜 10% 제거)
   const voiceTranscriptRef = useRef('');
   const voiceAccuracyRef  = useRef(0);
 
@@ -192,7 +192,7 @@ export function useJudgement(): {
         }
 
         // 미션별 점수/자막 리셋
-        voiceScoreRef.current      = 0.10;
+        voiceScoreRef.current      = 0;
         voiceAccuracyRef.current   = 0;
         voiceTranscriptRef.current = '';
         setVoiceTranscript('');
@@ -325,22 +325,10 @@ export function useJudgement(): {
             // Web Audio 볼륨: 점수에는 영향 없음, "발화 중" 감지 UI용
             setupAudioAnalyser();
 
-            // FIX-J2: 음성 인식 실패시 볼륨 기반 부분점수 (안전 재도입).
-            //   조건: SR 이 starts≥3 & results=0 (명백한 스톨) AND 마이크 볼륨이
-            //   임계 이상. 이 블록은 점수만 읽기/쓰기, 다른 상태·리스너는
-            //   건드리지 않음 → 챌린지 흐름 영향 0.
-            try {
-              const srDiag0 = getGlobalSpeechRecognizer().getDiagnostic();
-              const stalled = srDiag0.starts >= 3 && srDiag0.results === 0;
-              if (stalled) {
-                const vol = getVolume();
-                // 임계 이상이면 점수 소폭 증가 (프레임당, 상한 0.7)
-                if (vol > 0.04 && voiceScoreRef.current < 0.7) {
-                  voiceScoreRef.current = Math.min(0.7, voiceScoreRef.current + 0.003);
-                  score = voiceScoreRef.current;
-                }
-              }
-            } catch {}
+            // FIX-P (2026-04-22): 볼륨 기반 부분점수 제거.
+            //   CLAUDE.md §3 FORBIDDEN: 가짜 인식·점수 금지.
+            //   "마이크가 시끄러우면 점수 상승" 은 무엇을 말했는지와 무관 → 가짜.
+            //   SR 이 실패하면 점수 0 을 유지하고, 그 사실을 UI 에 정직하게 표시.
 
             // ── 세션 레벨 인식 시작 (1회만) ────────────────────────────────
             const sr = getGlobalSpeechRecognizer();
@@ -358,7 +346,9 @@ export function useJudgement(): {
                   const sim = textSimilarity(target, interim);
                   // Forgiving scoring: Web Speech often mis-transcribes 1-2 jamo.
                   // Lift by ~15% then clamp; interim keeps monotonic max.
-                  const lifted = Math.min(1, sim * 1.15 + 0.05);
+                  // FIX-P: +0.05 floor 제거. 유사도 0 이면 점수 0 유지.
+                  //   15% 상향(*1.15) 은 STT 자모 오차에 대한 완화책으로 유지.
+                  const lifted = Math.min(1, sim * 1.15);
                   const newScore = Math.max(voiceScoreRef.current, lifted);
                   voiceScoreRef.current    = Math.min(1, newScore);
                   voiceAccuracyRef.current = sim;
@@ -369,10 +359,11 @@ export function useJudgement(): {
               _finalCb = (final: string) => {
                 _voiceActive = false;
                 const target = _currentTarget;
-                const rawSim = target ? textSimilarity(target, final) : (final.trim() ? 0.3 : 0);
+                // FIX-P: 목표 텍스트 없으면 점수 0 (무작위 발화에 30% 부여 금지).
+                const rawSim = target ? textSimilarity(target, final) : 0;
                 // Forgiving final score — users who clearly said the line
                 // shouldn't be punished for STT jamo quirks.
-                const lifted = target ? Math.min(1, rawSim * 1.15 + 0.05) : rawSim;
+                const lifted = target ? Math.min(1, rawSim * 1.15) : 0;
                 voiceScoreRef.current      = lifted;
                 voiceAccuracyRef.current   = rawSim;
                 voiceTranscriptRef.current = final;
@@ -407,7 +398,9 @@ export function useJudgement(): {
                 const target = _currentTarget;
                 if (target && interim) {
                   const sim = textSimilarity(target, interim);
-                  const lifted = Math.min(1, sim * 1.15 + 0.05);
+                  // FIX-P: +0.05 floor 제거. 유사도 0 이면 점수 0 유지.
+                  //   15% 상향(*1.15) 은 STT 자모 오차에 대한 완화책으로 유지.
+                  const lifted = Math.min(1, sim * 1.15);
                   const newScore = Math.max(voiceScoreRef.current, lifted);
                   voiceScoreRef.current    = Math.min(1, newScore);
                   voiceAccuracyRef.current = sim;
@@ -417,8 +410,9 @@ export function useJudgement(): {
               _finalCb = (final: string) => {
                 _voiceActive = false;
                 const target = _currentTarget;
-                const rawSim = target ? textSimilarity(target, final) : (final.trim() ? 0.3 : 0);
-                const lifted = target ? Math.min(1, rawSim * 1.15 + 0.05) : rawSim;
+                // FIX-P: 목표 텍스트 없으면 점수 0 (무작위 발화에 30% 부여 금지).
+                const rawSim = target ? textSimilarity(target, final) : 0;
+                const lifted = target ? Math.min(1, rawSim * 1.15) : 0;
                 voiceScoreRef.current      = lifted;
                 voiceAccuracyRef.current   = rawSim;
                 voiceTranscriptRef.current = final;
