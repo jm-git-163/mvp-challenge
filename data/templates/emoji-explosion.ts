@@ -30,10 +30,16 @@ export const emojiExplosion: Template = {
   cameraFraming: { kind: 'heart', centerX: 540, centerY: 960, size: 420 },
 
   layers: [
-    // 배경 (1~10)
-    { id: 'bg_mesh',     type: 'gradient_mesh',    zIndex: 1, opacity: 1,    enabled: true, props: { colors: ['#FFB6C1', '#B5E3D8', '#D8BFD8'], hueCyclePeriodSec: 30 } },
-    { id: 'bg_clouds',   type: 'floating_shapes',  zIndex: 2, opacity: 0.8,  enabled: true, props: { shapes: ['cloud', 'star', 'heart', 'cloud', 'star', 'heart', 'cloud', 'star'] } },
-    { id: 'bg_glitter',  type: 'particle_ambient', zIndex: 3, opacity: 0.9,  enabled: true, props: { preset: 'glitter_down', count: 40 } },
+    // 배경 (1~10) — FIX-Z25: K-pop 주제성 (핑크 그라디언트 + 별/하트 스프라이트 + 치어 파티클)
+    { id: 'bg_mesh',     type: 'gradient_mesh',    zIndex: 1, opacity: 1,    enabled: true, props: { colors: ['#FFB6C1', '#FF8AB5', '#D8BFD8'], hueCyclePeriodSec: 30 } },
+    // FIX-Z25: 별 필드 (K-pop 무대조명)
+    { id: 'bg_stars',    type: 'star_field',       zIndex: 2, opacity: 0.7,  enabled: true, props: { count: 80, driftPxPerSec: 6 } },
+    // FIX-Z25: 하트/별 스프라이트 구름 (상·하단 밴드로 얼굴 회피)
+    { id: 'bg_clouds_top', type: 'floating_shapes',zIndex: 3, opacity: 0.75, enabled: true, props: { shapes: ['heart', 'star', 'cloud', 'heart', 'star'], yBand: [60, 420] } },
+    { id: 'bg_clouds_bot', type: 'floating_shapes',zIndex: 4, opacity: 0.75, enabled: true, props: { shapes: ['heart', 'star', 'cloud', 'star'], yBand: [1460, 1800] } },
+    // FIX-Z25: 치어 파티클 (상승 하트)
+    { id: 'bg_cheer',    type: 'particle_ambient', zIndex: 5, opacity: 0.8,  enabled: true, props: { preset: 'small_hearts_up', count: 28 } },
+    { id: 'bg_glitter',  type: 'particle_ambient', zIndex: 6, opacity: 0.85, enabled: true, props: { preset: 'glitter_down', count: 40 } },
 
     // 카메라 (20~30)
     { id: 'cam_feed',    type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
@@ -59,7 +65,8 @@ export const emojiExplosion: Template = {
     // 미드 전경 (50~60)
     { id: 'fg_hearts',   type: 'particle_ambient', zIndex: 50, opacity: 0.9, enabled: true, props: { preset: 'small_hearts_up', count: 20 } },
     { id: 'beat_luv',    type: 'beat_text',        zIndex: 51, opacity: 1, enabled: true, props: { text: 'LUV', color: '#FF2D95', fontSize: 120, position: 'top-right' } },
-    { id: 'kinetic_cta', type: 'kinetic_text',     zIndex: 52, opacity: 1, enabled: true, props: { text: 'MAKE EM SMILE!', style: 'wavy', color: '#39FF7D' } },
+    // FIX-Z25: 기본 center(얼굴존) → bottom-center
+    { id: 'kinetic_cta', type: 'kinetic_text',     zIndex: 52, opacity: 1, enabled: true, props: { text: 'MAKE EM SMILE!', style: 'wavy', color: '#39FF7D', fontSize: 60, position: 'bottom-center' } },
 
     // HUD (65~75)
     { id: 'hud_prompt',  type: 'mission_prompt',   zIndex: 65, opacity: 1, enabled: true, props: { text: '웃어보세요!', color: '#FF2D95' }, activeRange: { startSec: 2, endSec: 7 } },
@@ -85,7 +92,8 @@ export const emojiExplosion: Template = {
 
     // ── INTRO (0 ~ 2.5s) : KPOP CHALLENGE 풀스크린 시퀀스 ─────────
     { id: 'intro_flash',   type: 'beat_flash',    zIndex: 28, opacity: 1, enabled: true, props: { color: '#FF2D95', peakOpacity: 0.55 }, activeRange: { startSec: 0, endSec: 0.6 } },
-    { id: 'intro_title',   type: 'kinetic_text',  zIndex: 29, opacity: 1, enabled: true, props: { text: '⭐ KPOP CHALLENGE', fontSize: 110, color: '#FFFFFF', strokeColor: '#FF2D95', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
+    // FIX-Z25: center → top-center, fontSize 110→90
+    { id: 'intro_title',   type: 'kinetic_text',  zIndex: 29, opacity: 1, enabled: true, props: { text: '⭐ KPOP CHALLENGE', fontSize: 90, color: '#FFFFFF', strokeColor: '#FF2D95', strokeWidth: 10, mode: 'pop', position: 'top-center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
     { id: 'intro_sub',     type: 'kinetic_text',  zIndex: 30, opacity: 1, enabled: true, props: { text: '💖 SMILE · ✌ PEACE · 🙌 JUMP', fontSize: 52, color: '#39FF7D', strokeColor: '#FF2D95', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 900, staggerMs: 50 }, activeRange: { startSec: 0.4, endSec: 2.5 } },
     { id: 'intro_burst',   type: 'particle_burst',zIndex: 31, opacity: 1, enabled: true, props: { burstCount: 100, colors: ['#FF2D95', '#FFD700', '#39FF7D', '#00E0FF', '#FF8A3D'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 1600, speedMin: 300, speedMax: 700, shape: 'star', origin: 'center' }, activeRange: { startSec: 0, endSec: 0.9 } },
 
@@ -107,7 +115,8 @@ export const emojiExplosion: Template = {
 
     // ── OUTRO (16 ~ 18.5s) : 무지개 컨페티 + 점수 + CTA ─────────
     { id: 'outro_flash',   type: 'beat_flash',    zIndex: 74, opacity: 1, enabled: true, props: { color: '#FFD700', peakOpacity: 0.6 }, activeRange: { startSec: 16, endSec: 16.5 } },
-    { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: 'SO CUTE! 💖', fontSize: 110, color: '#FF2D95', strokeColor: '#FFFFFF', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 16100, staggerMs: 55 }, activeRange: { startSec: 16, endSec: 18.5 } },
+    // FIX-Z25: center → top-center
+    { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: 'SO CUTE! 💖', fontSize: 92, color: '#FF2D95', strokeColor: '#FFFFFF', strokeWidth: 10, mode: 'pop', position: 'top-center', startMs: 16100, staggerMs: 55 }, activeRange: { startSec: 16, endSec: 18.5 } },
     { id: 'outro_score',   type: 'kinetic_text',  zIndex: 76, opacity: 1, enabled: true, props: { text: '★ ★ ★ ★ ★', fontSize: 100, color: '#FFD700', strokeColor: '#FF2D95', strokeWidth: 8, mode: 'drop', position: 'top-center', startMs: 16700, staggerMs: 130 }, activeRange: { startSec: 16.5, endSec: 18.5 } },
     { id: 'outro_cta',     type: 'kinetic_text',  zIndex: 77, opacity: 1, enabled: true, props: { text: 'TAP TO RETRY', fontSize: 48, color: '#39FF7D', strokeColor: '#FF2D95', strokeWidth: 5, mode: 'drop', position: 'bottom-center', startMs: 17500, staggerMs: 40 }, activeRange: { startSec: 17.5, endSec: 18.5 } },
     { id: 'outro_burst',   type: 'particle_burst',zIndex: 78, opacity: 1, enabled: true, props: { burstCount: 140, colors: ['#FF2D95', '#FFD700', '#39FF7D', '#00E0FF', '#FF8A3D', '#B794F4'], triggerOn: 'beat', beatThreshold: 0.01, lifeMs: 2000, speedMin: 280, speedMax: 650, shape: 'star', origin: 'center' }, activeRange: { startSec: 16, endSec: 16.8 } },

@@ -30,10 +30,16 @@ export const newsAnchor: Template = {
   cameraFraming: { kind: 'rounded_rect', x: 120, y: 260, w: 840, h: 1120, radius: 16 },
 
   layers: [
-    // 배경 (1~10)
+    // 배경 (1~10) — FIX-Z25: 뉴스 스튜디오 주제성 (모니터 그리드 + 속보 스크롤 상단)
     { id: 'bg_studio',   type: 'image_bg',        zIndex: 1, opacity: 0.95, enabled: true, props: { src: '/templates/news-anchor/studio.jpg', blurPx: 12, panPxPerSec: 6 } },
     { id: 'bg_grad',     type: 'gradient_mesh',   zIndex: 2, opacity: 0.8,  enabled: true, props: { colors: ['#0B1828', '#12263F'] } },
-    { id: 'bg_grain',    type: 'noise_pattern',   zIndex: 3, opacity: 0.12, enabled: true },
+    // FIX-Z25: 스튜디오 모니터 벽 느낌 — 세로로 긴 animated_grid (perspective)
+    { id: 'bg_monitors', type: 'animated_grid',   zIndex: 3, opacity: 0.35, enabled: true, props: { color: '#D4AF37', perspective: true, scrollPerBarPx: 18 } },
+    // FIX-Z25: 골드 파티클 (스튜디오 조명 먼지)
+    { id: 'bg_studio_dust', type: 'particle_ambient', zIndex: 4, opacity: 0.45, enabled: true, props: { preset: 'glitter_down', count: 18 } },
+    { id: 'bg_grain',    type: 'noise_pattern',   zIndex: 5, opacity: 0.12, enabled: true },
+    // FIX-Z25: 상단 속보 스크롤바 (스튜디오 모니터에 떠있는 느낌) — 2.8s 이전 인트로 배경
+    { id: 'bg_scroll_top', type: 'news_ticker',   zIndex: 6, opacity: 0.55, enabled: true, props: { texts: ['오늘의 주요 뉴스', '속보', '특보', '생방송 중'], speedPxPerSec: 140, fontSize: 22, bgColor: 'rgba(11,24,40,0.6)', color: '#D4AF37', accentColor: '#FF3B5C', position: { y: 80 } } },
 
     // 카메라 (20~25)
     { id: 'cam_feed',    type: 'camera_feed',     zIndex: 20, opacity: 1, enabled: true },
@@ -43,7 +49,8 @@ export const newsAnchor: Template = {
 
     // ── INTRO (0 ~ 2.5s) : BREAKING NEWS 풀스크린 시퀀스 ──────────
     { id: 'intro_flash',   type: 'beat_flash',      zIndex: 28, opacity: 1, enabled: true, props: { color: '#FF3B5C', peakOpacity: 0.55 }, activeRange: { startSec: 0, endSec: 0.7 } },
-    { id: 'intro_title',   type: 'kinetic_text',    zIndex: 29, opacity: 1, enabled: true, props: { text: 'BREAKING NEWS', fontSize: 120, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 10, mode: 'pop', position: 'center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
+    // FIX-Z25: center → top-center 얼굴 회피, fontSize 120→92
+    { id: 'intro_title',   type: 'kinetic_text',    zIndex: 29, opacity: 1, enabled: true, props: { text: 'BREAKING NEWS', fontSize: 92, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 10, mode: 'pop', position: 'top-center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
     { id: 'intro_sub',     type: 'kinetic_text',    zIndex: 30, opacity: 1, enabled: true, props: { text: '속보 · LIVE', fontSize: 54, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 900, staggerMs: 60 }, activeRange: { startSec: 0.4, endSec: 2.5 } },
     { id: 'intro_ticker',  type: 'news_ticker',     zIndex: 31, opacity: 1, enabled: true, props: { texts: ['속보 · BREAKING', '오늘의 주요 소식', '특파원 생중계', '실시간 업데이트'], speedPxPerSec: 260, fontSize: 42, bgColor: '#FF3B5C', color: '#FFFFFF', accentColor: '#D4AF37', position: 'top', labelText: 'LIVE', labelBg: '#D4AF37', labelColor: '#0B1828' }, activeRange: { startSec: 0.3, endSec: 2.5 } },
 
@@ -80,12 +87,14 @@ export const newsAnchor: Template = {
     // FIX-Z22: 속보 배지 반복, 시보 비트, 포인트 flash 로 시네마틱 뉴스 분위기 강화
     { id: 'pulse_breaking', type: 'beat_flash',    zIndex: 73, opacity: 1, enabled: true, props: { color: '#FF3B5C', maxAlpha: 0.18, curve: 'linear' }, reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.18, easing: 'standard', durationMs: 180 } }, activeRange: { startSec: 2.5, endSec: 17 } },
     { id: 'main_mission_prompt', type: 'mission_prompt', zIndex: 52, opacity: 1, enabled: true, props: { text: '대본을 또박또박 읽어주세요', color: '#D4AF37' }, activeRange: { startSec: 2.5, endSec: 4.5 } },
-    { id: 'main_counter',  type: 'counter_hud',    zIndex: 57, opacity: 1, enabled: true, props: { target: 4, format: '{n} / 4 문장', fontSize: 44, fontFamily: 'Pretendard, sans-serif' }, activeRange: { startSec: 2.5, endSec: 17 } },
+    // FIX-Z25: 기본 center(얼굴존) → bottom-center
+    { id: 'main_counter',  type: 'counter_hud',    zIndex: 57, opacity: 1, enabled: true, props: { target: 4, format: '{n} / 4 문장', fontSize: 44, fontFamily: 'Pretendard, sans-serif', position: 'bottom-center' }, activeRange: { startSec: 2.5, endSec: 17 } },
     { id: 'gold_particles', type: 'particle_ambient', zIndex: 48, opacity: 0.6, enabled: true, props: { preset: 'glitter_down', count: 25 } },
 
     // ── OUTRO (17 ~ 20s) : 속보 종료 + 점수 + 시보 ─────────────
     { id: 'outro_flash',   type: 'beat_flash',    zIndex: 74, opacity: 1, enabled: true, props: { color: '#D4AF37', peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
-    { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: '속보 종료', fontSize: 96, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 8, mode: 'pop', position: 'center', startMs: 17100, staggerMs: 60 }, activeRange: { startSec: 17, endSec: 20 } },
+    // FIX-Z25: center → top-center
+    { id: 'outro_title',   type: 'kinetic_text',  zIndex: 75, opacity: 1, enabled: true, props: { text: '속보 종료', fontSize: 88, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 60 }, activeRange: { startSec: 17, endSec: 20 } },
     { id: 'outro_score',   type: 'kinetic_text',  zIndex: 76, opacity: 1, enabled: true, props: { text: '★ ★ ★ ★ ★', fontSize: 96, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'top-center', startMs: 17700, staggerMs: 130 }, activeRange: { startSec: 17.5, endSec: 20 } },
     { id: 'outro_cta',     type: 'kinetic_text',  zIndex: 77, opacity: 1, enabled: true, props: { text: '시청해주셔서 감사합니다', fontSize: 44, color: '#FFFFFF', strokeColor: '#0B1828', strokeWidth: 5, mode: 'drop', position: 'bottom-center', startMs: 18500, staggerMs: 40 }, activeRange: { startSec: 18.5, endSec: 20 } },
     { id: 'outro_ticker',  type: 'news_ticker',   zIndex: 78, opacity: 1, enabled: true, props: { texts: ['다음 소식을 기대해주세요', '뉴스 앵커 챌린지 종료', 'SUBSCRIBE · LIKE'], speedPxPerSec: 180, fontSize: 36, bgColor: '#FF3B5C', color: '#FFFFFF', accentColor: '#D4AF37', position: 'top', labelText: 'END', labelBg: '#D4AF37', labelColor: '#0B1828' }, activeRange: { startSec: 17, endSec: 20 } },
