@@ -79,6 +79,89 @@ function rrPath(
 // Scene background drawers
 // ---------------------------------------------------------------------------
 
+// FIX-Z15 (2026-04-22): 범용 시네마틱 액센트 레이어.
+//   모든 legacy 템플릿의 main 구간 위에 비트 싱크 펄스·상승 입자·가장자리
+//   글로우·순간 플래시를 얹어 "여러 겹 레이어" 느낌을 보강.
+function drawCinematicAccents(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  localMs: number,
+  accentColor: string,
+  bpm: number,
+): void {
+  const beatPeriod = 60_000 / Math.max(40, Math.min(200, bpm));
+  const beatPhase = (localMs % beatPeriod) / beatPeriod; // 0..1
+  const beatPulse = Math.pow(1 - beatPhase, 2.2);        // 비트 직후 강, 감쇠
+
+  // 1) 가장자리 비트 플래시 (상·하 그라디언트 바)
+  ctx.save();
+  const flashH = 140;
+  const flashAlpha = 0.15 + beatPulse * 0.28;
+  const gTop = ctx.createLinearGradient(0, 0, 0, flashH);
+  gTop.addColorStop(0, accentColor + Math.round(flashAlpha * 255).toString(16).padStart(2, '0'));
+  gTop.addColorStop(1, accentColor + '00');
+  ctx.fillStyle = gTop;
+  ctx.fillRect(0, 0, W, flashH);
+  const gBot = ctx.createLinearGradient(0, H - flashH, 0, H);
+  gBot.addColorStop(0, accentColor + '00');
+  gBot.addColorStop(1, accentColor + Math.round(flashAlpha * 255).toString(16).padStart(2, '0'));
+  ctx.fillStyle = gBot;
+  ctx.fillRect(0, H - flashH, W, flashH);
+  ctx.restore();
+
+  // 2) 상승 입자 (16개) — 바닥에서 위로 천천히 부상, beat 마다 새 입자 유발
+  ctx.save();
+  const N = 16;
+  for (let i = 0; i < N; i++) {
+    const seed = i * 97.31;
+    const life = ((localMs * 0.00035) + i / N) % 1; // 0..1
+    const x = ((Math.sin(seed) * 0.5 + 0.5) * W);
+    const y = H - life * H * 1.05;
+    const r = 2 + ((Math.sin(seed * 3.7) + 1) / 2) * 4;
+    const a = (1 - life) * 0.6;
+    ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    // 입자 글로우
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+    g.addColorStop(0, accentColor + Math.round(a * 140).toString(16).padStart(2, '0'));
+    g.addColorStop(1, accentColor + '00');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 3) 코너 글로우 (좌상·우하) — 비트에 맞춰 밝기 변화
+  ctx.save();
+  const cornerR = Math.max(W, H) * 0.5;
+  const cornerAlpha = 0.14 + beatPulse * 0.10;
+  const gCornerA = ctx.createRadialGradient(0, 0, 0, 0, 0, cornerR);
+  gCornerA.addColorStop(0, accentColor + Math.round(cornerAlpha * 255).toString(16).padStart(2, '0'));
+  gCornerA.addColorStop(1, accentColor + '00');
+  ctx.fillStyle = gCornerA;
+  ctx.fillRect(0, 0, W, H);
+  const gCornerB = ctx.createRadialGradient(W, H, 0, W, H, cornerR);
+  gCornerB.addColorStop(0, accentColor + Math.round(cornerAlpha * 255).toString(16).padStart(2, '0'));
+  gCornerB.addColorStop(1, accentColor + '00');
+  ctx.fillStyle = gCornerB;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  // 4) 매 4박자마다 화이트 플래시 (매우 짧게)
+  const bar = Math.floor(localMs / (beatPeriod * 4));
+  const barLocal = (localMs - bar * beatPeriod * 4);
+  if (barLocal < 120) {
+    ctx.save();
+    ctx.fillStyle = `rgba(255,255,255,${(1 - barLocal / 120) * 0.18})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+}
+
 function drawVlogScene(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -2505,6 +2588,58 @@ export async function composeVideo(
           drawClipFrame(ctx, legacyTemplate.bgStyle, cx, cy, cw, ch, ca.borderRadius, legacyTemplate.accentColor, elapsed);
         }
       }
+
+      // FIX-Z15 (2026-04-22): 범용 시네마틱 액센트 레이어.
+      //   모든 템플릿에 공통 적용되는 후처리 고도화 — BGM bpm 에 맞춘 펄스,
+      //   상승 입자, 비트 플래시, 비네트 컬러 액센트.
+      try {
+        if (!isLayered && elapsed >= INTRO_MS && elapsed < (duration - OUTRO_MS)) {
+          drawCinematicAccents(
+            ctx, W, H,
+            elapsed - INTRO_MS,
+            legacyTemplate.accentColor,
+            legacyTemplate.bgm?.bpm ?? 120,
+          );
+        }
+      } catch (e) { try { console.warn('[compositor] accents error:', e); } catch {} }
+
+      // FIX-Z15 (2026-04-22): non-layered main 구간에 text_overlays 타임라인 렌더.
+      //   기존엔 drawTextOverlay 정의만 있고 호출이 없어서 자막이 mp4 에 박히지 않았다.
+      //   사용자 피드백: "화면 효과, 이미지, 이팩트, 자막 여러 레이어로"
+      try {
+        if (!isLayered && legacyTemplate.text_overlays && elapsed >= INTRO_MS && elapsed < (duration - OUTRO_MS)) {
+          for (const ov of legacyTemplate.text_overlays) {
+            drawTextOverlay(ctx, ov, W, H, elapsed);
+          }
+        }
+      } catch (e) { try { console.warn('[compositor] text_overlays draw error:', e); } catch {} }
+
+      // FIX-Z15: 해시태그 스트립 (main 구간 하단, outro 이전)
+      try {
+        if (!isLayered && legacyTemplate.hashtags?.length && elapsed >= INTRO_MS && elapsed < (duration - OUTRO_MS)) {
+          const tags = legacyTemplate.hashtags.slice(0, 4).map(t => '#' + t).join('  ');
+          ctx.save();
+          ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+          const m = ctx.measureText(tags);
+          const pad = 14;
+          const bw = m.width + pad * 2;
+          const bh = 40;
+          const bx = (W - bw) / 2;
+          const by = H - 110;
+          ctx.fillStyle = 'rgba(0,0,0,0.55)';
+          rrPath(ctx, bx, by, bw, bh, 14);
+          ctx.fill();
+          ctx.strokeStyle = legacyTemplate.accentColor + 'aa';
+          ctx.lineWidth = 1.5;
+          rrPath(ctx, bx, by, bw, bh, 14);
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'center';
+          ctx.fillText(tags, W / 2, by + bh / 2);
+          ctx.restore();
+        }
+      } catch {}
 
       // Cinematic post-processing (Post-process is always applied for consistency)
       drawFilmGrain(ctx, W, H, elapsed, 0.05);

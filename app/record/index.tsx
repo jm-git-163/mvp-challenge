@@ -1625,10 +1625,12 @@ export default function RecordScreen() {
       prevMissionSeqRef.current = null; scoreAccumRef.current = [];
       // FIX-U: 새 녹화 시작 시 이전 타임라인 초기화
       try { (useSessionStore.getState() as any).resetTimeline?.(); } catch {}
-      if (activeTemplate?.intro && !introShownRef.current) {
-        introShownRef.current = true;
-        setShowIntro(true);
-      }
+      // FIX-Z14 (2026-04-22): IntroOverlay 제거. 사용자 피드백:
+      //   "챌린지 시작할 때 요청하지도 않은 장면 전환 효과가 나오고 있어. 삭제해줘."
+      //   CountdownOverlay(3-2-1) 직후 IntroOverlay 이중 전환이 거슬린다는 의미.
+      //   후처리 mp4 의 intro 와는 별개 — 촬영 화면 전용 전환만 억제.
+      introShownRef.current = true;  // 로직 상 true 로 유지 (다른 gating 이 의존할 수 있음)
+      setShowIntro(false);
       // FIX-S (2026-04-22): 녹화 중 BGM 재생 제거.
       //   이유: 스피커에서 BGM 이 나와 마이크로 다시 들어가며 "오디오 누출" 발생.
       //   대신 장르별 BGM URL 을 세션 스토어에 저장해, "완성 영상 만들기" 단계의
