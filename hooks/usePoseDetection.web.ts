@@ -109,16 +109,44 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
       const result = landmarker.detectForVideo(video, now);
       if (result?.landmarks?.length > 0) {
-        const raw: NormalizedLandmark[] = result.landmarks[0].map(
-          (lm: { x: number; y: number; z: number; visibility?: number }) => ({
+        // FIX-Z16 (2026-04-22): MediaPipe BlazePose 는 33 keypoint 를 출력하지만
+        //   소비자 (useJudgement, detectSquat, PoseCalibration, StanceGuide, PoseOverlay)
+        //   는 모두 MoveNet 17-keypoint 인덱스를 가정. 리맵하지 않으면 landmarks[13]
+        //   (MoveNet knee) 가 실제로 elbow 가 되어 스쿼트 각도·스탠스가 전부 깨짐.
+        //   → 여기서 한 번 변환해 downstream 은 기존대로 동작하게 한다.
+        const bp = result.landmarks[0];
+        const toLm = (i: number): NormalizedLandmark => {
+          const lm = bp[i] ?? { x: 0, y: 0, z: 0, visibility: 0 };
+          return {
             x: lm.x,
             y: lm.y,
             z: lm.z,
             score: lm.visibility ?? 1,
-            visibility: lm.visibility,
-          })
-        );
-        setLandmarks(raw);
+            visibility: lm.visibility ?? 0,
+          };
+        };
+        // MoveNet idx → MediaPipe BlazePose idx
+        const BP_TO_MN = [
+          0,  // 0 nose
+          2,  // 1 left_eye
+          5,  // 2 right_eye
+          7,  // 3 left_ear
+          8,  // 4 right_ear
+          11, // 5 left_shoulder
+          12, // 6 right_shoulder
+          13, // 7 left_elbow
+          14, // 8 right_elbow
+          15, // 9 left_wrist
+          16, // 10 right_wrist
+          23, // 11 left_hip
+          24, // 12 right_hip
+          25, // 13 left_knee
+          26, // 14 right_knee
+          27, // 15 left_ankle
+          28, // 16 right_ankle
+        ];
+        const mapped: NormalizedLandmark[] = BP_TO_MN.map(toLm);
+        setLandmarks(mapped);
         if (!isRealPose) setIsRealPose(true);
       }
     } catch (e) {
