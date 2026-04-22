@@ -245,69 +245,342 @@ function drawMissionCard(
   ctx.fillText(`${Math.round(score * 100)}점`, x + cardW - 16, y + 88);
 }
 
+// FIX-Y8 (2026-04-22): 템플릿 시각 고도화 — 장르별 오버레이를 레이어드 스타일로 강화.
+//   실제 Phase 5 레이어엔진 전면 도입 전까지의 과도기 개선. 각 장르에 6–10 개의
+//   동적 요소(비트 링·스파클·스캔라인·스티커·티커 등)를 추가해 "이 앱이 단순 카메라
+//   + 텍스트가 아니다" 는 인상을 즉시 준다.
 function drawGenreEffect(
   ctx: CanvasRenderingContext2D,
   genre: string,
   elapsed: number,
 ) {
+  // 공통 저역 비트 (120BPM 기준 2박자 = 1s)
+  const beat1 = Math.sin(elapsed * 0.00628) * 0.5 + 0.5;  // 1초 주기
+  const beat2 = Math.sin(elapsed * 0.01256) * 0.5 + 0.5;  // 0.5초 주기 (2배)
+  const t = elapsed / 1000;
+
   if (genre === 'kpop' || genre === 'hiphop') {
-    // 비트 동기화 네온 보더 + 스파클
-    const beat = Math.sin(elapsed * 0.008) * 0.5 + 0.5;
+    // ── 1. 비트 글로우 보더 (펄스)
     ctx.save();
-    ctx.strokeStyle = `rgba(233,69,96,${(0.3 + beat * 0.6).toFixed(2)})`;
-    ctx.lineWidth = 6 + beat * 8;
-    ctx.shadowColor = 'rgba(233,69,96,0.7)';
-    ctx.shadowBlur = 20;
+    const pulse = 6 + beat2 * 12;
+    const grad = ctx.createLinearGradient(0, 0, CW, 0);
+    grad.addColorStop(0,    `rgba(233,69,96,${(0.4 + beat2 * 0.5).toFixed(2)})`);
+    grad.addColorStop(0.5,  `rgba(255,105,180,${(0.5 + beat2 * 0.4).toFixed(2)})`);
+    grad.addColorStop(1,    `rgba(123,92,255,${(0.4 + beat2 * 0.5).toFixed(2)})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = pulse;
+    ctx.shadowColor = 'rgba(255,105,180,0.9)';
+    ctx.shadowBlur = 22;
     ctx.strokeRect(6, 6, CW - 12, CH - 12);
-    ctx.shadowBlur = 0;
-    // 모서리 장식
-    const corner = 40;
-    ctx.strokeStyle = `rgba(255,215,0,${(0.6 + beat * 0.4).toFixed(2)})`;
-    ctx.lineWidth = 4;
-    [[0,0],[CW,0],[0,CH],[CW,CH]].forEach(([x,y],i)=>{
-      const sx = i%2===0 ? 1 : -1;
-      const sy = i<2 ? 1 : -1;
-      ctx.beginPath();
-      ctx.moveTo(x + sx*20, y);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x, y + sy*20);
-      ctx.stroke();
-    });
     ctx.restore();
+
+    // ── 2. 모서리 네온 코너 브라켓 (고정)
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,215,0,${(0.7 + beat1 * 0.3).toFixed(2)})`;
+    ctx.lineWidth = 4;
+    ctx.shadowColor = 'rgba(255,215,0,0.7)';
+    ctx.shadowBlur = 10;
+    const corners: Array<[number, number, number, number]> = [
+      [0, 0, 1, 1], [CW, 0, -1, 1], [0, CH, 1, -1], [CW, CH, -1, -1],
+    ];
+    for (const [x, y, sx, sy] of corners) {
+      ctx.beginPath();
+      ctx.moveTo(x + sx * 32, y);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x, y + sy * 32);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // ── 3. 스파클/별 파티클 (결정론적 — 시드는 elapsed/200)
+    ctx.save();
+    for (let i = 0; i < 14; i++) {
+      const seed = i * 137.5 + Math.floor(elapsed / 200) * 0.7;
+      const x = ((Math.sin(seed) + 1) / 2) * CW;
+      const y = ((Math.cos(seed * 1.3) + 1) / 2) * CH;
+      const life = (elapsed * 0.001 + i * 0.3) % 2;  // 2초 주기
+      const a = life < 1 ? life : 2 - life;
+      ctx.globalAlpha = a * 0.85;
+      ctx.fillStyle = i % 3 === 0 ? '#fff' : i % 3 === 1 ? '#ffd700' : '#ff69b4';
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
+      const sz = 3 + a * 3;
+      drawStar(ctx, x, y, sz, 5);
+    }
+    ctx.restore();
+
+    // ── 4. 상단 스캔라인 (TikTok 스타일)
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    for (let y = 0; y < CH; y += 4) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, y, CW, 1);
+    }
+    ctx.restore();
+
+    // ── 5. 하단 비트 이퀄라이저
+    ctx.save();
+    const barCount = 24;
+    const barW = (CW - 40) / barCount - 2;
+    for (let i = 0; i < barCount; i++) {
+      const h = 8 + Math.abs(Math.sin(t * 5 + i * 0.6)) * 42;
+      const hue = (i * 15 + elapsed * 0.1) % 360;
+      ctx.fillStyle = `hsla(${hue}, 90%, 60%, 0.85)`;
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
+      ctx.fillRect(20 + i * (barW + 2), CH - 30 - h, barW, h);
+    }
+    ctx.restore();
+
   } else if (genre === 'news') {
+    // ── 1. 상단 채널 뱃지 (좌측)
+    ctx.save();
     ctx.fillStyle = '#c62828';
-    ctx.fillRect(0, CH - 80, CW, 6);
-    ctx.fillStyle = 'rgba(13,28,53,0.85)';
-    ctx.fillRect(0, CH - 74, CW, 74);
-    ctx.font = 'bold 26px sans-serif';
-    ctx.fillStyle = '#e3f2fd'; ctx.textAlign = 'left';
-    ctx.fillText('● LIVE NEWS', 20, CH - 28);
-    // 시간 표시
+    ctx.fillRect(0, 88, 110, 36);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // 깜빡이는 LIVE 도트
+    const blink = Math.floor(elapsed / 500) % 2 === 0;
+    if (blink) {
+      ctx.beginPath();
+      ctx.arc(22, 106, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.fillText('LIVE', 72, 106);
+    ctx.restore();
+
+    // ── 2. 하단 BREAKING NEWS 3단 바
+    ctx.save();
+    // 상단 빨강 스트립
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(0, CH - 130, CW, 6);
+    // 메인 곤지색 바
+    ctx.fillStyle = 'rgba(13,28,53,0.92)';
+    ctx.fillRect(0, CH - 124, CW, 88);
+    // 제목 블록
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(0, CH - 124, 180, 44);
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('BREAKING', 90, CH - 102);
+    // 하단 티커 스트립 (스크롤)
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, CH - 36, CW, 36);
+    const tickerText = '    MotiQ 챌린지 생중계 · 시청자 참여 급증 · 팔로워 증가 중 · 채널 구독 부탁 드립니다 · ';
+    const scrollX = CW - ((elapsed * 0.12) % (CW + 600));
+    ctx.font = '600 16px sans-serif';
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tickerText + tickerText, scrollX, CH - 18);
+    ctx.restore();
+
+    // ── 3. 좌상단 로고 + 시간
+    ctx.save();
+    ctx.font = 'bold 17px sans-serif';
+    ctx.fillStyle = '#e3f2fd'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('MOTIQ NEWS 24', 190, 94);
     const now = new Date();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const mm = String(now.getMinutes()).padStart(2,'0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
     ctx.textAlign = 'right';
-    ctx.fillText(`${hh}:${mm}`, CW - 20, CH - 28);
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(`${hh}:${mm}:${ss}`, CW - 16, 96);
+    ctx.restore();
+
+    // ── 4. 우측 세로 "PRESS" 스탬프
+    ctx.save();
+    ctx.translate(CW - 32, 200);
+    ctx.rotate(Math.PI / 2);
+    ctx.strokeStyle = 'rgba(198,40,40,0.8)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-50, -14, 100, 28);
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = 'rgba(198,40,40,0.9)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ PRESS', 0, 0);
+    ctx.restore();
+
   } else if (genre === 'fitness') {
-    // 양쪽 바: 펄스 프로그레스
+    // ── 1. 양쪽 네온 펄스 바
     const pct = Math.sin(elapsed * 0.001) * 0.5 + 0.5;
-    ctx.fillStyle = 'rgba(20,184,166,0.3)';
+    ctx.save();
+    ctx.fillStyle = 'rgba(20,184,166,0.25)';
     ctx.fillRect(0, 92, 8, CH - 92);
     ctx.fillRect(CW - 8, 92, 8, CH - 92);
     ctx.fillStyle = '#14b8a6';
-    ctx.fillRect(0, 92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
-    ctx.fillRect(CW - 8, 92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
+    ctx.shadowColor = '#14b8a6'; ctx.shadowBlur = 14;
+    ctx.fillRect(0,     92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
+    ctx.fillRect(CW - 8,92 + (CH - 92) * (1 - pct), 8, (CH - 92) * pct);
+    ctx.restore();
+
+    // ── 2. 좌상단 심박수 뱃지 (애니메이션)
+    ctx.save();
+    const bpm = 120 + Math.floor(Math.sin(t * 0.3) * 15);
+    ctx.fillStyle = 'rgba(239,68,68,0.92)';
+    ctx.beginPath(); rrect(ctx, 20, 190, 160, 52, 14); ctx.fill();
+    const heartPulse = 1 + Math.abs(Math.sin(t * 4)) * 0.15;
+    ctx.save();
+    ctx.translate(48, 216);
+    ctx.scale(heartPulse, heartPulse);
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('❤', 0, 0);
+    ctx.restore();
+    ctx.font = 'bold 22px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(`${bpm} BPM`, 72, 216);
+    ctx.restore();
+
+    // ── 3. 중앙 하단 심전도 라인 (sine → 스파이크)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(34,197,94,0.85)';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 6;
+    ctx.beginPath();
+    const baseY = CH - 120;
+    for (let x = 0; x < CW; x += 4) {
+      const phase = (x + elapsed * 0.3) * 0.03;
+      const spike = Math.abs(Math.sin(phase * 0.5)) > 0.95 ? 30 * Math.sin(phase * 8) : 0;
+      const y = baseY + Math.sin(phase) * 3 - spike;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // ── 4. 우상단 타이머 링
+    ctx.save();
+    ctx.translate(CW - 70, 220);
+    const ringT = (elapsed / 1000) % 60;
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 28, -Math.PI / 2, -Math.PI / 2 + (ringT / 60) * Math.PI * 2);
+    ctx.stroke();
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(Math.floor(ringT)).padStart(2, '0'), 0, 0);
+    ctx.restore();
+
   } else if (genre === 'daily' || genre === 'travel') {
-    // 하단 vlog 자막 스트립
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, CH - 50, CW, 50);
-    ctx.font = '600 16px sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.textAlign = 'left';
-    ctx.fillText(`📅 ${new Date().toLocaleDateString('ko-KR')}`, 18, CH - 20);
+    // ── 1. 필름 스프로킷 프레임 (좌·우 양쪽)
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 88, 28, CH - 88);
+    ctx.fillRect(CW - 28, 88, 28, CH - 88);
+    ctx.fillStyle = '#fff';
+    for (let y = 100; y < CH - 20; y += 44) {
+      ctx.fillRect(8, y, 12, 24);
+      ctx.fillRect(CW - 20, y, 12, 24);
+    }
+    ctx.restore();
+
+    // ── 2. 폴라로이드 날짜 스탬프 (좌상단)
+    ctx.save();
+    ctx.translate(60, 200);
+    ctx.rotate(-0.08);
+    ctx.fillStyle = 'rgba(255,253,240,0.97)';
+    ctx.beginPath(); rrect(ctx, 0, 0, 160, 48, 4); ctx.fill();
+    ctx.font = '600 13px "Courier New", monospace';
+    ctx.fillStyle = '#5a3a20';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('📷 Daily Vlog', 10, 8);
+    const d = new Date();
+    const ds = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.fillStyle = '#d97706';
+    ctx.fillText(ds, 10, 26);
+    ctx.restore();
+
+    // ── 3. 하단 자막 스트립 + 위치 뱃지
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(30, CH - 60, CW - 60, 44);
+    ctx.font = '600 15px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(`📅 ${new Date().toLocaleDateString('ko-KR')}`, 44, CH - 38);
     ctx.textAlign = 'right';
-    ctx.fillText('My Vlog', CW - 18, CH - 20);
+    ctx.fillText('📍 My Day · ✨ Vlog', CW - 44, CH - 38);
+    ctx.restore();
+
+    // ── 4. 떠다니는 하트/별 이모지
+    ctx.save();
+    ctx.font = '24px sans-serif';
+    const emojis = ['💕', '✨', '🌿', '☕', '📷'];
+    for (let i = 0; i < 5; i++) {
+      const phase = t * 0.4 + i * 1.3;
+      const x = 80 + ((i * 127) % (CW - 160));
+      const y = 300 + Math.sin(phase) * 80 + (i * 90);
+      ctx.globalAlpha = 0.55 + Math.abs(Math.sin(phase + 0.5)) * 0.3;
+      ctx.fillText(emojis[i], x, y);
+    }
+    ctx.restore();
+  } else if (genre === 'comedy') {
+    // ── 1. 만화 말풍선 스타일 외곽
+    ctx.save();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([]);
+    ctx.strokeRect(8, 8, CW - 16, CH - 16);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 8]);
+    ctx.lineDashOffset = -elapsed * 0.05;
+    ctx.strokeRect(16, 16, CW - 32, CH - 32);
+    ctx.restore();
+
+    // ── 2. 떠다니는 만화 이펙트 (ZAP! BOOM! WOW!)
+    ctx.save();
+    const words = ['BOOM!', 'WOW!', 'ZAP!', 'HAHA!', '⭐'];
+    for (let i = 0; i < 3; i++) {
+      const slot = Math.floor((elapsed / 1500 + i * 1.3) % words.length);
+      const life = ((elapsed / 1500 + i * 1.3) % 1);
+      const x = 120 + i * 200;
+      const y = 350 + Math.sin((elapsed * 0.002) + i) * 40;
+      const scale = 0.5 + life * 0.8;
+      const alpha = life < 0.15 ? life / 0.15 : life > 0.75 ? (1 - life) / 0.25 : 1;
+      ctx.globalAlpha = alpha;
+      ctx.translate(x, y);
+      ctx.rotate((i - 1) * 0.2);
+      ctx.scale(scale, scale);
+      ctx.font = 'bold 42px Impact, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6; ctx.strokeStyle = '#000';
+      ctx.strokeText(words[slot], 0, 0);
+      ctx.fillStyle = ['#fbbf24','#ef4444','#22c55e','#3b82f6','#ec4899'][slot];
+      ctx.fillText(words[slot], 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    ctx.restore();
   }
+}
+
+// 별 모양 그리기 (북-극별 5 star)
+function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, spikes: number) {
+  let rot = -Math.PI / 2;
+  const step = Math.PI / spikes;
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(rot) * r, cy + Math.sin(rot) * r);
+  for (let i = 0; i < spikes; i++) {
+    rot += step;
+    ctx.lineTo(cx + Math.cos(rot) * (r * 0.45), cy + Math.sin(rot) * (r * 0.45));
+    rot += step;
+    ctx.lineTo(cx + Math.cos(rot) * r, cy + Math.sin(rot) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
 }
 
 // 판정 태그 스탬프 (Perfect! / Good! / Miss!)
