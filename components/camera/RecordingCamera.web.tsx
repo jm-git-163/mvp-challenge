@@ -1041,49 +1041,22 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           const lms     = landmarksRef.current;
           const face    = facingRef.current;
 
-          // 1. Camera — 이게 실패하면 루프 정지 위험이 가장 크므로 별도 try
+          // FIX-Z11 (2026-04-22): 촬영 캔버스는 "순수 카메라" 만 그린다.
+          //   템플릿/인트로/아웃트로/장르 이펙트/자막/HUD 는 모두 후처리 단계
+          //   (utils/videoCompositor.ts) 에서 레이어 합성. 사용자 피드백 명확:
+          //   "촬영 다 된 촬영 분을 사전에 완성된 템플릿 지정 부위에 들어가서
+          //    여러 겹의 레이어가 촬영화면 위에 있고".
+          //   촬영 중 실시간 UX 피드백(스쿼트 카운트/음성 자막)은
+          //   app/record/index.tsx 의 DOM 뱃지로 이미 노출 — 이것은 captureStream
+          //   에 들어가지 않으므로 녹화본은 오염되지 않음.
           try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
 
-          // 2. Genre effect
-          try { if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap); } catch {}
-
-          // 3. Header
-          try { if (tmpl) drawHeader(ctx, tmpl, elap, isRec); } catch {}
-
-          // 4. Subtitle
-          try {
-            if (tmpl) {
-              const timeline: { start_ms: number; end_ms: number; text: string; style?: string }[] =
-                tmpl.subtitle_timeline ?? [];
-              const sub = timeline.find((s) => elap >= s.start_ms && elap < s.end_ms);
-              if (sub) drawSubtitle(ctx, sub.text, sub.style, genreColor(tmpl.genre ?? ''));
-            }
-          } catch {}
-
-          // 5. Mission card
-          try { if (isRec && mission) drawMissionCard(ctx, mission, score); } catch {}
-
-          // 6. Skeleton — 숨김 처리
-          void lms; void drawSkeleton;
-
-          // 7. Live judgement overlays
-          try {
-            if (isRec) {
-              const nowMs = performance.now();
-              drawCombo(ctx, comboRef.current, elap);
-              if (tmpl?.genre === 'fitness') drawSquatCount(ctx, squatCountRef.current);
-              if (voiceTranscriptRef.current) drawVoiceTicker(ctx, voiceTranscriptRef.current, genreColor(tmpl?.genre ?? ''));
-              drawTagStamp(ctx, currentTagRef.current, tagTimestampRef.current, nowMs);
-            }
-          } catch {}
-
-          // 8. FIX-Z7: 인트로/아웃트로 카드 (녹화 중에만).
-          try {
-            if (isRec && tmpl) {
-              drawIntroOverlay(ctx, tmpl, elap);
-              drawOutroOverlay(ctx, tmpl, elap);
-            }
-          } catch {}
+          // 미사용 참조 억제 (post-production 으로 이동)
+          void tmpl; void mission; void score; void lms; void isRec;
+          void drawSkeleton; void drawGenreEffect; void drawHeader; void drawSubtitle;
+          void drawMissionCard; void drawCombo; void drawSquatCount; void drawVoiceTicker;
+          void drawTagStamp; void drawIntroOverlay; void drawOutroOverlay;
+          void genreColor;
         } catch (e) {
           // 최상위 방어막: 어떤 예외도 rAF 체인을 깨뜨리지 못함.
           try { console.warn('[drawFrame] top-level caught:', e); } catch {}
