@@ -1,30 +1,67 @@
 /**
  * services/challengeTemplateMap.ts
  *
- * Focused Commit A-6-b: **챌린지 → 레이어드 Template** 매핑 단일 지점.
+ * TEAM-TEMPLATE (2026-04-22) — **11개 챌린지 → 11개 템플릿 1:1 매핑**.
  *
- * 10개 챌린지(daily-vlog / news-anchor / english-speaking / storybook-reading /
- *   travel-checkin / unboxing-promo / kpop-dance / food-review / motivation-speech /
- *   social-viral) 각각에 **주제에 맞는** 3개 레퍼런스 레이어드 템플릿 중 하나를 배정.
+ * 사용자 피드백 #4: "챌린지 개수는 10개 정도인데 템플릿은 왜 3종류인지.
+ * 템플릿 종류와 bgm종류는 챌린지 개수와 같아야. 현재 3개로 잡혀있으면 수정해서 10가지로"
  *
- *   - neon-arena (사이버펑크 네온, 격렬): kpop-dance, social-viral, hiphop
- *   - news-anchor (CNN Breaking News 미니멀): news-anchor, motivation-speech, english-speaking
- *   - emoji-explosion (Instagram Story 스티커, 따뜻): daily-vlog, storybook-reading,
- *       travel-checkin, food-review, unboxing-promo
+ * 이전엔 3개 레퍼런스 템플릿(neon-arena/news-anchor/emoji-explosion)을 10개 챌린지에
+ * many-to-one 매핑 → 사용자는 "왜 다 똑같아 보이나" 느낌. 본 커밋부터는:
  *
- * 레거시 `VideoTemplate.genre` 또는 챌린지 slug 양쪽에서 해석 가능.
- * 결과 페이지/컴포지터가 새 Template 파이프라인 전환 시 단일 import 로 교체.
+ *   - `kpop-dance`   → data/templates/kpop-dance.ts         (핫핑크 + 시안, full-frame)
+ *   - `squat-master` → data/templates/squat-master.ts       (인디고 + 옐로우, portrait_split)
+ *   - `news-anchor`  → data/templates/news-anchor.ts        (네이비 + 골드)
+ *   - `english-speaking`  → data/templates/english-speaking.ts  (칠판 + 골드)
+ *   - `storybook-reading` → data/templates/storybook-reading.ts (파스텔 + 라일락)
+ *   - `travel-checkin`    → data/templates/travel-checkin.ts    (스카이 + 코랄)
+ *   - `unboxing-promo`    → data/templates/unboxing-promo.ts    (블랙 + 골드 + 레드)
+ *   - `food-review`       → data/templates/food-review.ts       (우드 + 머스타드)
+ *   - `motivation-speech` → data/templates/motivation-speech.ts (미드나잇 + 골드)
+ *   - `social-viral`      → data/templates/social-viral.ts      (블랙 + 시안 + 핑크)
+ *   - `daily-vlog`        → data/templates/daily-vlog.ts        (크림 + 블루 + 머스타드)
+ *
+ * 각 템플릿은 고유 BGM 파일(public/bgm/) 을 직접 참조. resolveGenreBgmFile 은
+ * legacy VideoTemplate.genre 전용 폴백으로만 유지.
+ *
+ * 기존 3개 레퍼런스 (neon-arena / emoji-explosion) 는 legacy alias 로 유지하지만
+ * 챌린지 slug 매칭은 신규 11개로만 향한다.
  */
 import type { Template } from '../engine/templates/schema';
-import { neonArena } from '../data/templates/neon-arena';
-import { newsAnchor } from '../data/templates/news-anchor';
-import { emojiExplosion } from '../data/templates/emoji-explosion';
 
-/** 레퍼런스 Template 3종 레지스트리. */
+// 11개 신규 템플릿
+import { squatMaster }      from '../data/templates/squat-master';
+import { kpopDance }        from '../data/templates/kpop-dance';
+import { dailyVlog }        from '../data/templates/daily-vlog';
+import { englishSpeaking }  from '../data/templates/english-speaking';
+import { storybookReading } from '../data/templates/storybook-reading';
+import { travelCheckin }    from '../data/templates/travel-checkin';
+import { unboxingPromo }    from '../data/templates/unboxing-promo';
+import { foodReview }       from '../data/templates/food-review';
+import { motivationSpeech } from '../data/templates/motivation-speech';
+import { socialViral }      from '../data/templates/social-viral';
+import { newsAnchor }       from '../data/templates/news-anchor';
+
+// Legacy 3 (테스트 호환)
+import { neonArena }        from '../data/templates/neon-arena';
+import { emojiExplosion }   from '../data/templates/emoji-explosion';
+
+/** 11개 슬러그 → 11개 독립 템플릿 레지스트리. */
 export const LAYERED_TEMPLATES: Record<string, Template> = {
-  'neon-arena':      neonArena,
-  'news-anchor':     newsAnchor,
-  'emoji-explosion': emojiExplosion,
+  'squat-master':      squatMaster,
+  'kpop-dance':        kpopDance,
+  'news-anchor':       newsAnchor,
+  'english-speaking':  englishSpeaking,
+  'storybook-reading': storybookReading,
+  'travel-checkin':    travelCheckin,
+  'unboxing-promo':    unboxingPromo,
+  'food-review':       foodReview,
+  'motivation-speech': motivationSpeech,
+  'social-viral':      socialViral,
+  'daily-vlog':        dailyVlog,
+  // legacy alias — 기존 코드 호환. 신규 챌린지 slug 매칭에는 사용되지 않음.
+  'neon-arena':        neonArena,
+  'emoji-explosion':   emojiExplosion,
 };
 
 /**
@@ -35,27 +72,40 @@ export function resolveLayeredTemplate(key: string | null | undefined): Template
   if (!key) return null;
   const k = key.toLowerCase().trim();
 
-  // 직접 Template id 매칭
+  // 1) 직접 id / slug 매칭
   if (LAYERED_TEMPLATES[k]) return LAYERED_TEMPLATES[k];
 
-  // 장르·챌린지 slug 매핑
-  if (['kpop', 'kpop-dance', 'social-viral', 'viral', 'hiphop', 'challenge'].includes(k)) {
-    return neonArena;
-  }
-  if (['news', 'news-anchor', 'motivation', 'motivation-speech', 'english', 'english-speaking', 'speech'].includes(k)) {
-    return newsAnchor;
-  }
-  if (['daily', 'daily-vlog', 'vlog', 'storybook', 'storybook-reading', 'kids',
-       'travel', 'travel-checkin', 'food', 'food-review', 'unboxing',
-       'unboxing-promo', 'promotion'].includes(k)) {
-    return emojiExplosion;
-  }
+  // 2) 장르·별칭
+  const aliases: Record<string, string> = {
+    'kpop':         'kpop-dance',
+    'dance':        'kpop-dance',
+    'squat':        'squat-master',
+    'fitness':      'squat-master',
+    'news':         'news-anchor',
+    'english':      'english-speaking',
+    'storybook':    'storybook-reading',
+    'kids':         'storybook-reading',
+    'travel':       'travel-checkin',
+    'unboxing':     'unboxing-promo',
+    'promotion':    'unboxing-promo',
+    'food':         'food-review',
+    'motivation':   'motivation-speech',
+    'speech':       'motivation-speech',
+    'viral':        'social-viral',
+    'social':       'social-viral',
+    'hiphop':       'social-viral',
+    'challenge':    'kpop-dance',
+    'daily':        'daily-vlog',
+    'vlog':         'daily-vlog',
+  };
+  const aliased = aliases[k];
+  if (aliased && LAYERED_TEMPLATES[aliased]) return LAYERED_TEMPLATES[aliased];
+
   return null;
 }
 
 /**
- * 진단용: 10개 공식 챌린지 slug 목록 (CLAUDE.md Phase 5i §6.2 기준).
- * A-6 가 켜진 뒤 UI/테스트에서 전체 커버리지 검증.
+ * 진단용: 11개 공식 챌린지 slug (10 챌린지 + squat-master).
  */
 export const OFFICIAL_CHALLENGE_SLUGS = [
   'daily-vlog',
@@ -68,5 +118,6 @@ export const OFFICIAL_CHALLENGE_SLUGS = [
   'food-review',
   'motivation-speech',
   'social-viral',
+  'squat-master',
 ] as const;
 export type ChallengeSlug = (typeof OFFICIAL_CHALLENGE_SLUGS)[number];

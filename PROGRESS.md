@@ -4,6 +4,14 @@
 
 ---
 
+## Team RECOG — 모바일 인식 근본 복구 (2026-04-22)
+- `hooks/usePoseDetection.web.ts`: 프로덕션/모바일 UA 에서 mock 폴백 완전 제거 (FIX-Z13 철회). generateMockPose 가 landmark.score=0.92 로 visibility 게이트를 통과시켜 발생시키던 "가짜 평가"(스쿼트·점수 자동 상승) 근본 차단. dev 데스크톱에서만 mock 허용.
+- `components/record/PoseCalibration.tsx`: "건너뛰기 →" 시 기본 d0=0.15 를 주입하도록 onSkip 시그니처 확장. HeadShoulder/FullBody 모두 대응.
+- `engine/missions/__tests__/headShoulderSquat.test.ts`: "건너뛰기 시나리오 → 5 rep 입력 → count ≥ 3" 회귀 테스트 추가.
+- `hooks/usePoseDetection.web.test.ts`: 기대치를 새 정책(prod error, no-mock)에 맞춰 갱신.
+
+---
+
 ## WORK_ORDER Phase 1 — 긴급 버그 수정 (feat/phase-1-bugfix)
 
 ### P1-A 라우트 선언 정합화 (2026-04-20)
@@ -468,3 +476,5 @@
 - MOBILE FIX-A+B: speech 인식이 isRealPose 에 묶여 MediaPipe 실패 시 자막·미션 타임라인까지 죽던 버그 해소 + mediaPipeLoader GPU→CPU 자동 폴백 (중저가 안드로이드/Edge 대응, 762/762 green)
 - MOBILE FIX-D: /debug/diagnose 진단 페이지 — getUserMedia·MediaPipe·SpeechRecognition·AudioLevel 4종 실시간 상태를 한 화면에 표시. 유저 디바이스에서 어느 서브시스템이 죽었는지 즉시 특정 가능.
 - FIX-I (Whisper WASM foundation, Session 1/3): @xenova/transformers 도입 + `utils/whisperRecognizer.ts` (SpeechRecognizer 인터페이스 동일, 5s chunk 추론, 16kHz 리샘플, mic AudioContext, diagnostic 카운터) + `utils/sttFactory.ts` (URL `?stt=whisper|webkit` → localStorage → env `EXPO_PUBLIC_STT_ENGINE` → default 'webkit' 4단계 우선순위) + `SttRecognizer` 공유 인터페이스 + useJudgement/record 팩토리 배선 + 디버그 HUD `stt=` 표시 (775/775 green). Android Chrome `webkitSpeechRecognition not-allowed` 시스템 제약 우회책. 활성화: `?stt=whisper` 로 진입 → 최초 1회 ~39MB 모델 IndexedDB 캐싱. Session 2: Web Worker 격리(메인스레드 블로킹 제거), Session 3: 모델 프리로드 UX + 저사양 tier 자동 감지.
+
+- TEAM-TEMPLATE (2026-04-22): 3개 → **11개 독립 챌린지 템플릿** 확장. squat-master/kpop-dance/daily-vlog/english-speaking/storybook-reading/travel-checkin/unboxing-promo/food-review/motivation-speech/social-viral/news-anchor 각각 고유 팔레트·BGM·레이어(10~14개)·framing(fullscreen/portrait_split). challengeTemplateMap 1:1. oscillator BGM 폴백 완전 제거(무음 stub). 961/961 green.

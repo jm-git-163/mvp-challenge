@@ -1206,6 +1206,23 @@ interface SimpleBGMHandle {
 }
 
 function createSimpleBGM(
+  _audioCtx: AudioContext,
+  _spec: BgmSpec,
+  _dest: AudioNode,
+  _opts?: { introMs?: number; totalMs?: number },
+): SimpleBGMHandle {
+  // TEAM-TEMPLATE (2026-04-22) — 사용자 피드백 #7:
+  //   "html수준 bgm 쓰거나 반복 인식 실패" 의 "html수준 bgm" 이 바로 여기 오실레이터 폴백.
+  //   BPM 고정 sine/square/sawtooth 합성은 실제 음악 대비 완전 인위적 → 앱 품질 저하.
+  //   본 커밋부터는 완전 무음 stub. createFileBGM 이 실패하면 BGM 없이 진행.
+  //   (실제 mp3 가 public/bgm/ 에 있으므로 이 폴백이 호출될 일은 거의 없음.)
+  try { console.warn('[compositor] BGM file load failed — silent fallback (was: oscillator synth).'); } catch {}
+  return { stop: () => {} };
+}
+
+// 아래 dead code 는 타입 참조 때문에 남아있지만 호출되지 않음.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _deadOscillatorBGM_legacy(
   audioCtx: AudioContext,
   spec: BgmSpec,
   dest: AudioNode,

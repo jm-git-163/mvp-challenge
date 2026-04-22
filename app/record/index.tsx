@@ -34,6 +34,7 @@ import { StanceGuide } from '../../components/record/StanceGuide';
 import { PoseCalibration } from '../../components/record/PoseCalibration';
 import { RecognitionStatusPanel } from '../../components/record/RecognitionStatusPanel';
 import VoiceDebugOverlay from '../../components/record/VoiceDebugOverlay';
+import ResourceDebugOverlay from '../../components/permissions/ResourceDebugOverlay';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -2119,6 +2120,10 @@ export default function RecordScreen() {
               {debugOn && isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (
                 <VoiceDebugOverlay enabled={true} />
               )}
+
+              {/* Team RELIABILITY (2026-04-22): ?debug=1 리소스 카운터.
+                  2회 챌린지 후 값이 0 으로 돌아오는지 확인 — 누수 탐지용. */}
+              <ResourceDebugOverlay />
 
               {/* FIX-Y6 (2026-04-22): Whisper 모델 로딩 배너. 모바일에서 voice 미션 템플릿
                   선택 시, 40MB 모델 다운로드가 필요 → 상태를 숨기지 않고 명시. */}

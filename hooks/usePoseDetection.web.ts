@@ -18,6 +18,7 @@ import {
   type PoseLandmarkerHandle,
   type PoseLoaderDeps,
 } from '../engine/recognition/mediaPipeLoader';
+import { resourceTracker } from '../utils/resourceTracker';
 
 interface UsePoseDetectionReturn {
   isReady: boolean;
@@ -40,6 +41,25 @@ function detectIsDev(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Team RECOG (2026-04-22): 모바일 UA 에서는 dev 여도 mock 폴백 금지.
+ *   사용자 피드백 "가짜 평가 올라오고" 의 근본 원인은 mobile 에서 generateMockPose 가
+ *   landmark.score=0.92 로 모든 visibility 게이트를 통과시켜 fake 스쿼트/포즈 판정을
+ *   발생시킨 것. 모바일에서는 실제 엔진이 실패해도 score=0 을 정직하게 유지한다.
+ */
+function isMobileUA(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry/i.test(ua)) return true;
+  if ((navigator as any).maxTouchPoints > 1 && /Macintosh/i.test(ua)) return true;
+  return false;
+}
+
+function mockAllowed(): boolean {
+  // dev AND NOT mobile
+  return detectIsDev() && !isMobileUA();
 }
 
 export function usePoseDetection(): UsePoseDetectionReturn {
@@ -76,6 +96,7 @@ export function usePoseDetection(): UsePoseDetectionReturn {
     }
     if (landmarkerRef.current) {
       try { landmarkerRef.current.close(); } catch { /* ignore */ }
+      try { resourceTracker.dec('poseLandmarker'); } catch {}
       landmarkerRef.current = null;
     }
     setStatus('idle');
@@ -192,6 +213,7 @@ export function usePoseDetection(): UsePoseDetectionReturn {
 
         if (out.status === 'ready-real' && out.handle) {
           landmarkerRef.current = out.handle;
+          try { resourceTracker.inc('poseLandmarker'); } catch {}
           setError(null);
           setStatus('ready-real');
           setIsReady(true);
@@ -210,24 +232,27 @@ export function usePoseDetection(): UsePoseDetectionReturn {
         throw out.error || new Error(out.status);
       } catch (err: any) {
         if (ac.signal.aborted) return;
-        
+
         const isDev = detectIsDev();
-        if (isDev) {
+        // Team RECOG (2026-04-22): "가짜 평가" 근절.
+        //   기존 FIX-Z13 은 프로덕션 모바일에서도 mock 폴백을 켜서 landmarks 에
+        //   가짜(score=0.92) 값을 주입 → useJudgement 가 이를 실제 포즈로 오인해
+        //   스쿼트 카운트/점수가 마음대로 오르는 "가짜 평가" 의 원인이었다.
+        //   이제 프로덕션에서는 mock 을 절대 사용하지 않고 명시적 error 상태로
+        //   전환 → usePoseDetection.ts 의 auto-retry 가 3회까지 재시도한 뒤에도
+        //   실패하면 score=0 유지(record 화면의 포즈에러 오버레이가 표시됨).
+        const msg = err?.message || err?.toString?.() || 'unknown';
+        if (isDev && !isMobileUA()) {
           useMockRef.current = true;
           setIsReady(true);
           setStatus('ready-mock');
-          setError('MediaPipe unavailable — using mock pose (dev)');
+          setError('MediaPipe unavailable — using mock pose (dev desktop only)');
         } else {
-          // FIX-Z13 (2026-04-22): 프로덕션 모바일에서 MediaPipe CDN/WASM 실패 시에도
-          //   mock pose 폴백을 켜서 "최소한 뭔가 움직이는" 상태 유지. 완벽한 판정은
-          //   안되지만 사용자가 "아무것도 안 됨" 상태는 피함.
-          //   에러 메시지를 명시해서 DOM 뱃지에 노출 → 사용자/개발자 추적 가능.
-          useMockRef.current = true;
-          setIsReady(true);
-          setStatus('ready-mock');
-          const msg = err?.message || err?.toString?.() || 'unknown';
-          setError('MediaPipe load failed (mock fallback): ' + msg);
-          try { console.error('[PoseDetection] MediaPipe load failed, using mock:', err); } catch {}
+          useMockRef.current = false;
+          setIsReady(false);
+          setStatus('error');
+          setError('포즈 엔진 로드 실패 — 재시도 중: ' + msg);
+          try { console.error('[PoseDetection] MediaPipe load failed (prod, NO mock):', err); } catch {}
         }
       }
     })();
@@ -244,11 +269,19 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   useEffect(() => {
     if (status !== 'error') return;
     if (poseRetryRef.current >= POSE_RETRY_MAX) {
-      // 한계 도달 → mock 강제 전환.
-      useMockRef.current = true;
-      setError('자동 재시도 3회 실패 — mock 모드');
-      setIsReady(true);
-      setStatus('ready-mock');
+      // Team RECOG (2026-04-22): 한계 도달 시 mock 강제 전환 → 가짜 평가 주범.
+      //   이제 단순히 error 상태를 유지하여 UI 가 "포즈 엔진을 불러오지 못했습니다"
+      //   오버레이를 표시하고 score=0 으로 유지되게 한다. 사용자는 새로고침 또는
+      //   버튼으로 재시도 가능 (app/record/index.tsx 의 poseErrorOverlay 참고).
+      //   dev 환경에서만 mock 허용.
+      if (mockAllowed()) {
+        useMockRef.current = true;
+        setError('자동 재시도 3회 실패 — mock 모드 (dev desktop)');
+        setIsReady(true);
+        setStatus('ready-mock');
+      } else {
+        setError('포즈 엔진 로드 실패 — 새로고침하거나 네트워크를 확인해주세요');
+      }
       return;
     }
     if (poseRetryTimerRef.current) clearTimeout(poseRetryTimerRef.current);
@@ -275,6 +308,28 @@ export function usePoseDetection(): UsePoseDetectionReturn {
       }
     };
   }, [status, runDetection]);
+
+  // ── Unmount-only cleanup ─────────────────────────────────────────────────
+  // Team RELIABILITY (2026-04-22): record 화면 언마운트 시 PoseLandmarker.close()
+  //   호출을 보장. 기존엔 dispose() 가 export 만 되고 자동 호출 경로가 없어
+  //   챌린지를 2회 연속 수행하면 WASM 인스턴스가 누적 → 메모리·GPU 핸들 leak.
+  useEffect(() => {
+    return () => {
+      if (poseRetryTimerRef.current) {
+        clearTimeout(poseRetryTimerRef.current);
+        poseRetryTimerRef.current = null;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (landmarkerRef.current) {
+        try { landmarkerRef.current.close(); } catch {}
+        try { resourceTracker.dec('poseLandmarker'); } catch {}
+        landmarkerRef.current = null;
+      }
+    };
+  }, []);
 
   return {
     isReady,

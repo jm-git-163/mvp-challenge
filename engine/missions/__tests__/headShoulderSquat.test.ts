@@ -190,4 +190,30 @@ describe('HeadShoulderSquatDetector', () => {
     expect(d.isCalibrated()).toBe(true);
     expect(d.getBaseline()).toBeCloseTo(0.12, 3);
   });
+
+  /**
+   * Team RECOG (2026-04-22): 사용자가 "건너뛰기 →" 눌러 캘리브레이션을 스킵하면
+   *   PoseCalibration 이 기본 d0=0.15 를 injectBaseline 으로 주입한다.
+   *   이후 5번의 스쿼트 사이클 (down→up) 을 통과시켰을 때 count ≥ 3 이어야 한다.
+   *
+   *   유저 피드백 "건너뛰기 눌러도 카운트 안됨" 회귀 방지.
+   */
+  it('건너뛰기 시나리오 — injectBaseline(0.15) 후 5 rep 입력 → count ≥ 3', () => {
+    const d = new HeadShoulderSquatDetector();
+    d.injectBaseline(0.15);    // 건너뛰기 시 기본 d0 주입
+    expect(d.isCalibrated()).toBe(true);
+    expect(d.getCount()).toBe(0);
+
+    // 5 rep 사이클: 서있는 자세 shoulder 0.35, nose 0.20 (d=0.15)
+    //   down: nose 가 어깨 쪽으로 가라앉아 d=0.05 (threshold 0.15-0.04=0.11 보다 작음 ✓)
+    //   up  : nose 복귀해 d=0.14 (threshold 0.15-0.015=0.135 보다 큼 ✓)
+    let t = 0;
+    for (let rep = 0; rep < 5; rep++) {
+      // down phase — 10 frames @50ms = 500ms
+      for (let i = 0; i < 10; i++) { d.update(makeLandmarks(0.30, 0.35), t); t += 50; }
+      // up phase — 15 frames @50ms = 750ms (디바운스 600ms 여유)
+      for (let i = 0; i < 15; i++) { d.update(makeLandmarks(0.21, 0.35), t); t += 50; }
+    }
+    expect(d.getCount()).toBeGreaterThanOrEqual(3);
+  });
 });

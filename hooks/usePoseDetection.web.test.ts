@@ -60,7 +60,7 @@ describe('usePoseDetection (web)', () => {
     expect(mockState.data[1]).toBe(false);  // isReady
   });
 
-  it('프로덕션에서 실패 시 mock 모드 + 명시적 에러 메시지 (FIX-Z13)', async () => {
+  it('프로덕션에서 실패 시 error 상태 유지 (Team RECOG: 가짜 평가 근절)', async () => {
     vi.spyOn(mediaPipeLoader, 'loadPoseLandmarker').mockResolvedValue({
       status: 'error',
       handle: null,
@@ -72,10 +72,13 @@ describe('usePoseDetection (web)', () => {
     const effect = mockState.effects[0];
     await effect();
 
-    // FIX-Z13: 프로덕션에서도 mock 폴백. "아무것도 안됨" 보다 "가짜라도 움직임" 우선.
-    expect(mockState.data[0]).toBe('ready-mock');        // status
-    expect(mockState.data[1]).toBe(true);                // isReady
-    expect(String(mockState.data[4])).toContain('MediaPipe load failed'); // error message visible
+    // Team RECOG (2026-04-22): 프로덕션에서 mock 폴백 금지.
+    //   과거 FIX-Z13 이 켰던 mock 은 landmark.score=0.92 로 visibility 게이트를
+    //   통과해 "가짜 평가" (스쿼트 카운트/점수) 를 유발했다. 이제는 명시적
+    //   error 상태로 남아 재시도 오버레이가 표시된다.
+    expect(mockState.data[0]).toBe('error');             // status
+    expect(mockState.data[1]).toBe(false);               // isReady (가짜 ready=true 금지)
+    expect(String(mockState.data[4])).toContain('포즈 엔진 로드 실패'); // Korean error surfaced
   });
 
   it('BlazePose 33 → MoveNet 17 리맵 결과가 17 개여야 한다 (FIX-Z16)', () => {
@@ -103,6 +106,8 @@ describe('usePoseDetection (web)', () => {
     await effect();
 
     expect(mockState.data[0]).toBe('ready-mock');
-    expect(mockState.data[4]).toContain('mock pose (dev)');
+    // Dev message updated to clarify "desktop only" — mobile UA never gets mock
+    // even in dev (per Team RECOG anti-fake-eval policy).
+    expect(mockState.data[4]).toContain('mock pose');
   });
 });

@@ -153,10 +153,32 @@ let _globalRecognizer: SpeechRecognizer | null = null;
 export function getGlobalSpeechRecognizer(): SpeechRecognizer {
   if (!_globalRecognizer && typeof window !== 'undefined') {
     _globalRecognizer = new SpeechRecognizer();
+    // Team RELIABILITY: 전역 인스턴스 1개만 존재해야 정상.
+    //   tracker 는 "싱글톤이 살아있음" 표시 1 로 고정 — 2 이상이면 누가 중복 생성.
+    try {
+      const { resourceTracker } = require('./resourceTracker');
+      resourceTracker.inc('speechRecognizer');
+    } catch {}
   }
   // SSR 환경 대비 fallback
   if (!_globalRecognizer) _globalRecognizer = new SpeechRecognizer();
   return _globalRecognizer;
+}
+
+/**
+ * Team RELIABILITY (2026-04-22): 앱 전체 셧다운 시 싱글톤 정리.
+ * record 화면 언마운트 정도로는 쓰지 말 것 — 다음 세션에서 권한 팝업이 다시 뜬다.
+ * 현재는 테스트·디버그 전용.
+ */
+export function disposeGlobalSpeechRecognizer(): void {
+  if (_globalRecognizer) {
+    try { _globalRecognizer.stop(); } catch {}
+    _globalRecognizer = null;
+    try {
+      const { resourceTracker } = require('./resourceTracker');
+      resourceTracker.dec('speechRecognizer');
+    } catch {}
+  }
 }
 
 // ── SpeechRecognition 래퍼 ────────────────────────────────────────────────────

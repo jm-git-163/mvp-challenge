@@ -25,6 +25,8 @@ import type { Template } from '../../../types/template';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../../services/supabaseThumbnails';
+import PermissionWelcomeModal from '../../../components/permissions/PermissionWelcomeModal';
+import ResourceDebugOverlay from '../../../components/permissions/ResourceDebugOverlay';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -387,6 +389,10 @@ export default function HomeScreen() {
 
   return (
     <View style={s.root}>
+      {/* Team RELIABILITY (2026-04-22): 홈 최초 진입 시 1회 권한 안내 모달.
+          허용 시 origin 에 권한이 캐시되어 카드 클릭/ /record 에서 팝업 없음. */}
+      <PermissionWelcomeModal />
+      <ResourceDebugOverlay />
       <SafeAreaView edges={['top']} style={s.safeTop}>
         <View style={[s.header, { paddingHorizontal: sidePad }]}>
           <View style={s.brand}>

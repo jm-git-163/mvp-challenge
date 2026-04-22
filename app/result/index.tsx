@@ -865,6 +865,7 @@ export default function ResultScreen() {
   const setLastSession = useSessionStore(s => s.setLastSession);
   const reset          = useSessionStore(s => s.reset);
   const startSession   = useSessionStore(s => s.startSession);
+  const fullResetForRetake = useSessionStore(s => s.fullResetForRetake);
   const { userId }     = useUserStore();
 
   // Composed video state
@@ -1102,9 +1103,12 @@ export default function ResultScreen() {
 
   const doRetake = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
+    // Team RELIABILITY (2026-04-22): 완전 리셋 후 새 세션 시작 → record 화면이
+    //   잔존 frameTags/timeline/isRecording 없이 clean slate 로 remount.
+    try { fullResetForRetake(); } catch {}
     if (activeTemplate) startSession(activeTemplate);
     router.replace('/record');
-  }, [activeTemplate, startSession, composedUri, router]);
+  }, [activeTemplate, startSession, fullResetForRetake, composedUri, router]);
 
   const hPad = Math.min(20, (width - 360) / 2 + 16);
 

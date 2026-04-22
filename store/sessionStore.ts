@@ -35,6 +35,12 @@ interface SessionState {
   pushTimelineEvent: (ev: { tMs: number; type: string; payload?: any }) => void;
   resetTimeline: () => void;
   reset: () => void;
+  /**
+   * Team RELIABILITY (2026-04-22): 결과 화면 "다시 찍기" 용 완전 리셋.
+   * activeTemplate 제외 모든 휘발성 상태를 0 으로 되돌리고 sessionKey 를 증가시켜
+   * record 화면이 멱등 remount 로 동작하게 함.
+   */
+  fullResetForRetake: () => void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -86,4 +92,17 @@ export const useSessionStore = create<SessionState>((set) => ({
       pendingBgmUrl: null,
       eventTimeline: [],
     }),
+
+  fullResetForRetake: () =>
+    set((s) => ({
+      // activeTemplate 은 result 화면에서 다시 startSession 호출로 세팅됨.
+      //  여기선 "지난 세션" 잔존물만 전부 제거 + sessionKey 증가.
+      sessionKey: s.sessionKey + 1,
+      frameTags: [],
+      isRecording: false,
+      recordingStartedAt: null,
+      pendingBgmUrl: null,
+      eventTimeline: [],
+      lastSession: null,
+    })),
 }));

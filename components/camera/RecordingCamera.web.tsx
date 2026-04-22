@@ -26,6 +26,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 import { getBgmPlayer } from '../../utils/bgmLibrary';
+import { resourceTracker } from '../../utils/resourceTracker';
 import { drawDiagnosticsOverlay } from '../../utils/diagnosticsOverlay';
 import {
   drawLiveCaption,
@@ -68,6 +69,7 @@ async function doAcquire(facing: 'front' | 'back'): Promise<MediaStream> {
     // 기존 캐시 stream 정리 (video+audio 트랙 전부 stop) + 새 getUserMedia 전 80ms 여유.
     //   → 일부 Android Chrome 에서 동일 장치 즉시 재요청 시 NotReadableError 발생 회피.
     try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
+    try { resourceTracker.dec('mediaStream'); } catch {}
     _streamCache = null;
     await new Promise((r) => setTimeout(r, 80));
   }
@@ -102,7 +104,20 @@ async function doAcquire(facing: 'front' | 'back'): Promise<MediaStream> {
     });
   }
   _streamCache = { stream, facing };
+  // Team RELIABILITY (2026-04-22): 스트림 생성 카운트 +1.
+  //   _streamCache 가 null 로 비워지고 새 stream 을 넣을 때만 증가.
+  //   기존 stream.stop() 경로에서 dec — stopCachedStream() 에서 처리.
+  try { resourceTracker.inc('mediaStream'); } catch {}
   return stream;
+}
+
+/** Team RELIABILITY: 캐시된 stream 을 명시적으로 정리 (트랙 stop + 카운터 감소) */
+export function stopCachedStream(): void {
+  if (_streamCache) {
+    try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
+    try { resourceTracker.dec('mediaStream'); } catch {}
+    _streamCache = null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1087,6 +1102,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
         //   — 같은 facing 으로 remount 되는 경우 (예: React StrictMode) 기존 트랙 유지.
         if (mountedFacingRef.current !== facing && _streamCache) {
           try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
+          try { resourceTracker.dec('mediaStream'); } catch {}
           _streamCache = null;
         }
         mountedFacingRef.current = facing;
@@ -1466,6 +1482,47 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     }, [ready]);
 
     // ------------------------------------------------------------------
+    // Unmount-only cleanup (Team RELIABILITY 2026-04-22)
+    //   - 녹화 중 언마운트 시 MediaRecorder.stop() 보장
+    //   - 오디오 믹스 노드 disconnect
+    //   - window 전역 스트림 참조 해제
+    //   2회 연속 챌린지에서 프리즈 현상의 주된 원인 중 하나가 MediaRecorder 가
+    //   stop 되지 않은 채 컴포넌트가 재마운트되어 canvas.captureStream 이
+    //   중복 점유되는 것이었음.
+    // ------------------------------------------------------------------
+    useEffect(() => {
+      return () => {
+        try {
+          if (recRef.current && recRef.current.state !== 'inactive') {
+            recRef.current.stop();
+          }
+        } catch {}
+        recRef.current = null;
+        if (recStateRef.current) {
+          try { resourceTracker.dec('mediaRecorder'); } catch {}
+          recStateRef.current = false;
+        }
+        try { micSrcRef.current?.disconnect(); } catch {}
+        micSrcRef.current = null;
+        try { mixDestRef.current?.disconnect(); } catch {}
+        mixDestRef.current = null;
+        if (mixAudioCtxRef.current) {
+          try { mixAudioCtxRef.current.close(); } catch {}
+          try { resourceTracker.dec('audioCtx'); } catch {}
+          mixAudioCtxRef.current = null;
+        }
+        if (frameRafRef.current !== null) {
+          cancelAnimationFrame(frameRafRef.current);
+          frameRafRef.current = null;
+        }
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+      };
+    }, []);
+
+    // ------------------------------------------------------------------
     // Imperative handle — same interface as RecordingCameraHandle
     // ------------------------------------------------------------------
     useImperativeHandle(ref, () => ({
@@ -1505,16 +1562,22 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           );
           recRef.current = recorder;
           recStateRef.current = true;
+          try { resourceTracker.inc('mediaRecorder'); } catch {}
 
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
           };
           recorder.onstop = () => {
             recStateRef.current = false;
+            try { resourceTracker.dec('mediaRecorder'); } catch {}
             const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
             resolve(URL.createObjectURL(blob));
           };
-          recorder.onerror = (e) => { recStateRef.current = false; reject(e); };
+          recorder.onerror = (e) => {
+            recStateRef.current = false;
+            try { resourceTracker.dec('mediaRecorder'); } catch {}
+            reject(e);
+          };
 
           recorder.start(100);
         }),

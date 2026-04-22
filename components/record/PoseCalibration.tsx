@@ -27,8 +27,16 @@ interface Props {
   landmarks: NormalizedLandmark[];
   /** 매칭률 ≥ 80% 가 1.5 s 유지되면 호출. headShoulder 모드에서는 d0 인자 포함. */
   onCalibrated: (info?: { d0?: number }) => void;
-  /** "건너뛰기" 버튼으로 사용자가 수동 진행 */
-  onSkip: () => void;
+  /**
+   * "건너뛰기" 버튼으로 사용자가 수동 진행.
+   *
+   * Team RECOG (2026-04-22): 사용자가 건너뛰기를 눌러도 스쿼트 카운트가
+   *   즉시 작동하도록 기본 d0(≈0.15, 정면 서있는 성인 평균값)을 주입한다.
+   *   headShoulder 모드에서 호출 시 info.d0=0.15 default. useJudgement 의
+   *   injectSquatBaseline(d0) 이 HeadShoulderSquatDetector 를 즉시 calibrated
+   *   상태로 전환 → 첫 프레임부터 rep 카운트 가능.
+   */
+  onSkip: (info?: { d0?: number }) => void;
   /**
    * Team SQUAT (2026-04-22): research §4.2 "정면으로 서주세요" 3초 캘리브레이션.
    *   - 'fullBody' (기본, 기존 스틱맨 매칭)
@@ -267,7 +275,11 @@ function FullBodyCalibration({ landmarks, onCalibrated, onSkip }: Props) {
 
       {/* 건너뛰기 버튼 (3초 후 노출) */}
       {showSkip && (
-        <Pressable style={styles.skipBtn} onPress={onSkip} hitSlop={12}>
+        <Pressable
+          style={styles.skipBtn}
+          onPress={() => onSkip({ d0: 0.15 })}
+          hitSlop={12}
+        >
           <Text style={styles.skipText}>건너뛰기 →</Text>
         </Pressable>
       )}
@@ -466,7 +478,11 @@ function HeadShoulderCalibration({ landmarks, onCalibrated, onSkip }: Props) {
         </Text>
       </View>
 
-      <Pressable style={styles.skipBtn} onPress={onSkip} hitSlop={12}>
+      <Pressable
+        style={styles.skipBtn}
+        onPress={() => onSkip({ d0: 0.15 })}
+        hitSlop={12}
+      >
         <Text style={styles.skipText}>건너뛰기 →</Text>
       </Pressable>
     </View>

@@ -28,16 +28,18 @@ const fs = require('node:fs/promises');
 //  minDurationSec: (music) 최소 길이
 //  targetBpm: (music) 목표 BPM, ±6 허용
 const ASSET_MANIFEST = [
-  // ── BGM (챌린지 주제별) ───────────────────────────────────────────
-  // 스쿼트/피트니스 — 강렬한 electronic workout
-  { destRel: 'bgm/workout-electronic.mp3', kind: 'music',
-    query: 'electronic workout energetic', minDurationSec: 30 },
-  // 뉴스/앵커 — 차분한 corporate / jazz
-  { destRel: 'bgm/news-corporate.mp3', kind: 'music',
-    query: 'corporate news background', minDurationSec: 45 },
-  // 표정/제스처 — 업비트 happy pop
-  { destRel: 'bgm/pop-happy.mp3', kind: 'music',
-    query: 'happy upbeat pop', minDurationSec: 30 },
+  // ── BGM (11개 챌린지 주제별 — TEAM-TEMPLATE 2026-04-22) ─────────────
+  { destRel: 'bgm/squat-workout.mp3',     kind: 'music', query: 'electronic workout high energy 130 bpm', minDurationSec: 30, targetBpm: 130 },
+  { destRel: 'bgm/kpop-dance.mp3',        kind: 'music', query: 'kpop upbeat pop 128 bpm',                 minDurationSec: 30, targetBpm: 128 },
+  { destRel: 'bgm/news-corporate.mp3',    kind: 'music', query: 'corporate lounge news 100 bpm',           minDurationSec: 45, targetBpm: 100 },
+  { destRel: 'bgm/motivation-orch.mp3',   kind: 'music', query: 'inspirational orchestral 110 bpm',        minDurationSec: 40, targetBpm: 110 },
+  { destRel: 'bgm/storybook-musicbox.mp3',kind: 'music', query: 'fairy tale music box 90 bpm',             minDurationSec: 30, targetBpm: 90  },
+  { destRel: 'bgm/daily-lofi.mp3',        kind: 'music', query: 'lofi chill vlog 95 bpm',                  minDurationSec: 40, targetBpm: 95  },
+  { destRel: 'bgm/travel-acoustic.mp3',   kind: 'music', query: 'travel bright acoustic 115 bpm',          minDurationSec: 30, targetBpm: 115 },
+  { destRel: 'bgm/food-ukulele.mp3',      kind: 'music', query: 'happy ukulele kitchen 105 bpm',           minDurationSec: 30, targetBpm: 105 },
+  { destRel: 'bgm/english-jazz.mp3',      kind: 'music', query: 'light jazz clean 100 bpm',                minDurationSec: 40, targetBpm: 100 },
+  { destRel: 'bgm/unboxing-pop.mp3',      kind: 'music', query: 'pop bright commercial 120 bpm',           minDurationSec: 30, targetBpm: 120 },
+  { destRel: 'bgm/viral-trap.mp3',        kind: 'music', query: 'viral tiktok trap 140 bpm',               minDurationSec: 30, targetBpm: 140 },
 
   // ── 배경 이미지 ──────────────────────────────────────────────────
   { destRel: 'templates/news-anchor/studio.jpg', kind: 'image',
