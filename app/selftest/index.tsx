@@ -562,6 +562,96 @@ export default function SelfTest() {
       window.alert('LOOPBACK 에러: ' + (err?.message ?? String(err)));
     }
   };
+  // FIX-WHISPER-AB (2026-04-22): A/B 테스트 — Whisper (OSS, 클라이언트 WASM) vs 템플릿 전용.
+  //   getUserMedia 로 3초 녹음 → Blob → @xenova/transformers Whisper-tiny (~75MB) 로컬 전사.
+  //   네트워크 API 호출 없음 (법적 가드레일 §12 준수). 첫 실행시 모델 다운로드 시간 표시.
+  //   성공시: Android Chrome 마이크 충돌 문제 완전 우회 (SR 미사용). 오프라인 동작.
+  //   실패/느림시: 템플릿 전용 모드 (자막 미평가, 영상만 멋지게) 로 확정.
+  const whisperTest = async () => {
+    try {
+      const pre = streamRef.current ?? (window as any).__permissionStream;
+      if (pre && typeof pre.getTracks === 'function') {
+        pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
+      }
+      await new Promise((r) => setTimeout(r, 200));
+
+      // 1) Transformers.js 로드 (CDN, 영구 설치 X — A/B 결과 보고 결정)
+      const w: any = window as any;
+      if (!w.__xenovaPipeline) {
+        window.alert('[1/5] Whisper 모델 첫 로드 시작 (~75MB, 1~3분 소요). 대역 확인 후 확인.');
+        const t0 = performance.now();
+        // Metro/Expo 번들러가 URL import 를 해석하려 드는 것을 막기 위해 Function 래퍼로 우회.
+        const loader = new Function('return import("https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2")');
+        const mod: any = await loader();
+        const { pipeline, env } = mod;
+        env.allowLocalModels = false;
+        env.useBrowserCache = true; // IndexedDB 캐시 → 두 번째부터 즉시
+        w.__xenovaPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+          quantized: true,
+          progress_callback: (p: any) => {
+            if (p.status === 'progress' && p.file) {
+              // noop — alert 폭발 방지
+            }
+          },
+        });
+        const t1 = performance.now();
+        window.alert(`[1/5] Whisper 로드 완료: ${((t1 - t0) / 1000).toFixed(1)}초`);
+      } else {
+        window.alert('[1/5] Whisper 이미 로드됨 (캐시 사용).');
+      }
+      const asr = w.__xenovaPipeline;
+
+      // 2) 3초 녹음
+      window.alert('[2/5] 3초간 "한국어 테스트 일 이 삼" 이라고 또렷하게 말하세요. 확인 누르면 녹음.');
+      const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeCand = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', ''];
+      let mime = '';
+      for (const m of mimeCand) { if (!m || (window as any).MediaRecorder?.isTypeSupported?.(m)) { mime = m; break; } }
+      const mr = new MediaRecorder(audioOnly, mime ? { mimeType: mime } : undefined);
+      const chunks: BlobPart[] = [];
+      mr.ondataavailable = (e: any) => { if (e.data?.size > 0) chunks.push(e.data); };
+      const recDone: Promise<Blob> = new Promise((resolve) => {
+        mr.onstop = () => resolve(new Blob(chunks, { type: mime || 'audio/webm' }));
+      });
+      mr.start();
+      await new Promise((r) => setTimeout(r, 3000));
+      mr.stop();
+      const blob = await recDone;
+      audioOnly.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+      window.alert(`[3/5] 녹음 완료 (${(blob.size / 1024).toFixed(1)} KB). 전사 시작.`);
+
+      // 3) Blob → Float32Array 16kHz 변환 (Whisper 요구사항)
+      const AC: any = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AC({ sampleRate: 16000 });
+      const arrayBuf = await blob.arrayBuffer();
+      const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
+      const f32 = audioBuf.numberOfChannels === 1
+        ? audioBuf.getChannelData(0)
+        : (() => {
+            const a = audioBuf.getChannelData(0);
+            const b = audioBuf.getChannelData(1);
+            const out = new Float32Array(a.length);
+            for (let i = 0; i < a.length; i++) out[i] = (a[i] + b[i]) * 0.5;
+            return out;
+          })();
+      try { ctx.close(); } catch {}
+
+      // 4) Whisper 전사
+      const t2 = performance.now();
+      const result: any = await asr(f32, { language: 'korean', task: 'transcribe' });
+      const t3 = performance.now();
+      const transcript = (result?.text ?? '').trim();
+      window.alert(`[4/5] 전사 (${((t3 - t2) / 1000).toFixed(2)}초): "${transcript || '(empty)'}"`);
+
+      // 5) 유사도
+      const { textSimilarity } = require('../../utils/speechUtils');
+      const sim = textSimilarity('한국어 테스트 일 이 삼', transcript);
+      window.alert(`[5/5] 유사도: ${(sim * 100).toFixed(1)}%  · 전사지연 ${((t3 - t2) / 1000).toFixed(2)}s\n(80%+ & 지연 3s 이하 = Whisper 채택 가치 있음)`);
+    } catch (err: any) {
+      window.alert('WHISPER 에러: ' + (err?.message ?? String(err)));
+    }
+  };
+
   const mkPureBtn = (key: string, label: string, bg: string, border: string, bottom: number, handler: () => void) =>
     React.createElement('button', {
       key,
@@ -589,6 +679,7 @@ export default function SelfTest() {
   const PureSttButtonEn = Platform.OS === 'web' ? mkPureBtn('stt-pure-en', '🧪 PURE EN (en-US, cont=false)',  '#2563eb', '#93c5fd', 140, pureSttEn)  : null;
   const PureSttButtonCont = Platform.OS === 'web' ? mkPureBtn('stt-pure-cont','🧪 PURE KO-CONT (continuous)', '#7c3aed', '#c4b5fd', 200, pureSttCont): null;
   const LoopbackSttButton = Platform.OS === 'web' ? mkPureBtn('stt-loopback', '🔁 LOOPBACK: 녹음→스피커재생→SR전사 (핵심 실험)', '#be123c', '#fda4af', 260, loopbackSttTest) : null;
+  const WhisperButton = Platform.OS === 'web' ? mkPureBtn('stt-whisper', '🎙 WHISPER A/B: 녹음 3초 → 로컬 전사 (OSS WASM)', '#0f766e', '#5eead4', 320, whisperTest) : null;
 
   return (
     <>
@@ -597,12 +688,13 @@ export default function SelfTest() {
     {PureSttButtonEn}
     {PureSttButtonCont}
     {LoopbackSttButton}
+    {WhisperButton}
     <ScrollView style={s.root} contentContainerStyle={s.inner}>
       <Text style={s.title}>🩺 MotiQ 실기기 자가진단</Text>
       <Text style={s.sub}>아래 버튼 한 번 눌러서 1분 안에 1~8 항목 실제 동작 확인.</Text>
       {/* FIX-CACHE-VERIFY (2026-04-22): 사용자가 최신 빌드를 보고 있는지 확인하는 버전 스탬프.
           이 문자열이 화면에 뜨면 커밋 92fba7e 이후 빌드. 뜨지 않거나 다르면 아직 캐시. */}
-      <Text style={s.version}>build: STT-loopback-amp-v11 · HSS-v2 · 2026-04-22</Text>
+      <Text style={s.version}>build: STT-whisper-ab-v12 · HSS-v2 · 2026-04-22</Text>
 
       {st.permStatus === 'idle' && (
         <Pressable style={s.btnHero} onPress={grantAndRun}>
