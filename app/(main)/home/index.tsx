@@ -24,6 +24,7 @@ import { useSessionStore } from '../../../store/sessionStore';
 import type { Template } from '../../../types/template';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
+import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../../services/supabaseThumbnails';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -110,7 +111,7 @@ function ChallengeCard({ item: t, width, onPress }: CardProps) {
       {/* 16:9 thumbnail — real Unsplash image */}
       <View style={card.thumb}>
         <Image
-          source={{ uri: TEMPLATE_THUMBNAILS[t.id]?.url || t.thumbnail_url || getThumbnailUrl(t.genre, t.id, 640) }}
+          source={{ uri: SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.url || TEMPLATE_THUMBNAILS[t.id]?.url || t.thumbnail_url || getThumbnailUrl(t.genre, t.id, 640) }}
           style={card.thumbImg}
           // @ts-ignore web
           loading="lazy"

@@ -109,7 +109,18 @@
       "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/_expo/static/js/web/entry-ebe6c4a96746dce6e923f5279a31ae0d.js\")",
       "Bash(npm ls *)",
       "Bash(git revert *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(node scripts/fetch-pixabay-thumbnails.js)",
+      "Bash(node scripts/fix-duplicate-thumbnails.js)",
+      "Bash(node -e \"const t=require\\('./services/templateThumbnails.ts'\\); \")",
+      "Bash(curl -sI https://mvp-challenge.vercel.app/)",
+      "Bash(curl -sI https://mvp-ivory-kappa.vercel.app/)",
+      "Bash(curl -s https://mvp-ivory-kappa.vercel.app/)",
+      "Bash(curl -s https://mvp-ivory-kappa.vercel.app/_expo/static/js/web/entry-24f2239acca1c584311b330ad3127fa8.js)",
+      "Bash(curl -s \"https://mvp-ivory-kappa.vercel.app/_expo/static/js/web/entry-24f2239acca1c584311b330ad3127fa8.js\" -o /tmp/bundle.js)",
+      "Bash(grep -oE \"eyJ[A-Za-z0-9_.-]{100,}\" /tmp/bundle.js)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'total: {len\\(d\\)}'\\); [print\\(f\\\\\"{t['id']}  [{t['genre']:10}]  {t['name']}\\\\\"\\) for t in d]\")",
+      "Bash(node scripts/fetch-supabase-thumbnails.js)"
     ]
   }
 }
