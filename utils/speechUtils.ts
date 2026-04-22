@@ -228,6 +228,17 @@ export class SpeechRecognizer {
   }
 
   /**
+   * FIX-Y11: webkitSpeechRecognition.lang 실시간 교체.
+   *   미션 진입 시 한국어/영어 전환. listen() 재시작 없이 .lang 프로퍼티만 교체하면
+   *   다음 인식 세션(onend → start 리프레시)에서 반영된다.
+   */
+  setLanguage(lang: 'ko' | 'en'): void {
+    if (this.rec) {
+      this.rec.lang = lang === 'en' ? 'en-US' : 'ko-KR';
+    }
+  }
+
+  /**
    * 음성 인식 시작 (세션 당 1회 호출 권장 — 미션 전환 시 resetForNextMission() 사용)
    */
   listen(

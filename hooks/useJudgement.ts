@@ -195,9 +195,17 @@ export function useJudgement(): {
         if (mission?.type === 'voice_read' && mission.read_text) {
           _currentTarget = mission.read_text;
           sr.setTargetText(mission.read_text);
+          // FIX-Y11 (2026-04-22): 영어/한국어 자동 감지.
+          //   read_text 의 ASCII 알파벳 비율 > 50% → 영어로 추정.
+          //   동화/뉴스 리딩 미션 지원.
+          const ascii = (mission.read_text.match(/[a-zA-Z]/g) || []).length;
+          const letters = (mission.read_text.match(/[a-zA-Z가-힣]/g) || []).length;
+          const lang: 'ko' | 'en' = letters > 0 && (ascii / letters) > 0.5 ? 'en' : 'ko';
+          try { (sr as any).setLanguage?.(lang); } catch {}
         } else {
           _currentTarget = '';
           sr.setTargetText('');
+          try { (sr as any).setLanguage?.('ko'); } catch {}
         }
 
         // 미션별 점수/자막 리셋

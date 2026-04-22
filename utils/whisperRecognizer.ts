@@ -221,6 +221,12 @@ export class WhisperRecognizer {
     this._targetText = text;
   }
 
+  // FIX-Y11 (2026-04-22): 영어 뉴스/동화 voice_read 미션용.
+  //   미션 변경 시 listen 을 재시작하지 않고도 Whisper 디코딩 언어만 교체.
+  setLanguage(lang: 'ko' | 'en'): void {
+    this._lang = lang;
+  }
+
   getDiagnostic() {
     return {
       listening: this._listening,

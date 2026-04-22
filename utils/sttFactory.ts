@@ -21,6 +21,7 @@ export interface SttRecognizer {
   isListening(): boolean;
   resetForNextMission(): void;
   setTargetText(text: string): void;
+  setLanguage(lang: 'ko' | 'en'): void;
   stop(): void;
   listen(
     lang: 'ko' | 'en',
