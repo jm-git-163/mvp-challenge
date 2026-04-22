@@ -58,6 +58,7 @@ export default function RootLayout() {
         <Stack.Screen name="(main)" options={{ headerShown: false }} />
         <Stack.Screen name="record" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="result" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="selftest" options={{ title: '자가진단', headerShown: true }} />
       </Stack>
     </ErrorBoundary>
   );

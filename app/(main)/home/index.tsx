@@ -401,14 +401,6 @@ export default function HomeScreen() {
           </View>
           <View style={s.headerRight}>
             <Pressable
-              onPress={() => router.push('/selftest')}
-              style={[s.iconBtn, { backgroundColor: '#16a34a' }]}
-              // @ts-ignore web
-              accessibilityLabel="SelfTest"
-            >
-              <Text style={s.iconBtnText}>🩺 자가진단</Text>
-            </Pressable>
-            <Pressable
               onPress={() => router.push('/(main)/profile')}
               style={s.iconBtn}
               // @ts-ignore web
@@ -418,6 +410,16 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* 모바일 전체 너비 배너 — 헤더에 가려지지 않도록 별도 행 */}
+        <Pressable
+          onPress={() => router.push('/selftest')}
+          style={[s.selftestBanner, { marginHorizontal: sidePad }]}
+          accessibilityLabel="SelfTest"
+        >
+          <Text style={s.selftestBannerT}>🩺 자가진단 — 카메라·마이크·포즈·스쿼트·자막 실시간 점검</Text>
+          <Text style={s.selftestBannerSub}>안 되는 게 있으면 여기 먼저 눌러보세요 ›</Text>
+        </Pressable>
       </SafeAreaView>
 
       <GenreFilter selected={selectedGenre} onSelect={setSelectedGenre} />
@@ -506,6 +508,27 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  selftestBanner: {
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#16a34a',
+    // @ts-ignore web
+    cursor: 'pointer',
+  },
+  selftestBannerT: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  selftestBannerSub: {
+    color: '#dcfce7',
+    fontSize: 12,
+    marginTop: 2,
   },
   iconBtn: {
     height: 32,
