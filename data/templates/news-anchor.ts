@@ -19,9 +19,10 @@ export const newsAnchor: Template = {
   mood: 'cinematic_news',
 
   bgm: {
-    src: '/bgm/news-orchestra-90.mp3',
+    // FIX-Z8 (2026-04-22): news-orchestra-90.mp3 에셋 부재. 실존 재즈/앰비언트 트랙으로 재매핑.
+    src: '/bgm/atlasaudio-jazz-490623.mp3',
     volume: 0.5,
-    beatsJson: '/bgm/news-orchestra-90.beats.json',
+    beatsJson: '/bgm/atlasaudio-jazz-490623.beats.json',
     loop: true,
     duckingDb: -10,
   },

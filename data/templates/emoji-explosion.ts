@@ -19,9 +19,10 @@ export const emojiExplosion: Template = {
   mood: 'pop_candy',
 
   bgm: {
-    src: '/bgm/kpop-upbeat-124.mp3',
+    // FIX-Z8 (2026-04-22): kpop-upbeat-124.mp3 에셋 부재. 실존 업비트 트랙으로 재매핑.
+    src: '/bgm/backgroundmusicforvideos-no-copyright-music-334863.mp3',
     volume: 0.75,
-    beatsJson: '/bgm/kpop-upbeat-124.beats.json',
+    beatsJson: '/bgm/backgroundmusicforvideos-no-copyright-music-334863.beats.json',
     loop: true,
     duckingDb: -6,
   },

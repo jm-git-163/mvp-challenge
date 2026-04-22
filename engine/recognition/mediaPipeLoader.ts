@@ -96,7 +96,26 @@ export async function loadPoseLandmarker(
     if (signal?.aborted) {
       return { status: 'error', handle: null, error: new DOMException('Aborted', 'AbortError') };
     }
-    const vision = await FilesetResolver.forVisionTasks(`${config.base}/wasm`);
+    // FIX-Z10 (2026-04-22): jsdelivr CDN 이 일부 모바일 네트워크/CSP 에서 실패.
+    //   unpkg 폴백을 시도한다. 둘 다 실패해야만 에러 처리.
+    const cdnCandidates = [
+      `${config.base}/wasm`,
+      'https://unpkg.com/@mediapipe/tasks-vision/wasm',
+    ];
+    let vision: unknown = null;
+    let lastCdnErr: unknown = null;
+    for (const url of cdnCandidates) {
+      try {
+        vision = await FilesetResolver.forVisionTasks(url);
+        break;
+      } catch (e) {
+        lastCdnErr = e;
+        try { console.warn('[mediaPipeLoader] CDN failed, trying next:', url, e); } catch {}
+      }
+    }
+    if (!vision) {
+      throw lastCdnErr instanceof Error ? lastCdnErr : new Error('MediaPipe CDN load failed');
+    }
     if (signal?.aborted) {
       return { status: 'error', handle: null, error: new DOMException('Aborted', 'AbortError') };
     }

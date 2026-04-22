@@ -950,11 +950,18 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               window.addEventListener('pointerdown', retryOnce, { once: true });
               window.addEventListener('touchstart',  retryOnce, { once: true });
             }
-            // readyState>=2 & 유효한 videoWidth 까지 폴링(최대 ~3초)
+            // FIX-Z10 (2026-04-22): 모바일(특히 iOS Safari) 에서 videoWidth 가 3초 내
+            //   올라오지 않는 경우가 있음 — autoplay 정책으로 play() 가 지연되거나
+            //   loadedmetadata 이벤트가 느림. 10초로 연장 + play() 재시도 + 마지막에
+            //   videoWidth 0 이어도 __poseVideoEl 세팅 (pose hook 내부에서 재시도).
             const waitReady = async (): Promise<boolean> => {
-              for (let i = 0; i < 30; i++) {
+              for (let i = 0; i < 100; i++) {
                 if (cancelled) return false;
                 if (vid.readyState >= 2 && vid.videoWidth > 0) return true;
+                // 2초마다 play() 재시도 (autoplay 정책 우회)
+                if (i > 0 && i % 20 === 0) {
+                  try { await vid.play(); } catch {}
+                }
                 await new Promise((r) => setTimeout(r, 100));
               }
               return false;
@@ -964,7 +971,9 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             if (ok) {
               (window as any).__poseVideoEl = vid;
             } else {
-              console.warn('[RecordingCamera] video not ready after 3s (videoWidth=0)');
+              console.warn('[RecordingCamera] video not fully ready after 10s (videoWidth='+vid.videoWidth+', readyState='+vid.readyState+'). Setting anyway for late-bind.');
+              // 그래도 세팅 — pose hook 이 내부에서 videoWidth>0 재확인
+              (window as any).__poseVideoEl = vid;
             }
           }
           setDenied(false);

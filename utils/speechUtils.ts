@@ -259,6 +259,15 @@ export class SpeechRecognizer {
     this._targetText = targetText ?? '';
     this.rec.lang    = lang === 'ko' ? 'ko-KR' : 'en-US';
 
+    // FIX-Z9 (2026-04-22): 모바일 Chrome 에서 continuous=true 는 구글 ASR 백엔드가
+    //   10~15초 후 무응답으로 세션을 끊지만 onend 가 즉시 발생하지 않음 → dead state.
+    //   모바일에서는 continuous=false 로 두고 onend → start() 로 능동 재시작.
+    //   데스크톱은 기존 continuous=true 유지 (안정적).
+    const isMobile = typeof navigator !== 'undefined' &&
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    this.rec.continuous = !isMobile;
+    this.rec.interimResults = true;
+
     let accumulated = '';
     const myGen = ++this._gen;   // capture current generation
 
@@ -340,8 +349,15 @@ export class SpeechRecognizer {
       }
     };
 
-    // 이전 recognition이 멈추는 중일 수 있으므로 50ms 후 시작
-    setTimeout(tryStart, 50);
+    // FIX-Z9 (2026-04-22): 모바일 Chrome 은 user gesture stack 이 ~200ms 내에서만
+    //   start() 를 허가. setTimeout(50) 은 stack 을 이탈할 수 있음 → 우선 동기 호출,
+    //   InvalidStateError 발생 시에만 50ms 지연 재시도.
+    try {
+      this.rec.start();
+    } catch (err) {
+      try { console.warn('[speech] sync start threw, retry after 50ms:', err); } catch {}
+      setTimeout(tryStart, 50);
+    }
 
     // FIX-M (2026-04-21): Android Chrome Google ASR 스톨 우회.
     //   continuous=true 상태에서 구글 백엔드가 무응답이면 result 가 영원히 안 옴

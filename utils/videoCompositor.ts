@@ -1084,6 +1084,87 @@ function createSimpleBGM(
 }
 
 // ---------------------------------------------------------------------------
+// FIX-Z8 (2026-04-22): 실제 MP3 파일을 로딩해서 BGM 으로 재생.
+//   기존 createSimpleBGM 은 Web Audio oscillator 로 비트를 합성 — 사용자 피드백
+//   "이상한 비트맵인지 html인지 이상한 음" 의 원인.
+//   실제 mp3 가 public/bgm/ 에 존재하면 이것을 우선 사용, 실패 시 oscillator 폴백.
+// ---------------------------------------------------------------------------
+
+function resolveGenreBgmFile(genre: BgmSpec['genre']): string | null {
+  // 실존 파일에 매핑. /public/bgm/ 에 실제로 존재하는 파일들만.
+  switch (genre) {
+    case 'kpop':
+    case 'fitness':
+    case 'bright':
+      return '/bgm/backgroundmusicforvideos-no-copyright-music-334863.mp3';
+    case 'news':
+    case 'lofi':
+    case 'travel':
+    case 'hiphop':
+      return '/bgm/atlasaudio-jazz-490623.mp3';
+    case 'fairy':
+      return '/bgm/diamond_tunes-no-copyright-intro-music-18457.mp3';
+    default:
+      return null;
+  }
+}
+
+async function createFileBGM(
+  audioCtx: AudioContext,
+  spec: BgmSpec,
+  dest: AudioNode,
+  opts?: { introMs?: number; totalMs?: number },
+): Promise<SimpleBGMHandle | null> {
+  if (spec.genre === 'none') return { stop: () => {} };
+  const url = resolveGenreBgmFile(spec.genre);
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const ab = await res.arrayBuffer();
+    const buf = await audioCtx.decodeAudioData(ab.slice(0));
+
+    const introMs   = opts?.introMs   ?? 0;
+    const totalMs   = opts?.totalMs   ?? 0;
+    const duckLevel = Math.max(0.0001, spec.volume * 0.28);
+    const fullLevel = Math.max(0.0001, spec.volume);
+
+    const masterGain = audioCtx.createGain();
+    const t0 = audioCtx.currentTime;
+    if (introMs > 0) {
+      masterGain.gain.setValueAtTime(duckLevel, t0);
+      masterGain.gain.setValueAtTime(duckLevel, t0 + introMs / 1000 - 0.25);
+      masterGain.gain.linearRampToValueAtTime(fullLevel, t0 + introMs / 1000 + 0.15);
+    } else {
+      masterGain.gain.setValueAtTime(fullLevel, t0);
+    }
+    if (totalMs > 0) {
+      const fadeOutStart = t0 + Math.max(0, (totalMs - 800)) / 1000;
+      const fadeOutEnd   = t0 + totalMs / 1000;
+      masterGain.gain.setValueAtTime(fullLevel, fadeOutStart);
+      masterGain.gain.linearRampToValueAtTime(0.0001, fadeOutEnd);
+    }
+    masterGain.connect(dest);
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(masterGain);
+    src.start(0);
+
+    return {
+      stop: () => {
+        try { src.stop(); } catch {}
+        try { masterGain.disconnect(); } catch {}
+      },
+    };
+  } catch (e) {
+    try { console.warn('[compositor] createFileBGM failed, falling back:', e); } catch {}
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CLIP FRAME — genre-specific decorative overlay drawn ON TOP of user video
 // Makes the clip look like it's inside a professional template frame
 // ---------------------------------------------------------------------------
@@ -2444,10 +2525,13 @@ export async function composeVideo(
       try {
         audioCtx = new AudioContext();
         const dest = audioCtx.createMediaStreamDestination();
-        bgmHandle = createSimpleBGM(audioCtx, legacyTemplate.bgm, dest, {
+        // FIX-Z8: 실제 MP3 파일 우선 사용, 실패 시 oscillator 합성 폴백.
+        const bgmOpts = {
           introMs: isLayered ? 0 : INTRO_MS,
           totalMs: legacyTemplate.duration_ms,
-        });
+        };
+        const fileBgm = await createFileBGM(audioCtx, legacyTemplate.bgm, dest, bgmOpts);
+        bgmHandle = fileBgm ?? createSimpleBGM(audioCtx, legacyTemplate.bgm, dest, bgmOpts);
 
         // FIX-Y10 (2026-04-22): 원본 마이크 음성 복원.
         //   이전(FIX-Y1): createMediaElementSource 가 일부 브라우저에서 blob URL +
