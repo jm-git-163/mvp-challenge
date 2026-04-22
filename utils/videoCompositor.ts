@@ -1120,7 +1120,17 @@ async function createFileBGM(
   if (!url) return null;
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      try { console.warn('[compositor] BGM fetch not ok:', url, res.status); } catch {}
+      return null;
+    }
+    // FIX-Z12: Vercel rewrites 가 정적자산도 index.html 로 돌리는 버그를 겪은 적 있음.
+    //   Content-Type 이 text/html 이면 즉시 실패시켜서 원인 추적 쉽게.
+    const ctype = res.headers.get('content-type') || '';
+    if (ctype.includes('text/html')) {
+      try { console.warn('[compositor] BGM URL returned HTML (vercel rewrite bug?):', url, ctype); } catch {}
+      return null;
+    }
     const ab = await res.arrayBuffer();
     const buf = await audioCtx.decodeAudioData(ab.slice(0));
 
@@ -1151,6 +1161,7 @@ async function createFileBGM(
     src.loop = true;
     src.connect(masterGain);
     src.start(0);
+    try { console.info('[compositor] BGM loaded from file:', url, 'duration=', buf.duration.toFixed(2) + 's'); } catch {}
 
     return {
       stop: () => {
