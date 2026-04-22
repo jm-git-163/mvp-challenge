@@ -410,17 +410,17 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View>
-
-        {/* 모바일 전체 너비 배너 — 헤더에 가려지지 않도록 별도 행 */}
-        <Pressable
-          onPress={() => router.push('/selftest')}
-          style={[s.selftestBanner, { marginHorizontal: sidePad }]}
-          accessibilityLabel="SelfTest"
-        >
-          <Text style={s.selftestBannerT}>🩺 자가진단 — 카메라·마이크·포즈·스쿼트·자막 실시간 점검</Text>
-          <Text style={s.selftestBannerSub}>안 되는 게 있으면 여기 먼저 눌러보세요 ›</Text>
-        </Pressable>
       </SafeAreaView>
+
+      {/* 모바일 필수 배너 — SafeAreaView 밖에 두어 어떤 뷰포트에서도 클리핑 없음 */}
+      <Pressable
+        onPress={() => router.push('/selftest')}
+        style={[s.selftestBanner, { marginHorizontal: sidePad }]}
+        accessibilityLabel="SelfTest"
+      >
+        <Text style={s.selftestBannerT}>🩺 자가진단 열기</Text>
+        <Text style={s.selftestBannerSub}>카메라·마이크·포즈·스쿼트·자막 실시간 점검 ›</Text>
+      </Pressable>
 
       <GenreFilter selected={selectedGenre} onSelect={setSelectedGenre} />
 
@@ -439,6 +439,15 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={s.listHeader}>
+            {/* 이중 안전장치: 상단 배너가 클리핑돼도 리스트 헤더에서 한 번 더 노출 */}
+            <Pressable
+              onPress={() => router.push('/selftest')}
+              style={s.selftestBannerList}
+              accessibilityLabel="SelfTest2"
+            >
+              <Text style={s.selftestBannerT}>🩺 자가진단 (스마트폰 필독)</Text>
+              <Text style={s.selftestBannerSub}>카메라·마이크·포즈·스쿼트·자막 실시간 점검 ›</Text>
+            </Pressable>
             <Text style={s.h1}>챌린지</Text>
             <Text style={s.h1Sub}>
               {loading ? '불러오는 중' : error ? '오류 발생' : `${templates.length}개의 챌린지`}
@@ -512,23 +521,36 @@ const s = StyleSheet.create({
   selftestBanner: {
     marginTop: 8,
     marginBottom: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: '#16a34a',
+    backgroundColor: '#dc2626',
+    borderWidth: 2,
+    borderColor: '#fecaca',
+    // @ts-ignore web
+    cursor: 'pointer',
+  },
+  selftestBannerList: {
+    marginBottom: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    backgroundColor: '#dc2626',
+    borderWidth: 2,
+    borderColor: '#fecaca',
     // @ts-ignore web
     cursor: 'pointer',
   },
   selftestBannerT: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.2,
   },
   selftestBannerSub: {
-    color: '#dcfce7',
-    fontSize: 12,
-    marginTop: 2,
+    color: '#fee2e2',
+    fontSize: 13,
+    marginTop: 3,
   },
   iconBtn: {
     height: 32,
