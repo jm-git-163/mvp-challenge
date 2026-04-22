@@ -1629,7 +1629,10 @@ const st = StyleSheet.create({
     flex: 1, backgroundColor: '#000',
     position: 'relative' as any, overflow: 'hidden' as any,
   },
-  children: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  // FIX-Z26: canvas 에 zIndex:1 을 부여한 이후 DOM children (미션 카드·
+  //   PoseCalibration·RecognitionStatusPanel) 이 canvas 아래로 깔려 안 보이던
+  //   리그레션. 명시적 zIndex:10 으로 항상 canvas 위에 올린다.
+  children: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 } as any,
   denied:   { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', padding: 32 },
   deniedIcon:    { fontSize: 48, marginBottom: 16 },
   deniedTitle:   { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
