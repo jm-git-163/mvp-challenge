@@ -35,6 +35,11 @@ export interface CloseSquatState {
   faceY: number;
   amplitude: number;
   active: boolean;
+  // 디버그 — HUD 표시용
+  visibility: number;       // 얼굴 랜드마크 평균 visibility
+  velSign: -1 | 0 | 1;      // 현재 Y 속도 부호 (+=아래)
+  lastPivotType: 'top' | 'bottom' | 'none';
+  lastPivotY: number;
 }
 
 export class CloseProximitySquatDetector {
@@ -54,6 +59,7 @@ export class CloseProximitySquatDetector {
   private lastFaceY = 0;
   private lastAmpl = 0;
   private lastActive = false;
+  private lastVisibility = 0;
 
   update(lms: NormalizedLandmark[], tMs?: number): CloseSquatState {
     const faceY = this.extractFaceY(lms);
@@ -141,16 +147,18 @@ export class CloseProximitySquatDetector {
   }
 
   private extractFaceY(lms: NormalizedLandmark[]): number | null {
-    if (!lms || lms.length === 0) return null;
-    let sum = 0; let n = 0;
+    if (!lms || lms.length === 0) { this.lastVisibility = 0; return null; }
+    let sum = 0; let n = 0; let visSum = 0; let visN = 0;
     for (const idx of FACE_INDICES) {
       const lm = lms[idx];
       if (!lm) continue;
       const v = lm.score ?? lm.visibility ?? 1;
+      visSum += v; visN++;
       if (v < MIN_VIS) continue;
       sum += lm.y;
       n++;
     }
+    this.lastVisibility = visN > 0 ? visSum / visN : 0;
     return n >= 2 ? sum / n : null;
   }
 
@@ -176,6 +184,10 @@ export class CloseProximitySquatDetector {
       faceY: this.lastFaceY,
       amplitude: this.lastAmpl,
       active: this.lastActive,
+      visibility: this.lastVisibility,
+      velSign: this.lastVelSign,
+      lastPivotType: this.lastPivot?.type ?? 'none',
+      lastPivotY: this.lastPivot?.y ?? 0,
     };
   }
 }

@@ -1362,6 +1362,11 @@ export default function RecordScreen() {
   const [currentMission, setCurrentMission] = useState<any>(null);
   const [squatKneeAngle, setSquatKneeAngle] = useState(180);
   const [squatPhase,     setSquatPhase]     = useState<'up'|'down'|'unknown'>('unknown');
+  const [squatDebug, setSquatDebug] = useState<{
+    faceY: number; amplitude: number; visibility: number;
+    velSign: -1 | 0 | 1; lastPivotType: 'top'|'bottom'|'none';
+    landmarkCount: number; squatLmOk: boolean;
+  }>({ faceY: 0, amplitude: 0, visibility: 0, velSign: 0, lastPivotType: 'none', landmarkCount: 0, squatLmOk: false });
 
   const [burstVisible, setBurstVisible] = useState(false);
   const [burstTag,     setBurstTag]     = useState<JudgementTag|null>(null);
@@ -1531,7 +1536,11 @@ export default function RecordScreen() {
     const result = judge(poseLandmarks, elapsed);
     setCurrentScore(result.score); setCurrentTag(result.tag); setCurrentMission(result.currentMission);
     scoreAccumRef.current.push(result.score);
-    if (activeTemplate?.genre === 'fitness') { setSquatKneeAngle(result.kneeAngle); setSquatPhase(result.squatPhase); }
+    if (activeTemplate?.genre === 'fitness') {
+      setSquatKneeAngle(result.kneeAngle);
+      setSquatPhase(result.squatPhase);
+      setSquatDebug(result.squatDebug);
+    }
     if (result.currentMission && result.currentMission.seq !== prevMissionSeqRef.current) {
       prevMissionSeqRef.current = result.currentMission.seq;
       animateMissionIn();
@@ -1795,6 +1804,36 @@ export default function RecordScreen() {
 
               {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
                 <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} />
+              )}
+
+              {/* FIX-Q (2026-04-22): 스쿼트 진단 HUD — 왜 카운트 안되는지 원인 표시 */}
+              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
+                <View pointerEvents="none" style={{
+                  position:'absolute', top:180, right:8, zIndex:9997,
+                  backgroundColor:'rgba(0,0,0,0.75)',
+                  paddingHorizontal:8, paddingVertical:6, borderRadius:6,
+                  minWidth:170,
+                }}>
+                  <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700', marginBottom:2 }}>SQUAT DEBUG</Text>
+                  <Text style={{ color:'#fff', fontSize:9, fontFamily:'monospace' }}>
+                    lm {squatDebug.landmarkCount}  fullBody {squatDebug.squatLmOk ? '✓' : '✗'}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:9, fontFamily:'monospace' }}>
+                    face.vis {squatDebug.visibility.toFixed(2)}{squatDebug.visibility < 0.3 ? ' ⚠LOW' : ''}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:9, fontFamily:'monospace' }}>
+                    faceY {squatDebug.faceY.toFixed(3)}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:9, fontFamily:'monospace' }}>
+                    ampl {squatDebug.amplitude.toFixed(3)}{squatDebug.amplitude < 0.05 && squatDebug.amplitude > 0 ? ' ⚠SMALL' : ''}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:9, fontFamily:'monospace' }}>
+                    vel {squatDebug.velSign === 1 ? '↓' : squatDebug.velSign === -1 ? '↑' : '=' }  pivot {squatDebug.lastPivotType}
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:9, fontFamily:'monospace' }}>
+                    mode {squatMode}  count {squatCount}
+                  </Text>
+                </View>
               )}
 
               {/* FIX-N (2026-04-22): 스쿼트 감지 모드 표시 — 정직한 UX.

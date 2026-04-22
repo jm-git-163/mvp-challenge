@@ -8,6 +8,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import type { RecordingCameraHandle } from '../components/camera/RecordingCamera';
+import { getBgmPlayer } from '../utils/bgmLibrary';
 
 export type RecordingState = 'idle' | 'countdown' | 'recording' | 'processing' | 'done';
 
@@ -41,7 +42,7 @@ export function useRecording(): UseRecordingReturn {
   const durationRef = useRef(0);
   const cdTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const _beginRecording = useCallback((cameraHandle: RecordingCameraHandle) => {
+  const _beginRecording = useCallback(async (cameraHandle: RecordingCameraHandle) => {
     const template = useSessionStore.getState().activeTemplate;
     if (!template) return;
 
@@ -64,6 +65,16 @@ export function useRecording(): UseRecordingReturn {
         cameraHandle.stopRecording();
       }
     }, 100);
+
+    // FIX-R: BGM 을 시작한 뒤(최대 500ms 대기) MediaRecorder 를 켠다.
+    //   순서가 뒤집히면 BgmPlayer 의 gain 노드가 아직 생성 전이라
+    //   RecordingCamera.web.tsx 의 오디오 믹서가 BGM 을 못 잡아 결과 영상에 BGM 누락.
+    try {
+      const startedAt = Date.now();
+      while (!getBgmPlayer().getOutputNode() && Date.now() - startedAt < 500) {
+        await new Promise(r => setTimeout(r, 40));
+      }
+    } catch {}
 
     cameraHandle.startRecording().then((uri) => {
       setVideoUri(uri);

@@ -144,6 +144,16 @@ export class BgmPlayer {
     }
   }
 
+  /**
+   * FIX-R: 녹화 파이프라인에서 BGM 을 tap 하기 위한 접근자.
+   * 재생 중일 때만 gain 노드 / 컨텍스트 반환. 없으면 null.
+   * 호출자는 이 노드에 추가 `.connect(destinationNode)` 하여
+   * BGM 을 MediaRecorder 오디오 트랙에 믹스할 수 있다.
+   */
+  getAudioContext(): AudioContext | null { return this.ctx; }
+  getOutputNode(): GainNode | null { return this.gain; }
+  isPlaying(): boolean { return !!(this.audio && !this.audio.paused); }
+
   stop(): void {
     if (this.fadeTimer) {
       cancelAnimationFrame(this.fadeTimer);

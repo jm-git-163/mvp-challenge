@@ -123,6 +123,15 @@ export function useJudgement(): {
     squatPhase: 'up' | 'down' | 'unknown';
     kneeAngle: number;
     squatMode: 'full-body' | 'near-mode' | 'idle';
+    squatDebug: {
+      faceY: number;
+      amplitude: number;
+      visibility: number;
+      velSign: -1 | 0 | 1;
+      lastPivotType: 'top' | 'bottom' | 'none';
+      landmarkCount: number;
+      squatLmOk: boolean;
+    };
   };
   voiceTranscript: string;
   voiceAccuracy: number;
@@ -223,8 +232,10 @@ export function useJudgement(): {
       // FIX-J: fitness 장르에선 근접 디텍터를 항상 병렬로 돌림.
       //   무릎이 안 보일 때 (squatLmOk=false) 얼굴 Y 진동이 유일한 신호.
       //   primary 와 동시에 돌아도 Math.max 로 합치므로 이중 카운트 없음.
+      let lastCloseState: ReturnType<typeof closeSquatRef.current.update> | null = null;
       if (template && template.genre === 'fitness') {
         const closeState = closeSquatRef.current.update(landmarks);
+        lastCloseState = closeState;
         if (closeState.count > squatCountRef.current) {
           squatCountRef.current = closeState.count;
           squatCountState.current = closeState.count;
@@ -476,6 +487,15 @@ export function useJudgement(): {
         squatPhase: squatPhaseOut,
         kneeAngle: kneeAngleOut,
         squatMode: squatSourceRef.current,
+        squatDebug: {
+          faceY: lastCloseState?.faceY ?? 0,
+          amplitude: lastCloseState?.amplitude ?? 0,
+          visibility: lastCloseState?.visibility ?? 0,
+          velSign: lastCloseState?.velSign ?? 0,
+          lastPivotType: lastCloseState?.lastPivotType ?? 'none',
+          landmarkCount: landmarks.length,
+          squatLmOk,
+        },
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
