@@ -26,19 +26,23 @@ import type { NormalizedLandmark } from '../../utils/poseUtils';
 // 1.2 초 윈도 — 한 rep (≈700~1200ms) 동안 hip 이 한 번은 크게 움직여야.
 //   v2 (2026-04-23): 1.5→1.2 단축. 윈도 길수록 과거 미세움직임이 누적되어 false-allow.
 const WINDOW_MS = 1200;
-// 0.12 = 화면 높이의 12%. 진짜 스쿼트는 보통 15~25% hip 변위.
-//   v2: 0.06→0.12 강화. 0.06 은 일상 자세변경(의자 들썩, 다리꼬기, 슬럼프)으로도
-//       쉽게 초과되어 사용자 "앉아있었는데 카운트 3" 재현. 12% 면 의도적 굽힘 필요.
-const MIN_HIP_AMPL = 0.12;
+// TEAM-CHAOS (2026-04-23 v3): 사용자 제보 "카운트 0/10 고정, 아예 안 올라감".
+//   v2 (0.12) 은 실기기(카메라 거리 가변·full-body 프레이밍 부분 침범)에서 hip 정규화
+//   진폭이 7~10% 대에 머물러 거의 모든 rep 이 게이트에서 막힘. 게이트 자체가 카운트를
+//   0 으로 고정시키는 주범. 7% 로 하향 — 여전히 0.04 노이즈 (amplitude<0.06) 는 거부,
+//   실제 스쿼트 0.08~0.20 은 통과. hipMotionGate.test.ts 의 두 경계 시나리오 모두 유지.
+const MIN_HIP_AMPL = 0.07;
 // hip visibility 최소값. MoveNet 근접촬영에서 hip 이 frame 밖이면 0 근처.
-//   v2: 0.4→0.5 강화. 부분가시는 noise y 추정으로 false amplitude 유발.
-const MIN_VIS = 0.5;
+//   v3: 0.5 → 0.35 완화. 실기기에서 hip 가려짐(옷·조명) 으로 vis 0.4 전후 빈번 →
+//        항상 low-visibility 거부. 테스트 시나리오 (hipVis=0.2) 는 여전히 차단.
+const MIN_VIS = 0.35;
 // 최소 샘플 수 — 너무 적으면 amplitude 가 작은 jitter 우연한 큰값일 수 있음.
-const MIN_SAMPLES = 8;
+//   v3: 8 → 5 완화. 20fps 에서 250ms 만 있어도 방향성 판단 가능.
+const MIN_SAMPLES = 5;
 // 방향성 검증 — 진짜 스쿼트는 "내려갔다(y 증가) 올라옴(y 감소)" 시퀀스.
 //   윈도 안에 max y(가장 깊이 앉은 시점) 이후 y 가 다시 ≥ MIN_RETURN 만큼 감소해야.
-//   슬럼프(한 방향 이동만)는 통과 못함.
-const MIN_RETURN = 0.05;
+//   v3: 0.05 → 0.025. 실기기 hip 정규화 진폭 스케일에 맞춰 완화.
+const MIN_RETURN = 0.025;
 
 interface HipSample {
   t: number;
