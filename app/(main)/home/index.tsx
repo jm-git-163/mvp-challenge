@@ -27,26 +27,23 @@ import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../../services/supabaseThumbnails';
 import PermissionWelcomeModal from '../../../components/permissions/PermissionWelcomeModal';
 import ResourceDebugOverlay from '../../../components/permissions/ResourceDebugOverlay';
+import { GZ, GZGradient, GZFont, GZRadius, GZShadow } from '../../../constants/genzPalette';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens (Gen-Z 리브랜드 2026-04-23) ───────────────────────────────
+// 토큰은 constants/genzPalette.ts 가 단일 소스. 이 모듈은 alias 만 둔다.
 const T = {
-  bg:        '#FAFAFA',
-  surface:   '#FFFFFF',
-  ink:       '#0A0A0A',
-  inkSub:    '#3F3F46',
-  inkMuted:  '#71717A',
-  inkFaint:  '#A1A1AA',
-  border:    '#E5E5E5',
-  borderStrong: '#D4D4D8',
-  accent:    '#0A0A0A',
-  fontSans:  Platform.select({
-    web: '"Pretendard Variable",Pretendard,"Inter","SF Pro Text","Segoe UI",system-ui,-apple-system,sans-serif',
-    default: 'System',
-  }) as string,
-  fontMono:  Platform.select({
-    web: '"JetBrains Mono","SF Mono",Menlo,monospace',
-    default: 'Menlo',
-  }) as string,
+  bg:           'transparent',         // 배경은 +html.tsx 의 mesh gradient
+  surface:      GZ.surface,
+  surfaceStrong:GZ.surfaceStrong,
+  ink:          GZ.ink,
+  inkSub:       GZ.inkSub,
+  inkMuted:     GZ.inkMuted,
+  inkFaint:     GZ.inkFaint,
+  border:       GZ.border,
+  borderStrong: GZ.borderStrong,
+  accent:       GZ.pink,
+  fontSans:     GZFont.sans,
+  fontMono:     GZFont.mono,
 };
 
 const GENRES = [
@@ -150,27 +147,31 @@ function ChallengeCard({ item: t, width, onPress }: CardProps) {
 
 const card = StyleSheet.create({
   wrap: {
-    backgroundColor: T.surface,
-    borderRadius: 10,
+    backgroundColor: GZ.surfaceCard,
+    borderRadius: GZRadius.card,
     borderWidth: 1,
     borderColor: T.border,
     overflow: 'hidden',
     // @ts-ignore web
-    transition: 'border-color 160ms ease, transform 160ms ease',
+    transition: 'border-color 180ms ease, transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms ease',
     // @ts-ignore web
     cursor: 'pointer',
+    // @ts-ignore web
+    backdropFilter: 'blur(14px) saturate(140%)',
+    // @ts-ignore web
+    boxShadow: GZShadow.card,
   },
   wrapHover: {
-    borderColor: T.borderStrong,
+    borderColor: GZ.borderHot,
     // @ts-ignore web
-    transform: 'translateY(-1px)',
+    transform: 'translateY(-3px) scale(1.012)',
+    // @ts-ignore web
+    boxShadow: GZShadow.glowPink,
   },
   thumb: {
     width: '100%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#F4F4F5',
-    borderBottomWidth: 1,
-    borderBottomColor: T.border,
+    backgroundColor: '#1B1130',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -180,78 +181,78 @@ const card = StyleSheet.create({
   },
   thumbOverlay: {
     ...StyleSheet.absoluteFillObject,
-    // @ts-ignore web — subtle gradient to lift contrast for badges
-    background: 'linear-gradient(180deg, rgba(0,0,0,0.0) 55%, rgba(0,0,0,0.35) 100%)',
+    // @ts-ignore web — vivid bottom shade for legibility
+    background: 'linear-gradient(180deg, rgba(15,10,31,0) 45%, rgba(15,10,31,0.78) 100%)',
   },
   playBadge: {
     position: 'absolute',
     right: 12,
     bottom: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(10,10,10,0.85)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    // @ts-ignore web — gradient pink→cyan glow
+    background: GZGradient.primary,
     // @ts-ignore web
-    backdropFilter: 'blur(8px)',
+    boxShadow: GZShadow.cta,
   },
   playTri: {
     width: 0,
     height: 0,
     marginLeft: 3,
-    borderTopWidth: 6,
+    borderTopWidth: 7,
     borderTopColor: 'transparent',
-    borderBottomWidth: 6,
+    borderBottomWidth: 7,
     borderBottomColor: 'transparent',
-    borderLeftWidth: 10,
+    borderLeftWidth: 11,
     borderLeftColor: '#FFFFFF',
   },
   diffTag: {
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: T.surface,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: T.border,
+    backgroundColor: GZ.highlight,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   diffTagText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: T.inkSub,
-    letterSpacing: 0.2,
+    fontSize: 11,
+    fontWeight: '900',
+    color: GZ.inkOnLight,
+    letterSpacing: 0.3,
   },
   body: {
-    padding: 14,
-    gap: 6,
+    padding: 16,
+    gap: 8,
   },
   title: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '800',
     color: T.ink,
-    letterSpacing: -0.2,
-    lineHeight: 20,
+    letterSpacing: -0.4,
+    lineHeight: 22,
     fontFamily: T.fontSans,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   meta: {
     fontSize: 12,
-    color: T.inkMuted,
-    fontWeight: '500',
+    color: T.inkSub,
+    fontWeight: '600',
     fontFamily: T.fontSans,
   },
   dot: {
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: T.inkFaint,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: GZ.pink,
   },
 });
 
@@ -276,12 +277,11 @@ function GenreFilter({ selected, onSelect }: FilterProps) {
             <Pressable
               key={g.value}
               onPress={() => onSelect(g.value)}
-              style={gf.item}
+              style={[gf.item, active && gf.itemActive]}
             >
               <Text style={[gf.label, active ? gf.labelActive : gf.labelInactive]}>
                 {g.label}
               </Text>
-              <View style={[gf.underline, active && gf.underlineActive]} />
             </Pressable>
           );
         })}
@@ -292,37 +292,42 @@ function GenreFilter({ selected, onSelect }: FilterProps) {
 
 const gf = StyleSheet.create({
   wrap: {
-    borderBottomWidth: 1,
-    borderBottomColor: T.border,
-    backgroundColor: T.bg,
+    backgroundColor: 'transparent',
   },
   scroll: {
-    paddingHorizontal: 24,
-    gap: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 8,
   },
   item: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    alignItems: 'center',
-    gap: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: GZ.border,
+    backgroundColor: GZ.surface,
+    // @ts-ignore web
+    transition: 'transform 140ms ease, background 200ms ease, border-color 200ms ease',
+    // @ts-ignore web
+    backdropFilter: 'blur(10px)',
+  },
+  itemActive: {
+    borderColor: 'transparent',
+    // @ts-ignore web — gradient pill
+    background: GZGradient.primary,
+    // @ts-ignore web
+    boxShadow: GZShadow.glowPink,
   },
   label: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '800',
     letterSpacing: -0.1,
-    paddingBottom: 12,
     fontFamily: T.fontSans,
   },
-  labelActive:   { color: T.ink },
-  labelInactive: { color: T.inkMuted },
-  underline: {
-    height: 2,
-    width: '100%',
-    backgroundColor: 'transparent',
-  },
-  underlineActive: {
-    backgroundColor: T.ink,
-  },
+  labelActive:   { color: '#FFFFFF' },
+  labelInactive: { color: T.inkSub },
+  underline: { height: 0, width: 0 },
+  underlineActive: { height: 0 },
 });
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -485,12 +490,10 @@ const s = StyleSheet.create({
     backgroundColor: T.bg,
   },
   safeTop: {
-    backgroundColor: T.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: T.border,
+    backgroundColor: 'transparent',
   },
   header: {
-    height: 56,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -500,16 +503,22 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  brandMark: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: T.ink,
-  },
+  brandMark: Platform.select({
+    web: {
+      width: 22,
+      height: 22,
+      borderRadius: 8,
+      // @ts-ignore web
+      background: GZGradient.primary,
+      // @ts-ignore web
+      boxShadow: GZShadow.glowPink,
+    } as any,
+    default: { width: 22, height: 22, borderRadius: 8, backgroundColor: GZ.pink },
+  }) as any,
   brandName: {
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.5,
     color: T.ink,
     fontFamily: T.fontSans,
   },
@@ -518,82 +527,115 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  selftestBanner: {
-    marginTop: 8,
-    marginBottom: 4,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#dc2626',
-    borderWidth: 2,
-    borderColor: '#fecaca',
-    // @ts-ignore web
-    cursor: 'pointer',
-  },
-  selftestBannerList: {
-    marginBottom: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    backgroundColor: '#dc2626',
-    borderWidth: 2,
-    borderColor: '#fecaca',
-    // @ts-ignore web
-    cursor: 'pointer',
-  },
+  selftestBanner: Platform.select({
+    web: {
+      marginTop: 10,
+      marginBottom: 6,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: GZRadius.panel,
+      // @ts-ignore web
+      background: GZGradient.hot,
+      // @ts-ignore web
+      boxShadow: GZShadow.glowPink,
+      // @ts-ignore web
+      cursor: 'pointer',
+    } as any,
+    default: {
+      marginTop: 10, marginBottom: 6, paddingVertical: 14, paddingHorizontal: 16,
+      borderRadius: 16, backgroundColor: GZ.pink,
+    },
+  }) as any,
+  selftestBannerList: Platform.select({
+    web: {
+      marginBottom: 16,
+      paddingVertical: 16,
+      paddingHorizontal: 18,
+      borderRadius: GZRadius.panel,
+      // @ts-ignore web
+      background: GZGradient.hot,
+      // @ts-ignore web
+      boxShadow: GZShadow.glowPink,
+      // @ts-ignore web
+      cursor: 'pointer',
+    } as any,
+    default: {
+      marginBottom: 16, paddingVertical: 16, paddingHorizontal: 18,
+      borderRadius: 16, backgroundColor: GZ.pink,
+    },
+  }) as any,
   selftestBannerT: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: -0.2,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    fontFamily: T.fontSans,
   },
   selftestBannerSub: {
-    color: '#fee2e2',
+    color: 'rgba(255,255,255,0.92)',
     fontSize: 13,
-    marginTop: 3,
+    marginTop: 4,
+    fontWeight: '600',
+    fontFamily: T.fontSans,
   },
   iconBtn: {
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surface,
+    borderColor: T.borderStrong,
+    backgroundColor: GZ.surface,
     alignItems: 'center',
     justifyContent: 'center',
     // @ts-ignore web
     cursor: 'pointer',
     // @ts-ignore web
     transition: 'border-color 140ms ease, background-color 140ms ease',
+    // @ts-ignore web
+    backdropFilter: 'blur(10px)',
   },
   iconBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: T.inkSub,
+    fontSize: 13,
+    fontWeight: '800',
+    color: T.ink,
     letterSpacing: -0.1,
     fontFamily: T.fontSans,
   },
   listContent: {
-    paddingTop: 28,
-    paddingBottom: 96,
+    paddingTop: 16,
+    paddingBottom: 120,
     alignSelf: 'center',
     width: '100%',
   },
   listHeader: {
-    paddingBottom: 24,
-    gap: 4,
+    paddingBottom: 28,
+    paddingTop: 8,
+    gap: 6,
   },
-  h1: {
-    fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: -0.8,
-    color: T.ink,
-    fontFamily: T.fontSans,
-  },
+  h1: Platform.select({
+    web: {
+      fontSize: 48,
+      fontWeight: '900',
+      letterSpacing: -1.6,
+      lineHeight: 54,
+      // @ts-ignore web — gradient text
+      backgroundImage: GZGradient.text,
+      // @ts-ignore web
+      WebkitBackgroundClip: 'text',
+      // @ts-ignore web
+      backgroundClip: 'text',
+      // @ts-ignore web
+      WebkitTextFillColor: 'transparent',
+      color: 'transparent',
+      fontFamily: T.fontSans,
+    } as any,
+    default: { fontSize: 36, fontWeight: '900', letterSpacing: -1, color: T.ink, fontFamily: T.fontSans },
+  }) as any,
   h1Sub: {
-    fontSize: 13,
-    color: T.inkMuted,
-    fontWeight: '500',
+    fontSize: 14,
+    color: T.inkSub,
+    fontWeight: '600',
+    letterSpacing: -0.2,
     fontFamily: T.fontSans,
   },
   center: {
@@ -611,20 +653,30 @@ const s = StyleSheet.create({
     color: T.inkMuted,
     fontFamily: T.fontSans,
   },
-  retryBtn: {
-    height: 32,
-    paddingHorizontal: 14,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: T.borderStrong,
-    backgroundColor: T.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  retryBtn: Platform.select({
+    web: {
+      height: 40,
+      paddingHorizontal: 22,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+      // @ts-ignore web
+      background: GZGradient.primary,
+      // @ts-ignore web
+      boxShadow: GZShadow.cta,
+      // @ts-ignore web
+      cursor: 'pointer',
+    } as any,
+    default: {
+      height: 40, paddingHorizontal: 22, borderRadius: 999,
+      alignItems: 'center', justifyContent: 'center', backgroundColor: GZ.pink,
+    },
+  }) as any,
   retryBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: T.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.1,
     fontFamily: T.fontSans,
   },
 });

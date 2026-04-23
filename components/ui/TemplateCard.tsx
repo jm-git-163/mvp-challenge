@@ -1,13 +1,21 @@
-import React from 'react';
+/**
+ * TemplateCard.tsx — Gen-Z 리브랜드(2026-04-23)
+ * Rounded-2xl, 그라데이션 보더, big emoji 배지(wiggle), 별 점, vivid chips.
+ * Korean women 18-30 / TikTok·Stories vibe.
+ */
+
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   Image,
+  Platform,
 } from 'react-native';
 import type { Template } from '../../types/template';
 import { TEMPLATE_THUMBNAILS } from '../../services/templateThumbnails';
+import { GZ, GZGradient, GZFont, GZRadius, GZShadow } from '../../constants/genzPalette';
 
 const GENRE_LABEL: Record<Template['genre'], string> = {
   kpop:      'K-POP',
@@ -22,28 +30,23 @@ const GENRE_LABEL: Record<Template['genre'], string> = {
   kids:      '동화/키즈',
 };
 
+// 장르별 컬러 — Gen-Z 비비드
 const GENRE_COLOR: Record<Template['genre'], string> = {
-  kpop:      '#e94560',
-  hiphop:    '#9c27b0',
-  fitness:   '#4caf50',
-  challenge: '#ff5722',
-  promotion: '#e91e63',
-  travel:    '#00bcd4',
-  daily:     '#607d8b',
-  news:      '#1565c0',
-  english:   '#2196f3',
-  kids:      '#ff80ab',
+  kpop:      GZ.pink,
+  hiphop:    GZ.violet,
+  fitness:   GZ.lime,
+  challenge: GZ.coral,
+  promotion: GZ.pinkSoft,
+  travel:    GZ.cyan,
+  daily:     GZ.lilac,
+  news:      GZ.cyanSoft,
+  english:   GZ.info,
+  kids:      GZ.yellow,
 };
 
 const CAMERA_MODE_LABEL: Record<string, string> = {
   selfie: '📱 셀카',
   normal: '📷 일반',
-};
-
-const DIFFICULTY_STAR: Record<number, string> = {
-  1: '★☆☆',
-  2: '★★☆',
-  3: '★★★',
 };
 
 const MISSION_TYPE_ICONS: Record<string, string> = {
@@ -59,31 +62,42 @@ interface Props {
 }
 
 export function TemplateCard({ template, onPress }: Props) {
-  // Collect unique mission types
+  const [pressed, setPressed] = useState(false);
   const missionTypes = [...new Set(template.missions.map((m) => m.type))];
-
-  // Pixabay 큐레이션 썸네일 (템플릿별 고유) → 없으면 mockData 의 thumbnail_url → 없으면 플레이스홀더
   const pixabayThumb = TEMPLATE_THUMBNAILS[template.id]?.url;
   const thumbUri = pixabayThumb || template.thumbnail_url;
+  const genreColor = GENRE_COLOR[template.genre] ?? GZ.pink;
+
+  // Star strip — difficulty 1~3
+  const stars = '★★★'.slice(0, template.difficulty) + '☆☆☆'.slice(0, 3 - template.difficulty);
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(template)} activeOpacity={0.85}>
-      {/* Thumbnail or themed placeholder */}
-      {thumbUri ? (
-        <Image source={{ uri: thumbUri }} style={styles.thumbnail} />
-      ) : (
-        <View
-          style={[
-            styles.thumbnail,
-            styles.placeholderBg,
-            { backgroundColor: GENRE_COLOR[template.genre] + '33' },
-          ]}
-        >
-          <Text style={styles.placeholderEmoji}>{template.theme_emoji}</Text>
-          <Text style={styles.cameraHint}>{CAMERA_MODE_LABEL[template.camera_mode] ?? ''}</Text>
-        </View>
-      )}
+    <Pressable
+      onPress={() => onPress(template)}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[styles.card, pressed && styles.cardPressed]}
+    >
+      {/* 그라데이션 보더 — pseudo border via web background */}
+      <View style={styles.gradBorder} pointerEvents="none" />
 
+      {/* Thumbnail block — left */}
+      <View style={styles.thumbWrap}>
+        {thumbUri ? (
+          <Image source={{ uri: thumbUri }} style={styles.thumbnail} />
+        ) : (
+          <View style={[styles.thumbnail, styles.placeholderBg, { backgroundColor: genreColor + '33' }]}>
+            <Text style={styles.placeholderEmoji}>{template.theme_emoji}</Text>
+            <Text style={styles.cameraHint}>{CAMERA_MODE_LABEL[template.camera_mode] ?? ''}</Text>
+          </View>
+        )}
+        {/* 큰 이모지 배지 (wiggle) */}
+        <View style={[styles.emojiBadge, { backgroundColor: genreColor }]}>
+          <Text style={styles.emojiBadgeText}>{template.theme_emoji}</Text>
+        </View>
+      </View>
+
+      {/* Body */}
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>{template.name}</Text>
 
@@ -92,105 +106,200 @@ export function TemplateCard({ template, onPress }: Props) {
         ) : null}
 
         <View style={styles.meta}>
-          <Text style={[styles.badge, { backgroundColor: GENRE_COLOR[template.genre] }]}>
-            {GENRE_LABEL[template.genre] ?? template.genre}
-          </Text>
-          <Text style={styles.difficulty}>{DIFFICULTY_STAR[template.difficulty]}</Text>
+          <View style={[styles.chip, { backgroundColor: genreColor }]}>
+            <Text style={styles.chipText}>{GENRE_LABEL[template.genre] ?? template.genre}</Text>
+          </View>
+          <Text style={styles.stars}>{stars}</Text>
           <Text style={styles.duration}>{template.duration_sec}초</Text>
         </View>
 
-        {/* Mission type icons */}
         <View style={styles.missionRow}>
           {missionTypes.map((t) => (
-            <Text key={t} style={styles.missionIcon}>
-              {MISSION_TYPE_ICONS[t] ?? '🎯'}
-            </Text>
+            <View key={t} style={styles.missionPill}>
+              <Text style={styles.missionIcon}>{MISSION_TYPE_ICONS[t] ?? '🎯'}</Text>
+            </View>
           ))}
           <Text style={styles.bpm}>BPM {template.bpm}</Text>
         </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
+    backgroundColor: GZ.surfaceCard,
+    borderRadius: GZRadius.card,
     marginHorizontal: 16,
-    marginVertical: 6,
+    marginVertical: 8,
     overflow: 'hidden',
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: GZ.border,
+    ...Platform.select({
+      web: {
+        // @ts-ignore web
+        backdropFilter: 'blur(14px) saturate(140%)',
+        // @ts-ignore web
+        WebkitBackdropFilter: 'blur(14px) saturate(140%)',
+        // @ts-ignore web
+        boxShadow: GZShadow.card,
+        // @ts-ignore web
+        transition: 'transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease',
+        // @ts-ignore web
+        cursor: 'pointer',
+      },
+      default: {},
+    }),
+  },
+  cardPressed: Platform.select({
+    web: {
+      // @ts-ignore web
+      transform: 'scale(0.98)',
+      // @ts-ignore web
+      boxShadow: GZShadow.glowPink,
+    } as any,
+    default: { opacity: 0.85 },
+  }) as any,
+  gradBorder: Platform.select({
+    web: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: GZRadius.card,
+      padding: 1,
+      // @ts-ignore web — gradient border via background + mask trick approximation
+      background: GZGradient.glow,
+      opacity: 0.55,
+      // @ts-ignore web
+      WebkitMask:
+        'linear-gradient(#000,#000) content-box, linear-gradient(#000,#000)',
+      // @ts-ignore web
+      WebkitMaskComposite: 'xor',
+      // @ts-ignore web
+      maskComposite: 'exclude',
+      pointerEvents: 'none',
+    } as any,
+    default: { width: 0, height: 0 },
+  }) as any,
+  thumbWrap: {
+    width: 110,
+    height: 130,
+    position: 'relative',
   },
   thumbnail: {
-    width: 90,
-    height: 110,
+    width: '100%',
+    height: '100%',
   },
   placeholderBg: {
-    backgroundColor: '#16213e',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
   },
   placeholderEmoji: {
-    fontSize: 34,
+    fontSize: 38,
   },
   cameraHint: {
-    color: '#fff',
+    color: GZ.ink,
     fontSize: 9,
-    fontWeight: '600',
-    opacity: 0.8,
+    fontWeight: '700',
+    opacity: 0.85,
+    fontFamily: GZFont.sans,
+  },
+  emojiBadge: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.65)',
+    ...Platform.select({
+      web: {
+        // @ts-ignore web
+        boxShadow: '0 6px 18px -6px rgba(0,0,0,0.6)',
+        // @ts-ignore web
+        animation: 'gzWiggle 2.6s ease-in-out infinite',
+      },
+      default: {},
+    }),
+  },
+  emojiBadgeText: {
+    fontSize: 18,
   },
   info: {
     flex: 1,
-    padding: 12,
+    padding: 14,
     justifyContent: 'space-between',
-    gap: 3,
+    gap: 6,
   },
   name: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
+    color: GZ.ink,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    fontFamily: GZFont.sans,
   },
   scene: {
-    color: '#aaa',
-    fontSize: 11,
-    fontStyle: 'italic',
+    color: GZ.inkMuted,
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: GZFont.sans,
   },
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  badge: {
-    color: '#fff',
-    fontSize: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden',
-    fontWeight: '700',
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  difficulty: {
-    color: '#ffd700',
-    fontSize: 11,
+  chipText: {
+    color: GZ.inkOnLight,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+    fontFamily: GZFont.sans,
+  },
+  stars: {
+    color: GZ.highlight,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   duration: {
-    color: '#aaa',
+    color: GZ.inkMuted,
     fontSize: 11,
+    fontWeight: '600',
+    fontFamily: GZFont.sans,
   },
   missionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+  },
+  missionPill: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: GZ.surfaceStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: GZ.border,
   },
   missionIcon: {
-    fontSize: 14,
+    fontSize: 13,
   },
   bpm: {
-    color: '#666',
+    color: GZ.cyan,
     fontSize: 10,
+    fontWeight: '800',
     marginLeft: 4,
+    letterSpacing: 0.4,
+    fontFamily: GZFont.mono,
   },
 });
