@@ -416,12 +416,13 @@ export default function HomeScreen() {
       //   __permissionStream 에 살려두기. RecordingCamera 가 이를 재사용해 추가 팝업 방지.
       //   이전 버전은 stop 후 origin 캐시에 의존했지만 iOS Safari/일부 Android 에서
       //   재요청 시 팝업이 다시 뜨는 회귀 발생.
-      if (typeof window !== 'undefined' && !(window as any).__permissionGranted) {
+      // FIX-MIC-SINGLETON (2026-04-23): 직접 getUserMedia 호출 제거.
+      //   ensureMediaSession() 이 이미 살아있는 스트림을 반환하면 재호출 0.
+      //   홈 PermissionWelcomeModal 에서 이미 잡아둔 세션을 그대로 재사용.
+      if (typeof window !== 'undefined') {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: { echoCancellation: true, noiseSuppression: true },
-          });
+          const { ensureMediaSession } = await import('../../../engine/session/mediaSession');
+          const stream = await ensureMediaSession();
           (window as any).__permissionGranted = true;
           (window as any).__permissionStream = stream;
         } catch (e) {

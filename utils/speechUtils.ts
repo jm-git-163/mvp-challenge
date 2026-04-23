@@ -138,7 +138,9 @@ export async function prewarmMic(): Promise<void> {
     return;
   }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // FIX-MIC-SINGLETON (2026-04-23): ensureMediaSession 싱글톤을 통한 공유 스트림.
+    const mod = await import('../engine/session/mediaSession');
+    const stream = await mod.ensureMediaSession();
     (window as any).__micStream = stream;
     _micGranted = true;
   } catch {

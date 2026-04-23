@@ -1586,13 +1586,12 @@ export default function RecordScreen() {
     } catch (e) { console.warn('[record] unmount cleanup: bgmStop', e); }
     if (typeof window !== 'undefined') {
       const w = window as any;
-      try {
-        const pre = w.__permissionStream as MediaStream | undefined;
-        if (pre && pre.getTracks) pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
-      } catch (e) { console.warn('[record] unmount cleanup: __permissionStream stop', e); }
+      // FIX-MIC-SINGLETON (2026-04-23): 싱글톤 스트림을 stop 하지 않는다.
+      //   stop 하면 다음 챌린지 진입 시 브라우저 권한 팝업이 다시 뜬다.
+      //   스트림 수명주기는 mediaSession 싱글톤이 소유 (앱 종료 시 release).
       try { w.__poseVideoEl = undefined; } catch {}
-      try { w.__permissionStream = undefined; } catch {}
       try { w.__compositorCanvas = undefined; } catch {}
+      // __permissionStream 는 그대로 둠 — 다음 진입 시 동일 참조 재사용.
     }
   }, [resetVoice]);
 

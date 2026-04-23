@@ -284,13 +284,13 @@ export class WhisperRecognizer {
 
     (async () => {
       try {
-        // 1) 마이크 스트림 확보 — 기존 __cameraStream 재사용 우선
+        // 1) 마이크 스트림 확보 — mediaSession 싱글톤을 통한 단일 진입점.
+        //    FIX-MIC-SINGLETON (2026-04-23): 직접 getUserMedia 호출 제거.
         let stream = (window as any).__cameraStream as MediaStream | undefined;
         if (!stream || stream.getAudioTracks().length === 0) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true },
-          });
-          this.stream = stream; // 별도 획득한 것만 cleanup 대상
+          const mod = await import('../engine/session/mediaSession');
+          stream = await mod.ensureMediaSession();
+          // 싱글톤 소유이므로 this.stream 에 보관하지 않는다 (cleanup 대상 아님).
         }
         if (!this._listening) { // 이미 stop 된 경우
           this.cleanupStream();

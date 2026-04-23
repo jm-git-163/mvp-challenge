@@ -331,6 +331,31 @@ export function getMediaSession(): MediaSession {
   return _singleton;
 }
 
+/**
+ * FIX-MIC-SINGLETON (2026-04-23):
+ * 앱 전역에서 스트림이 필요한 모든 지점의 단일 진입점.
+ *
+ * - 살아있는 스트림이 있으면 즉시 반환 (getUserMedia 미호출)
+ * - stale(track ended) 또는 없을 때만 1회 getUserMedia 호출
+ * - 동시 호출은 in-flight dedupe (mediaSession.acquire 가 처리)
+ * - 검증 로그: [mediaSession] reused | new
+ *
+ * 챌린지 진입 / 녹화 컴포넌트 / Speech 인식기 / 프리워밍 모달 모두
+ * 여기만 호출해야 한다. navigator.mediaDevices.getUserMedia 직접 호출 금지.
+ */
+export async function ensureMediaSession(
+  override?: MediaConstraintsOverride,
+): Promise<MediaStream> {
+  const s = getMediaSession();
+  const existing = s.getStream();
+  if (existing) {
+    if (typeof console !== 'undefined') console.info('[mediaSession] reused');
+    return existing;
+  }
+  if (typeof console !== 'undefined') console.info('[mediaSession] new');
+  return s.acquire(override);
+}
+
 /** 테스트 전용 — 싱글톤 리셋. */
 export function __resetMediaSessionForTests(impl?: MediaSessionDeps['getUserMedia']): MediaSession {
   _singleton?.release();

@@ -26,6 +26,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 import { swapCameraStream } from '../../engine/session/cameraSwap';
+import { ensureMediaSession, getMediaSession } from '../../engine/session/mediaSession';
 import { getBgmPlayer } from '../../utils/bgmLibrary';
 import { resourceTracker } from '../../utils/resourceTracker';
 import { drawDiagnosticsOverlay } from '../../utils/diagnosticsOverlay';
@@ -62,63 +63,39 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
 }
 
 async function doAcquire(facing: 'front' | 'back'): Promise<MediaStream> {
+  // FIX-MIC-SINGLETON (2026-04-23): 로컬 _streamCache 도 유지하지만 **진실의 원천**은
+  //   mediaSession 싱글톤이다. 로컬 캐시가 살아있으면 그대로 반환 (재호출 0).
+  //   없으면 ensureMediaSession() → 싱글톤에게 위임.
+  //   facing 전환은 swapCameraStream (별도 경로) 을 쓰므로 여기선 facing 변경을
+  //   자체 재요청하지 않는다. 같은 facing 재호출은 캐시 hit.
   if (_streamCache) {
     const allLive = _streamCache.stream
       .getTracks()
       .every((t) => t.readyState === 'live');
-    if (allLive && _streamCache.facing === facing) return _streamCache.stream;
-    // 기존 캐시 stream 정리 (video+audio 트랙 전부 stop) + 새 getUserMedia 전 80ms 여유.
-    //   → 일부 Android Chrome 에서 동일 장치 즉시 재요청 시 NotReadableError 발생 회피.
-    try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
-    try { resourceTracker.dec('mediaStream'); } catch {}
+    if (allLive) return _streamCache.stream;
+    // 죽은 스트림 — 로컬 캐시만 비우고 (싱글톤 track 이 ended 상태면 싱글톤이 재요청함)
     _streamCache = null;
-    await new Promise((r) => setTimeout(r, 80));
   }
 
-  // FIX-H2: __permissionStream 제거됨 — 권한은 origin 캐시, 스트림은 여기서 새로 획득.
-  if (typeof window !== 'undefined') {
-    const pre = (window as any).__permissionStream as MediaStream | undefined;
-    if (pre && pre.getTracks().every((t) => t.readyState === 'live')) {
-      _streamCache = { stream: pre, facing };
-      return pre;
-    }
-  }
-
-  const facingMode = facing === 'front' ? 'user' : 'environment';
-  // FIX-AA: facingMode 실패 폴백. iOS Safari 일부 환경에서 'environment' 미지원 시
-  //   OverconstrainedError 로 카메라가 아예 안 열림 → 최후로 video:true 로 강등.
-  let stream: MediaStream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: facingMode } as any,
-        width:  { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
-  } catch (err) {
-    console.warn('[acquireStream] primary getUserMedia failed, fallback to generic video:true:', err);
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: { echoCancellation: true, noiseSuppression: true },
-    });
-  }
+  const facingMode: 'user' | 'environment' = facing === 'front' ? 'user' : 'environment';
+  const stream = await ensureMediaSession({
+    video: {
+      facingMode: { ideal: facingMode } as any,
+      width:  { ideal: 1280 },
+      height: { ideal: 720 },
+    },
+    audio: { echoCancellation: true, noiseSuppression: true },
+  });
   _streamCache = { stream, facing };
-  // Team RELIABILITY (2026-04-22): 스트림 생성 카운트 +1.
-  //   _streamCache 가 null 로 비워지고 새 stream 을 넣을 때만 증가.
-  //   기존 stream.stop() 경로에서 dec — stopCachedStream() 에서 처리.
-  try { resourceTracker.inc('mediaStream'); } catch {}
   return stream;
 }
 
-/** Team RELIABILITY: 캐시된 stream 을 명시적으로 정리 (트랙 stop + 카운터 감소) */
+/**
+ * FIX-MIC-SINGLETON (2026-04-23): 기존 동작(트랙 stop)은 권한 팝업 재유발의 원인이었다.
+ * 이제는 로컬 캐시 참조만 해제한다. 실제 스트림 생명주기는 mediaSession 싱글톤 소유.
+ */
 export function stopCachedStream(): void {
-  if (_streamCache) {
-    try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
-    try { resourceTracker.dec('mediaStream'); } catch {}
-    _streamCache = null;
-  }
+  _streamCache = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1105,11 +1082,10 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
       const setup = async () => {
         setCamDiagSafe({ phase: 'acquiring', facing, msg: `${facing} getUserMedia…` });
-        // facing 이 실제로 바뀐 경우에만 기존 캐시 무효화.
-        //   — 같은 facing 으로 remount 되는 경우 (예: React StrictMode) 기존 트랙 유지.
+        // FIX-MIC-SINGLETON (2026-04-23): facing 전환에서 로컬 트랙을 stop 하지 않는다.
+        //   실제 카메라 교체는 swapCameraStream 경로가 담당. 여기선 로컬 참조만 비우고
+        //   ensureMediaSession 이 facing override 로 결정. 스트림 소유권은 싱글톤.
         if (mountedFacingRef.current !== facing && _streamCache) {
-          try { _streamCache.stream.getTracks().forEach((t) => t.stop()); } catch {}
-          try { resourceTracker.dec('mediaStream'); } catch {}
           _streamCache = null;
         }
         mountedFacingRef.current = facing;

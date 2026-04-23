@@ -76,13 +76,14 @@ export default function PermissionWelcomeModal(
     setLoading(true);
     setDenied(false);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
-      // 권한만 획득, 트랙 즉시 정지 — origin 캐시됨.
-      stream.getTracks().forEach((t) => t.stop());
+      // FIX-MIC-SINGLETON (2026-04-23): ensureMediaSession 으로 스트림을 획득 후
+      //   **stop 하지 않는다**. 싱글톤이 세션 동안 스트림을 소유하며,
+      //   이후 record/challenge 진입 시 ensureMediaSession() 이 그대로 재사용 →
+      //   브라우저 권한 팝업 0회.
+      const { ensureMediaSession } = await import('../../../engine/session/mediaSession');
+      const stream = await ensureMediaSession();
       (window as any).__permissionGranted = true;
+      (window as any).__permissionStream = stream;
       markAsked();
       setLoading(false);
       close();

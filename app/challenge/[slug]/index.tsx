@@ -178,12 +178,12 @@ export default function ChallengeInviteScreen() {
     if (accepting) return;
     setAccepting(true);
     // 권한 선행 확보 (홈과 동일 패턴)
+    // FIX-MIC-SINGLETON (2026-04-23): 도전장 수락 → 녹화 경로도 단일 세션 재사용.
+    //   ensureMediaSession 이 살아있는 스트림을 발견하면 팝업 없이 즉시 반환.
     try {
-      if (typeof window !== 'undefined' && !(window as any).__permissionGranted) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: { echoCancellation: true, noiseSuppression: true },
-        });
+      if (typeof window !== 'undefined') {
+        const { ensureMediaSession } = await import('../../../engine/session/mediaSession');
+        const stream = await ensureMediaSession();
         (window as any).__permissionGranted = true;
         (window as any).__permissionStream = stream;
       }

@@ -17,6 +17,7 @@ import React, {
 } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
+import { ensureMediaSession } from '../../engine/session/mediaSession';
 
 // ---------------------------------------------------------------------------
 // Canvas dimensions (9:16 portrait)
@@ -29,39 +30,26 @@ const CH = 1280;
 // ---------------------------------------------------------------------------
 let _canvasStreamCache: { stream: MediaStream; facing: 'front' | 'back' } | null = null;
 
+// FIX-MIC-SINGLETON (2026-04-23): getUserMedia 직접 호출 제거.
+//   mediaSession 싱글톤이 앱 전체 스트림을 소유. 여기선 재사용만 한다.
 async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
   if (_canvasStreamCache) {
     const allLive = _canvasStreamCache.stream
       .getTracks()
       .every((t) => t.readyState === 'live');
-    if (allLive && _canvasStreamCache.facing === facing) {
-      return _canvasStreamCache.stream;
-    }
-    _canvasStreamCache.stream.getTracks().forEach((t) => t.stop());
-    _canvasStreamCache = null;
+    if (allLive) return _canvasStreamCache.stream;
+    _canvasStreamCache = null; // 죽은 참조만 해제, track stop 금지
   }
 
-  if (typeof window !== 'undefined') {
-    const preStream = (window as any).__permissionStream as MediaStream | undefined;
-    if (preStream && preStream.getTracks().every((t) => t.readyState === 'live')) {
-      _canvasStreamCache = { stream: preStream, facing };
-      return preStream;
-    }
-  }
-
-  const facingMode = facing === 'front' ? 'user' : 'environment';
-  const stream = await navigator.mediaDevices.getUserMedia({
+  const facingMode: 'user' | 'environment' = facing === 'front' ? 'user' : 'environment';
+  const stream = await ensureMediaSession({
     video: {
-      facingMode,
+      facingMode: { ideal: facingMode } as any,
       width:  { ideal: 1280 },
       height: { ideal: 720 },
     },
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-    },
+    audio: { echoCancellation: true, noiseSuppression: true },
   });
-
   _canvasStreamCache = { stream, facing };
   return stream;
 }
@@ -455,11 +443,12 @@ const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
       let cancelled = false;
 
       const setup = async () => {
+        // FIX-MIC-SINGLETON (2026-04-23): facing 전환에서 싱글톤 트랙 stop 금지.
+        //   로컬 참조만 비우면 acquireStream 이 ensureMediaSession 으로 재사용 판정.
         if (
           _canvasStreamCache &&
           _canvasStreamCache.facing !== facing
         ) {
-          _canvasStreamCache.stream.getTracks().forEach((t) => t.stop());
           _canvasStreamCache = null;
         }
 
