@@ -168,26 +168,54 @@ function computeMissionResults(frameTags: FrameTag[]): MissionResult[] {
 
 // ─── Download helper ──────────────────────────────────────────────────────────
 
-async function doDownload(uri: string, name: string, mimeType?: string): Promise<void> {
-  if (typeof window === 'undefined' || !uri) return;
+/**
+ * TEAM-DOWNLOAD (2026-04-23): Android 파일 잘림 + 토스트 거짓 보고 수정.
+ *  기존엔
+ *    1) blob: URL 을 a.href 에 그대로 꽂아 즉시 click() — Android Chrome 은
+ *       blob 스트리밍 도중 외부 트리거가 끝나면 다운로드를 truncate 하는 사례 보고.
+ *    2) 호출자(handleDownload)가 await 없이 fire-and-forget → "저장 중" 토스트가
+ *       실제 blob 도착 전에 떴다 사라져 사용자는 성공 여부를 알 수 없음.
+ *  이제는
+ *    a) 항상 fetch 로 blob 을 메모리에 끌어온 뒤 createObjectURL(fresh) 로 새 URL 생성.
+ *    b) click() 후 60초 grace period 가 지난 뒤 revokeObjectURL — 일부 기기가
+ *       다운로드를 백그라운드에서 천천히 처리해도 안전.
+ *    c) Promise<boolean> 로 성공 여부 반환 → 호출자는 await 후 정직한 토스트.
+ */
+async function doDownload(uri: string, name: string, mimeType?: string): Promise<boolean> {
+  if (typeof window === 'undefined' || !uri) return false;
 
-  // blob URL 이고 mime 미지정이면 fetch 해서 타입 확정 (webm 을 .mp4 로 저장하면 재생 불가)
-  let resolvedMime = mimeType;
-  if (!resolvedMime && uri.startsWith('blob:')) {
-    try {
-      const resp = await fetch(uri);
-      resolvedMime = resp.headers.get('content-type') || (await resp.blob()).type || '';
-    } catch { /* ignore */ }
+  let blob: Blob | null = null;
+  try {
+    const resp = await fetch(uri);
+    blob = await resp.blob();
+  } catch {
+    return false;
   }
-  const probeBlob = { type: resolvedMime || '' } as Blob;
+  if (!blob || blob.size === 0) return false;
+
+  const resolvedMime = mimeType || blob.type || '';
+  const probeBlob = { type: resolvedMime } as Blob;
   const filename = buildDownloadFilename(name || 'challenge', probeBlob);
 
+  // 새 blob URL 생성 — 원본 uri 가 다른 곳에서 revoke 되어도 영향 없음
+  const freshUrl = URL.createObjectURL(
+    resolvedMime ? new Blob([blob], { type: resolvedMime }) : blob,
+  );
+
   const a = document.createElement('a');
-  a.href = uri;
+  a.href = freshUrl;
   a.download = filename;
+  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+
+  // 60초 grace period — 일부 기기가 백그라운드 저장 중일 때 즉시 revoke 하면 truncate.
+  setTimeout(() => {
+    try { URL.revokeObjectURL(freshUrl); } catch { /* ignore */ }
+  }, 60_000);
+
+  return true;
 }
 
 function openPlatformShare(platform: string, text: string): void {
@@ -505,8 +533,11 @@ function ShareModal({
         //   링크 공유 대신 "다운로드 → 앱에서 첨부" 유도 (영상 본체가 원본으로 전달).
         if (composedBlob) {
           const uri = composedUri ?? rawVideoUri;
-          if (uri) doDownload(uri, templateName, composedBlob?.type).catch(() => {});
-          showToast('📥 영상을 저장했어요. 카톡/앱에서 직접 첨부해주세요.');
+          // TEAM-DOWNLOAD (2026-04-23): 토스트는 실제 다운로드 완료 후에만.
+          const ok = uri ? await doDownload(uri, templateName, composedBlob?.type).catch(() => false) : false;
+          showToast(ok
+            ? '📥 영상을 저장했어요. 카톡/앱에서 직접 첨부해주세요.'
+            : '저장 실패. 다시 시도해주세요.');
         } else {
           await navigator.share({
             title: `${templateName} 챌린지 완료!`,
@@ -521,13 +552,14 @@ function ShareModal({
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async (): Promise<boolean> => {
     const uri = composedUri ?? rawVideoUri;
-    if (uri) {
-      // doDownload is async (may fetch blob mime), but we fire-and-forget for UX
-      doDownload(uri, templateName, composedBlob?.type).catch(() => {});
-      showToast('📥 영상 저장 중...');
-    }
+    if (!uri) return false;
+    showToast('📥 영상 저장 중...');
+    // TEAM-DOWNLOAD (2026-04-23): await 로 blob 실제 도착 확인 후 정직한 완료 토스트.
+    const ok = await doDownload(uri, templateName, composedBlob?.type).catch(() => false);
+    showToast(ok ? '✓ 다운로드 완료' : '저장 실패. 다시 시도해주세요.');
+    return ok;
   };
 
   const handleCopyLink = async () => {
@@ -561,11 +593,21 @@ function ShareModal({
     },
     {
       label: 'TikTok 업로드', sub: '영상+캡션 자동 준비', accent: false,
-      onPress: async () => { handleDownload(); await copyCaption(); openPlatformShare('tiktok', shareText); showToast('영상 저장·캡션 복사 완료'); },
+      onPress: async () => {
+        const ok = await handleDownload();
+        await copyCaption();
+        openPlatformShare('tiktok', shareText);
+        showToast(ok ? '영상 저장·캡션 복사 완료' : '캡션은 복사됨. 영상 저장은 다시 시도해주세요.');
+      },
     },
     {
       label: 'Instagram 업로드', sub: 'Stories · Reels',  accent: false,
-      onPress: async () => { handleDownload(); await copyCaption(); openPlatformShare('instagram', shareText); showToast('영상 저장·캡션 복사 완료'); },
+      onPress: async () => {
+        const ok = await handleDownload();
+        await copyCaption();
+        openPlatformShare('instagram', shareText);
+        showToast(ok ? '영상 저장·캡션 복사 완료' : '캡션은 복사됨. 영상 저장은 다시 시도해주세요.');
+      },
     },
     {
       label: 'X / Twitter',     sub: '게시글로 공유',      accent: false,
@@ -1361,7 +1403,10 @@ export default function ResultScreen() {
           <View style={st.actionRow}>
             <TouchableOpacity
               style={st.downloadBtn}
-              onPress={() => doDownload(composedUri ?? rawVideoUri, activeTemplate?.name ?? 'challenge', composedBlob?.type)}
+              onPress={async () => {
+                // TEAM-DOWNLOAD (2026-04-23): await 보장 — 저장 실패해도 사용자가 알 수 있도록.
+                await doDownload(composedUri ?? rawVideoUri, activeTemplate?.name ?? 'challenge', composedBlob?.type).catch(() => false);
+              }}
               disabled={!composedUri && !rawVideoUri}
             >
               <Text style={st.downloadText}>📥 저장</Text>

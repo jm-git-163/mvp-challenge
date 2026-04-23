@@ -428,14 +428,15 @@ export function useJudgement(): {
 
         switch (mission.type) {
           case 'gesture': {
-            // More forgiving: upper-body gestures only need 6+ keypoints (face/shoulders/arms)
-            // since most gestures in this app are hands_up/v_sign/heart (no legs needed).
-            const hasRealLandmarks = landmarks.length >= 17 &&
-              landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.25).length >= 6;
+            // TEAM-HONESTY (2026-04-23): 가짜 PERFECT/GOOD 차단.
+            //   기존 `raw * 1.12 + 0.03` 가산식은 raw 가 0.7 이면 0.81 → PERFECT,
+            //   raw 가 0.45 라도 +0.03 floor 로 GOOD threshold 근접 → 사용자 보고와 일치.
+            //   이제는 detectGesture 가 반환한 진짜 신뢰도만 그대로 사용.
+            //   또 키포인트 8개 이상 + 평균 신뢰도 0.30 이상이라는 더 엄격한 게이트.
+            const visiblePts = landmarks.filter(l => (l.score ?? l.visibility ?? 0) > 0.30);
+            const hasRealLandmarks = landmarks.length >= 17 && visiblePts.length >= 8;
             if (hasRealLandmarks && mission.gesture_id) {
-              const raw = detectGesture(landmarks, mission.gesture_id);
-              // Lift slightly to reward partial matches while user settles into pose
-              score = Math.min(1, raw * 1.12 + 0.03);
+              score = Math.min(1, Math.max(0, detectGesture(landmarks, mission.gesture_id)));
             } else {
               score = 0;
             }
@@ -474,11 +475,14 @@ export function useJudgement(): {
                   const sim = textSimilarity(target, interim);
                   // Forgiving scoring: Web Speech often mis-transcribes 1-2 jamo.
                   // Lift by ~15% then clamp; interim keeps monotonic max.
-                  // FIX-P: +0.05 floor 제거. 유사도 0 이면 점수 0 유지.
-                  //   15% 상향(*1.15) 은 STT 자모 오차에 대한 완화책으로 유지.
-                  const lifted = Math.min(1, sim * 1.15);
-                  const newScore = Math.max(voiceScoreRef.current, lifted);
-                  voiceScoreRef.current    = Math.min(1, newScore);
+                  // TEAM-HONESTY (2026-04-23): interim 단계 PERFECT 가짜 발화 금지.
+                  //   기존 *1.15 lift 는 sim 0.70 → 0.805 → PERFECT (≥0.80 임계) 트리거.
+                  //   interim 은 부분 transcript 라 신뢰도가 낮으므로 lift 금지 +
+                  //   PERFECT 임계(0.80) 직전인 0.79 까지만 허용. 진짜 PERFECT 는 final 에서.
+                  //   최소 글자 수 게이트도 추가 — 1~2 음절짜리 짧은 interim 은 점수 X.
+                  if (interim.trim().length < 3) return;
+                  const newScore = Math.max(voiceScoreRef.current, Math.min(0.79, sim));
+                  voiceScoreRef.current    = newScore;
                   voiceAccuracyRef.current = sim;
                   setVoiceAccuracy(sim);
                 }
@@ -489,9 +493,10 @@ export function useJudgement(): {
                 const target = _currentTarget;
                 // FIX-P: 목표 텍스트 없으면 점수 0 (무작위 발화에 30% 부여 금지).
                 const rawSim = target ? textSimilarity(target, final) : 0;
-                // Forgiving final score — users who clearly said the line
-                // shouldn't be punished for STT jamo quirks.
-                const lifted = target ? Math.min(1, rawSim * 1.15) : 0;
+                // TEAM-HONESTY (2026-04-23): final lift 1.15 → 1.08.
+                //   1.15 는 rawSim 0.70 → 0.805 → 가짜 PERFECT. 1.08 는 0.74 → 0.80
+                //   으로 진짜 잘 읽었을 때만 PERFECT. STT 자모 오차 1~2 음절은 여전히 보정.
+                const lifted = target ? Math.min(1, rawSim * 1.08) : 0;
                 voiceScoreRef.current      = lifted;
                 voiceAccuracyRef.current   = rawSim;
                 voiceTranscriptRef.current = final;
@@ -539,11 +544,14 @@ export function useJudgement(): {
                 const target = _currentTarget;
                 if (target && interim) {
                   const sim = textSimilarity(target, interim);
-                  // FIX-P: +0.05 floor 제거. 유사도 0 이면 점수 0 유지.
-                  //   15% 상향(*1.15) 은 STT 자모 오차에 대한 완화책으로 유지.
-                  const lifted = Math.min(1, sim * 1.15);
-                  const newScore = Math.max(voiceScoreRef.current, lifted);
-                  voiceScoreRef.current    = Math.min(1, newScore);
+                  // TEAM-HONESTY (2026-04-23): interim 단계 PERFECT 가짜 발화 금지.
+                  //   기존 *1.15 lift 는 sim 0.70 → 0.805 → PERFECT (≥0.80 임계) 트리거.
+                  //   interim 은 부분 transcript 라 신뢰도가 낮으므로 lift 금지 +
+                  //   PERFECT 임계(0.80) 직전인 0.79 까지만 허용. 진짜 PERFECT 는 final 에서.
+                  //   최소 글자 수 게이트도 추가 — 1~2 음절짜리 짧은 interim 은 점수 X.
+                  if (interim.trim().length < 3) return;
+                  const newScore = Math.max(voiceScoreRef.current, Math.min(0.79, sim));
+                  voiceScoreRef.current    = newScore;
                   voiceAccuracyRef.current = sim;
                   setVoiceAccuracy(sim);
                 }
@@ -553,7 +561,8 @@ export function useJudgement(): {
                 const target = _currentTarget;
                 // FIX-P: 목표 텍스트 없으면 점수 0 (무작위 발화에 30% 부여 금지).
                 const rawSim = target ? textSimilarity(target, final) : 0;
-                const lifted = target ? Math.min(1, rawSim * 1.15) : 0;
+                // TEAM-HONESTY (2026-04-23): final lift 1.15 → 1.08 (위 분기와 동일 사유).
+                const lifted = target ? Math.min(1, rawSim * 1.08) : 0;
                 voiceScoreRef.current      = lifted;
                 voiceAccuracyRef.current   = rawSim;
                 voiceTranscriptRef.current = final;
@@ -670,7 +679,7 @@ export function useJudgement(): {
 
     // 컴포넌트 상태 초기화
     lastMissionSeqRef.current   = null;
-    voiceScoreRef.current       = 0.10;
+    voiceScoreRef.current       = 0; // TEAM-HONESTY (2026-04-23): 가짜 10% 시작점 제거
     voiceAccuracyRef.current    = 0;
     voiceTranscriptRef.current  = '';
     setVoiceTranscript('');

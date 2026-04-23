@@ -144,7 +144,13 @@ export class Recorder {
     this.setState('recording');
   }
 
-  /** 정지 후 결합 Blob을 resolve. */
+  /** 정지 후 결합 Blob을 resolve.
+   *  TEAM-RECORD (2026-04-23): stop() 직전 requestData() 호출로 마지막 청크 flush.
+   *  MediaRecorder 는 timeslice 경계에서만 ondataavailable 을 쏘므로,
+   *  사용자가 timeslice 중간(예: 14.7초)에 정지하면 마지막 0.7초 데이터가
+   *  버퍼에 남은 채 stop → 결합 Blob 에서 누락되는 경우가 있었음.
+   *  requestData() 로 강제 flush 후 stop() 하면 onstop 핸들러까지 모든 청크가 도착함을 보장.
+   */
   async stop(): Promise<Blob> {
     if (!this.rec) throw new Error('not recording');
     if (this.state === 'stopped') {
@@ -153,7 +159,11 @@ export class Recorder {
     return new Promise<Blob>((resolve, reject) => {
       this.stopResolve = resolve;
       this.stopReject = reject;
-      try { this.rec?.stop(); } catch (e) { reject(e as Error); }
+      try {
+        // 마지막 청크 flush — requestData 미지원 폴리필이면 try/catch 로 무시
+        try { this.rec?.requestData?.(); } catch { /* ignore */ }
+        this.rec?.stop();
+      } catch (e) { reject(e as Error); }
     });
   }
 

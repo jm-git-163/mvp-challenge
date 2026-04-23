@@ -112,6 +112,66 @@ describe('Recorder', () => {
     expect(instances.length).toBe(1);
   });
 
+  it('stop() 직전 requestData() 호출로 마지막 청크 flush — TEAM-RECORD 2026-04-23', async () => {
+    const requestDataCalls: number[] = [];
+    let stopCalls = 0;
+    class FlushRec implements MediaRecorderLike {
+      state: 'inactive' | 'recording' | 'paused' = 'inactive';
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: ((e: { error: Error }) => void) | null = null;
+      private flushed = false;
+      start() { this.state = 'recording'; }
+      requestData() {
+        requestDataCalls.push(Date.now());
+        // 실제 MediaRecorder 처럼 마지막 미배달 청크를 즉시 송출
+        if (!this.flushed) {
+          this.flushed = true;
+          this.ondataavailable?.({ data: new FakeBlob([{ size: 777 }]) as unknown as Blob });
+        }
+      }
+      stop() {
+        stopCalls += 1;
+        this.state = 'inactive';
+        this.onstop?.();
+      }
+      pause() {}
+      resume() {}
+    }
+    const r = new Recorder({
+      ctor: FlushRec as unknown as new (s: MediaStream, o?: unknown) => MediaRecorderLike,
+      Blob: FakeBlob as unknown as typeof Blob,
+    });
+    r.start({} as MediaStream, codec);
+    const blob = await r.stop();
+    expect(requestDataCalls.length).toBe(1);
+    expect(stopCalls).toBe(1);
+    // flush 된 777 바이트 청크가 결합 Blob 에 포함됐는지
+    expect((blob as unknown as FakeBlob).size).toBe(777);
+  });
+
+  it('requestData 미지원 brower(폴리필 없음)에서도 stop() 정상', async () => {
+    // requestData 메서드 자체가 없는 구식 MediaRecorder 구현
+    class NoFlushRec implements MediaRecorderLike {
+      state: 'inactive' | 'recording' | 'paused' = 'inactive';
+      ondataavailable: ((e: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: ((e: { error: Error }) => void) | null = null;
+      start() { this.state = 'recording'; }
+      stop() { this.state = 'inactive'; this.onstop?.(); }
+      pause() {}
+      resume() {}
+      // requestData 누락 (구 사파리 등)
+    }
+    const r = new Recorder({
+      ctor: NoFlushRec as unknown as new (s: MediaStream, o?: unknown) => MediaRecorderLike,
+      Blob: FakeBlob as unknown as typeof Blob,
+    });
+    r.start({} as MediaStream, codec);
+    await expect(r.stop()).resolves.toBeDefined();
+    expect(r.getState()).toBe('stopped');
+  });
+
   it('options가 코덱 선택값 반영', () => {
     const { Ctor, instances } = makeCtor();
     const r = new Recorder({ ctor: Ctor, Blob: FakeBlob as unknown as typeof Blob });

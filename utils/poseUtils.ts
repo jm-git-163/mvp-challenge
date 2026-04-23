@@ -62,96 +62,102 @@ export function detectGesture(
 
   const clamp = (v: number) => Math.max(0, Math.min(1, v));
 
+  // TEAM-HONESTY (2026-04-23): 가짜 점수 척결.
+  //   기존엔 랜드마크가 부족하면 0.3 / 0.15 / 0.5 같은 "기본 점수" 를 반환했다.
+  //   → 사용자가 가만히 있어도 GOOD/PERFECT 토스트가 떴다.
+  //   이제 랜드마크가 없으면 항상 0 을 반환. 또 활성 신호 검출식의 +0.3, +0.5 등
+  //   "공짜 가산" 을 제거해 진짜 자세에서만 점수가 오르도록 한다.
   switch (gestureId) {
     case 'hands_up': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const ls = g('left_shoulder'), rs = g('right_shoulder');
-      if (!lw || !rw || !ls || !rs) return 0.3;
-      // y축: 작을수록 위 → wrist.y < shoulder.y 이면 hands up
-      const lUp = clamp((ls.y - lw.y) * 4 + 0.5);
-      const rUp = clamp((rs.y - rw.y) * 4 + 0.5);
+      if (!lw || !rw || !ls || !rs) return 0;
+      // wrist.y < shoulder.y 일 때만 점수. 어깨 위로 진짜 든 거리만큼만.
+      const lUp = clamp((ls.y - lw.y) * 5);
+      const rUp = clamp((rs.y - rw.y) * 5);
       return (lUp + rUp) / 2;
     }
     case 'v_sign': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const nose = g('nose');
-      if (!lw || !rw) return 0.3;
-      const refY = nose?.y ?? 0.3;
-      // 한쪽 손이 얼굴 옆/위에 있으면 V사인
-      const lNear = clamp((refY - lw.y + 0.1) * 5 + 0.3);
-      const rNear = clamp((refY - rw.y + 0.1) * 5 + 0.3);
+      if (!lw || !rw || !nose) return 0;
+      const refY = nose.y;
+      // 손이 코보다 위에 있을 때만 점수
+      const lNear = clamp((refY - lw.y + 0.05) * 6);
+      const rNear = clamp((refY - rw.y + 0.05) * 6);
       return Math.max(lNear, rNear);
     }
     case 'heart': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const ls = g('left_shoulder'), rs = g('right_shoulder');
-      if (!lw || !rw) return 0.3;
+      if (!lw || !rw || !ls || !rs) return 0;
       // 양손 가까이 + 가슴 높이
       const dist = Math.abs(lw.x - rw.x) + Math.abs(lw.y - rw.y);
       const closeness = clamp(1 - dist * 3);
       const avgY = (lw.y + rw.y) / 2;
-      const shoulderY = ((ls?.y ?? 0.5) + (rs?.y ?? 0.5)) / 2;
+      const shoulderY = (ls.y + rs.y) / 2;
       const heightOk = clamp(1 - Math.abs(avgY - (shoulderY - 0.1)) * 5);
-      return (closeness * 0.7 + heightOk * 0.3);
+      return closeness * 0.7 + heightOk * 0.3;
     }
     case 'arms_spread': {
       const lw = g('left_wrist'), rw = g('right_wrist');
-      if (!lw || !rw) return 0.3;
+      const ls = g('left_shoulder'), rs = g('right_shoulder');
+      if (!lw || !rw || !ls || !rs) return 0;
       const spread = rw.x - lw.x; // 미러 카메라: right_wrist가 화면 왼쪽에 나타남
-      return clamp(spread * 2 - 0.2);
+      const shoulderSpread = Math.abs(rs.x - ls.x);
+      // 어깨 폭의 1.6배 이상 벌렸을 때만 점수 시작
+      return clamp((spread - shoulderSpread * 1.6) * 4);
     }
     case 'thumbs_up': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const le = g('left_elbow'), re = g('right_elbow');
       const ls = g('left_shoulder'), rs = g('right_shoulder');
-      if (!lw && !rw) return 0.15;
-      // 엄지척: 손목이 팔꿈치보다 확실히 위 (y값 작음) — 가중치 10으로 강화
-      const lUp = (lw && le) ? clamp((le.y - lw.y) * 10 + 0.2) : 0.15;
-      const rUp = (rw && re) ? clamp((re.y - rw.y) * 10 + 0.2) : 0.15;
-      // 어깨보다 위도 허용 (팔 들어올린 엄지척)
-      const lHigh = (lw && ls) ? clamp((ls.y - lw.y) * 6 + 0.3) : 0.15;
-      const rHigh = (rw && rs) ? clamp((rs.y - rw.y) * 6 + 0.3) : 0.15;
+      if (!lw && !rw) return 0;
+      // 엄지척: 손목이 팔꿈치보다 확실히 위. 공짜 가산 제거.
+      const lUp = (lw && le) ? clamp((le.y - lw.y) * 10) : 0;
+      const rUp = (rw && re) ? clamp((re.y - rw.y) * 10) : 0;
+      const lHigh = (lw && ls) ? clamp((ls.y - lw.y) * 6) : 0;
+      const rHigh = (rw && rs) ? clamp((rs.y - rw.y) * 6) : 0;
       return Math.max(lUp, rUp, lHigh, rHigh);
     }
     case 'wave': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const nose = g('nose');
-      if (!lw || !rw) return 0.3;
-      const refY = nose?.y ?? 0.3;
-      // 한쪽 손이 머리 높이 이상
-      const lWave = clamp((refY + 0.05 - lw.y) * 6 + 0.3);
-      const rWave = clamp((refY + 0.05 - rw.y) * 6 + 0.3);
+      if ((!lw && !rw) || !nose) return 0;
+      const refY = nose.y;
+      const lWave = lw ? clamp((refY + 0.05 - lw.y) * 6) : 0;
+      const rWave = rw ? clamp((refY + 0.05 - rw.y) * 6) : 0;
       return Math.max(lWave, rWave);
     }
     case 'point_cam': {
       const lw = g('left_wrist'), rw = g('right_wrist');
       const ls = g('left_shoulder'), rs = g('right_shoulder');
-      if (!lw || !rw || !ls || !rs) return 0.3;
-      // 한 손이 중앙 근처 + 어깨보다 위
+      if (!lw || !rw || !ls || !rs) return 0;
       const center = 0.5;
-      const lCenter = clamp(1 - Math.abs(lw.x - center) * 4) * clamp((ls.y - lw.y) * 5 + 0.3);
-      const rCenter = clamp(1 - Math.abs(rw.x - center) * 4) * clamp((rs.y - rw.y) * 5 + 0.3);
+      const lCenter = clamp(1 - Math.abs(lw.x - center) * 4) * clamp((ls.y - lw.y) * 5);
+      const rCenter = clamp(1 - Math.abs(rw.x - center) * 4) * clamp((rs.y - rw.y) * 5);
       return Math.max(lCenter, rCenter);
     }
     case 'arms_cross': {
       const lw = g('left_wrist'), rw = g('right_wrist');
-      if (!lw || !rw) return 0.3;
-      // 팔짱: left_wrist가 오른쪽, right_wrist가 왼쪽
+      if (!lw || !rw) return 0;
       const crossed = lw.x - rw.x; // positive = crossed
-      return clamp(crossed * 4 + 0.3);
+      return clamp(crossed * 4);
     }
     case 'lean_left': {
       const nose = g('nose');
-      if (!nose) return 0.3;
-      return clamp((0.5 - nose.x) * 5 + 0.3);
+      if (!nose) return 0;
+      // 0.5 에서 시작하면 가만히 있어도 0.3 점수 → 제거. 정중앙은 0 점.
+      return clamp((0.5 - nose.x) * 5);
     }
     case 'lean_right': {
       const nose = g('nose');
-      if (!nose) return 0.3;
-      return clamp((nose.x - 0.5) * 5 + 0.3);
+      if (!nose) return 0;
+      return clamp((nose.x - 0.5) * 5);
     }
     default:
-      return 0.5;
+      // 알 수 없는 제스처 — 가짜 0.5 PERFECT 트리거 금지.
+      return 0;
   }
 }
 
