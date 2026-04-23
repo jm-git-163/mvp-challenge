@@ -15,6 +15,7 @@ import { createAngleSmoother }          from '../engine/missions/angleSmoother';
 import { CloseProximitySquatDetector } from '../engine/missions/closeProximitySquat';
 import { NoseSquatDetector }           from '../engine/missions/noseSquat';
 import { HeadShoulderSquatDetector }   from '../engine/missions/headShoulderSquat';
+import { HipMotionGate }               from '../engine/missions/hipMotionGate';
 import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
@@ -149,6 +150,10 @@ export function useJudgement(): {
       //   포즈 엔진이 사실상 죽은 상태(wasm 로드 성공했으나 detectForVideo 가
       //   결과 없음)를 UI 가 정직하게 표시하도록 플래그로 노출.
       poseTimeout: boolean;
+      // TEAM-ACCURACY (2026-04-23): hip 진폭 게이트 진단.
+      hipAmplitude: number;
+      hipGateAllow: boolean;
+      hipGateReason: string;
     };
   };
   voiceTranscript: string;
@@ -200,6 +205,16 @@ export function useJudgement(): {
   // Team SQUAT (2026-04-22): research §4 추천안 HeadShoulderSquat — primary 근접촬영 detector.
   //   shoulder 평균 y − nose.y 차분 신호 + 3초 정적 캘리브레이션 + 첫 rep 자동 진폭 학습.
   const hssRef                 = useRef(new HeadShoulderSquatDetector());
+  // TEAM-ACCURACY (2026-04-23): 가짜 카운트 차단 게이트.
+  //   사용자 제보(앉아있는데 카운트 12 개) 대응 — 모든 near-mode rep 인정 직전에
+  //   hip y 진폭을 검사한다. 실제 스쿼트가 아닌 머리 흔들림은 hip 이 정지 → 거부.
+  const hipGateRef             = useRef(new HipMotionGate());
+  // TEAM-ACCURACY (2026-04-23): hipGate 거부로 외부 카운트에 반영 못한 HSS rep 누적치.
+  //   HSS 내부 count 는 매 rep 마다 +1 → 외부 squatCountRef 와 비교 시 게이트 통과한 만큼만
+  //   가산해야 한다. 미반영 누적치를 빼서 "다음 rep 1 개" 만 통과시키도록.
+  const hssRejectedCountRef    = useRef(0);
+  const noseRejectedCountRef   = useRef(0);
+  const closeRejectedCountRef  = useRef(0);
   const lastSquatCountAtRef    = useRef<number | null>(null);
   const latestJudgementRef     = useRef<{ tier: JudgementTier; at: number } | null>(null);
   const micDeniedAtRef         = useRef<number | null>(null);
@@ -302,6 +317,11 @@ export function useJudgement(): {
       // FIX-Z25: 이 프레임에서 count 가 늘었는지 추적용. 아래 블록들 지나고 변하면 timestamp.
       const preCount = squatCountRef.current;
 
+      // TEAM-ACCURACY (2026-04-23): hip 진폭 게이트 매 프레임 갱신.
+      //   near-mode (HSS/nose/close) 디텍터들이 머리 흔들림만으로 false count 를 만들지 않도록,
+      //   카운트 증가 직전에 hipGate.update().allow 가 true 인지 확인한다.
+      const hipGate = hipGateRef.current.update(landmarks, now);
+
       // 스쿼트 카운터 — MoveNet 추정 노이즈가 심하므로:
       //  (1) 신뢰도 게이트 상향 (0.25 → 0.50)
       //  (2) fullLeg(hip+knee+ankle)이 실제로 보일 때만 인정 (torso 폴백은 제거)
@@ -335,15 +355,23 @@ export function useJudgement(): {
       if (template && template.genre === 'fitness' && allowCloseMode) {
         const closeState = closeSquatRef.current.update(landmarks);
         lastCloseState = closeState;
-        if (closeState.count > squatCountRef.current) {
-          squatCountRef.current = closeState.count;
-          squatCountState.current = closeState.count;
-          setSquatCount(closeState.count);
-          squatPhaseOut = closeState.phase;
-          // FIX-N: 이 증분은 근접(얼굴) 디텍터 소스. full-body 가 아직 안 잡혔으면 near-mode.
-          if (squatSourceRef.current !== 'full-body') {
-            squatSourceRef.current = 'near-mode';
-            setSquatMode('near-mode');
+        // TEAM-ACCURACY (2026-04-23): close-detector 도 hip 진폭 게이트 통과 필수.
+        //   close 는 absolute count 만 반환하므로 매 프레임 변화를 reject ref 와 비교.
+        if (closeState.count > squatCountRef.current + closeRejectedCountRef.current) {
+          // 새 rep 1 개가 detector 내부에서 인정됐다.
+          if (hipGate.allow) {
+            const effective = closeState.count - closeRejectedCountRef.current;
+            squatCountRef.current = effective;
+            squatCountState.current = effective;
+            setSquatCount(effective);
+            squatPhaseOut = closeState.phase;
+            // FIX-N: 이 증분은 근접(얼굴) 디텍터 소스. full-body 가 아직 안 잡혔으면 near-mode.
+            if (squatSourceRef.current !== 'full-body') {
+              squatSourceRef.current = 'near-mode';
+              setSquatMode('near-mode');
+            }
+          } else {
+            closeRejectedCountRef.current += 1;
           }
         }
       }
@@ -420,15 +448,27 @@ export function useJudgement(): {
       //   nose-only detector (noseSquatRef) 는 HSS 가 아직 calibrated 전인 "완전 스톨" 안전망.
       if (template && template.genre === 'fitness') {
         const hssRes = hssRef.current.update(landmarks, now);
-        if (hssRes.justCounted && hssRes.count > squatCountRef.current) {
-          squatCountRef.current = hssRes.count;
-          squatCountState.current = hssRes.count;
-          setSquatCount(hssRes.count);
-          squatPhaseOut = hssRes.phase;
-          lastSquatCountAtRef.current = now;
-          if (squatSourceRef.current !== 'full-body') {
-            squatSourceRef.current = 'near-mode';
-            setSquatMode('near-mode');
+        // TEAM-ACCURACY (2026-04-23): HSS 가 rep 을 인정하더라도 hip 이 실제로 움직였어야 한다.
+        //   사용자 제보: 의자에 앉아있는 동안 카운트 12. HSS 는 머리/어깨 신호만 보므로
+        //   슬럼프·고개 끄덕임을 스쿼트로 오인식. hipGate.allow=false 면 거부 + reject 누적.
+        if (hssRes.justCounted) {
+          if (hipGate.allow) {
+            // HSS 내부 count − 누적 reject = 외부에 반영해야 할 누적 카운트.
+            const effective = hssRes.count - hssRejectedCountRef.current;
+            if (effective > squatCountRef.current) {
+              squatCountRef.current = effective;
+              squatCountState.current = effective;
+              setSquatCount(effective);
+              squatPhaseOut = hssRes.phase;
+              lastSquatCountAtRef.current = now;
+              if (squatSourceRef.current !== 'full-body') {
+                squatSourceRef.current = 'near-mode';
+                setSquatMode('near-mode');
+              }
+            }
+          } else {
+            // 거부: 다음 rep 부터 게이트가 풀려도 누적 가짜 카운트가 한꺼번에 들어오지 않도록.
+            hssRejectedCountRef.current += 1;
           }
         }
 
@@ -438,15 +478,23 @@ export function useJudgement(): {
           const stalled = (noseSquatRef.current.msSinceLastChange(now) > 3_000) || squatCountRef.current === 0;
           if (stalled) {
             const noseRes = noseSquatRef.current.update(landmarks, now);
-            if (noseRes.justCounted && noseRes.count > squatCountRef.current) {
-              squatCountRef.current = noseRes.count;
-              squatCountState.current = noseRes.count;
-              setSquatCount(noseRes.count);
-              squatPhaseOut = noseRes.phase;
-              lastSquatCountAtRef.current = now;
-              if (squatSourceRef.current !== 'full-body') {
-                squatSourceRef.current = 'near-mode';
-                setSquatMode('near-mode');
+            // TEAM-ACCURACY (2026-04-23): nose-only 디텍터도 hip 진폭 게이트 통과 필수.
+            if (noseRes.justCounted) {
+              if (hipGate.allow) {
+                const effective = noseRes.count - noseRejectedCountRef.current;
+                if (effective > squatCountRef.current) {
+                  squatCountRef.current = effective;
+                  squatCountState.current = effective;
+                  setSquatCount(effective);
+                  squatPhaseOut = noseRes.phase;
+                  lastSquatCountAtRef.current = now;
+                  if (squatSourceRef.current !== 'full-body') {
+                    squatSourceRef.current = 'near-mode';
+                    setSquatMode('near-mode');
+                  }
+                }
+              } else {
+                noseRejectedCountRef.current += 1;
               }
             }
           } else {
@@ -686,6 +734,11 @@ export function useJudgement(): {
           candidateFrames: squatCandidateFrames.current,
           ready: squatReadyRef.current,
           poseTimeout,
+          // TEAM-ACCURACY (2026-04-23): hip 진폭 게이트 디버그 — UI 가
+          //   "왜 카운트가 안 되는지" 정직하게 표시할 수 있도록 노출.
+          hipAmplitude: hipGate.amplitude,
+          hipGateAllow: hipGate.allow,
+          hipGateReason: hipGate.reason,
         },
       };
     },
@@ -710,6 +763,10 @@ export function useJudgement(): {
     try { closeSquatRef.current?.reset(); } catch {}
     try { noseSquatRef.current?.reset(); } catch {}
     try { hssRef.current?.reset(); } catch {}
+    try { hipGateRef.current?.reset(); } catch {}
+    hssRejectedCountRef.current = 0;
+    noseRejectedCountRef.current = 0;
+    closeRejectedCountRef.current = 0;
     lastSquatCountAtRef.current = null;
     latestJudgementRef.current  = null;
     micDeniedAtRef.current      = null;
