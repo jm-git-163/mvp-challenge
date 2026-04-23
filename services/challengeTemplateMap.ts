@@ -89,7 +89,9 @@ function stripClutterLayers(t: Template): Template {
     'subtitle_track', 'lower_third', 'hashtag_strip', 'ticker',
     'counter_hud',
   ]);
-  const KILL_IDS = new Set(['hashtag_strip', 'bottom_ticker', 'subtitle_timeline']);
+  // FIX-SCRIPT-GHOST (2026-04-23): news-anchor 의 'script_ghost' mission_prompt 는
+  //   상단 텔레프롬프터와 다른 고정 대본을 opacity 0.35 로 노출 → 사용자 혼선 주범.
+  const KILL_IDS = new Set(['hashtag_strip', 'bottom_ticker', 'subtitle_timeline', 'script_ghost']);
   // FIX-EFFECT-INTENSITY (2026-04-23): 사용자 피드백 "효과가 너무 심해 피사체가 안 보임".
   //   배경·파티클·그레인·비트플래시·크로매틱 등 피사체 가독성을 해치는 오버레이 레이어의
   //   opacity 를 강제 캡 → 카메라 피드가 선명히 드러나도록.
@@ -108,8 +110,31 @@ function stripClutterLayers(t: Template): Template {
     vignette:         0.28,
     pulse_circle:     0.16,
   };
+  // FIX-MISSION-PROMPT-BOTTOM (2026-04-23): mission_prompt 는 보통 상단 지시문이지만
+  //   일부 템플릿(emoji-explosion 등)은 position: 'bottom' + 긴 대본 문자열을 담고 있어
+  //   voice_read 상단 텔레프롬프터와 이중 노출됨. bottom 계열 또는 20자 초과 스크립트성
+  //   mission_prompt 는 전부 제거.
+  const isBottomAnchored = (pos: any): boolean => {
+    if (typeof pos === 'string') return pos.toLowerCase().includes('bottom');
+    if (pos && typeof pos === 'object' && Number.isFinite(pos.y)) {
+      // 1080x1920 기준 하단 35% 영역
+      return pos.y > 1200;
+    }
+    return false;
+  };
+  const isScriptyMissionPrompt = (L: any): boolean => {
+    if (!L || L.type !== 'mission_prompt') return false;
+    const p = L.props || {};
+    if (isBottomAnchored(p.position)) return true;
+    const text = String(p.text ?? '');
+    // 지시문은 짧고 (예: "스쿼트 10회") 스크립트성은 길다.
+    if (text.length > 20) return true;
+    // opacity < 0.6 의 mission_prompt 는 통상 "그림자 대본" 역할 → 제거.
+    if (typeof L.opacity === 'number' && L.opacity < 0.6) return true;
+    return false;
+  };
   const cleaned = layers
-    .filter((L: any) => !(L && (KILL_TYPES.has(L.type) || KILL_IDS.has(L.id))))
+    .filter((L: any) => !(L && (KILL_TYPES.has(L.type) || KILL_IDS.has(L.id) || isScriptyMissionPrompt(L))))
     .map((L: any) => {
       if (!L || typeof L !== 'object') return L;
       const cap = OPACITY_CAPS[L.type];
