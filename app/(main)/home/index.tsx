@@ -446,15 +446,8 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={s.listHeader}>
-            {/* 이중 안전장치: 상단 배너가 클리핑돼도 리스트 헤더에서 한 번 더 노출 */}
-            <Pressable
-              onPress={() => router.push('/selftest')}
-              style={s.selftestBannerList}
-              accessibilityLabel="SelfTest2"
-            >
-              <Text style={s.selftestBannerT}>🩺 자가진단 (스마트폰 필독)</Text>
-              <Text style={s.selftestBannerSub}>카메라·마이크·포즈·스쿼트·자막 실시간 점검 ›</Text>
-            </Pressable>
+            {/* TEAM-UX (2026-04-23 v3): 리스트 헤더 자가진단 배너 — 사용자 피드백
+                "여전히 제일 위에 있다" → 제거. */}
             <Text style={s.h1}>챌린지</Text>
             <Text style={s.h1Sub}>
               {loading ? '불러오는 중' : error ? '오류 발생' : `${templates.length}개의 챌린지`}
@@ -479,6 +472,16 @@ export default function HomeScreen() {
             </View>
           )
         }
+        ListFooterComponent={
+          // TEAM-UX (2026-04-23 v3): 자가진단은 하단 작은 링크로 이동.
+          <Pressable
+            onPress={() => router.push('/selftest')}
+            style={s.footerLink}
+            accessibilityLabel="SelfTest"
+          >
+            <Text style={s.footerLinkText}>🩺 자가진단 열기</Text>
+          </Pressable>
+        }
       />
     </View>
   );
@@ -490,6 +493,22 @@ const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: T.bg,
+  },
+  footerLink: {
+    alignSelf: 'center',
+    marginTop: 24,
+    marginBottom: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  footerLinkText: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
   safeTop: {
     backgroundColor: 'transparent',
