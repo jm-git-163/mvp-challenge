@@ -48,6 +48,12 @@ import {
   canUseWebShareFiles,
   type SharePlatform,
 } from '../../utils/shareHelpers';
+// TEAM-SHARE-V5 (2026-04-23): end-to-end 공유 파이프라인 단일 진입점
+import {
+  shareVideoToSns,
+  blobToShareFile,
+  type ShareResult,
+} from '../../utils/shareVideo';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -522,34 +528,47 @@ function ShareModal({
     ]).start();
   };
 
-  const handleWebShare = async () => {
-    // FIX-SHARE-V4 (2026-04-23): 사용자 반복 피드백 "전송 실패 여전".
-    //   Web Share API files 경로는 Android Kakao/Instagram 에서 webm·mp4 둘 다
-    //   트랜스코딩 실패 사례가 지속 보고. 용량/코덱 불일치 상관없이 불안정.
-    //   → '원탭 공유' 버튼도 저장 + 캡션 복사 경로로 통일 (100% 도달 보장).
-    //   사용자는 저장된 영상을 앱에서 직접 첨부 → 전송 실패 없음.
-    try {
+  // TEAM-SHARE-V5 (2026-04-23): shareVideoToSns 로 단일화.
+  //   Web Share API 가 파일을 받을 수 있으면 native share sheet 를 그대로 띄우고,
+  //   못 받으면 저장 + 캡션 복사 + (플랫폼 지정 시) 딥링크 조합으로 자동 폴백.
+  //   AbortError(사용자 취소) 와 실제 실패를 명시적으로 구분.
+  const resolveShareFile = async (): Promise<File | null> => {
+    // composedBlob 이 있으면 그대로 사용. 없으면 rawVideoUri 를 fetch 해서 Blob 생성.
+    let blob: Blob | null = composedBlob;
+    if (!blob) {
       const uri = composedUri ?? rawVideoUri;
-      if (!uri) {
-        showToast('영상이 아직 준비 중이에요. 잠시 후 다시 시도해주세요.');
-        return;
-      }
-      showToast('📥 영상 저장 중...');
-      const ok = await doDownload(uri, templateName, composedBlob?.type).catch(() => false);
-      // 캡션 자동 복사
+      if (!uri) return null;
       try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(shareText);
-        }
-      } catch {}
-      showToast(ok
-        ? '✓ 영상 저장 · 캡션 복사 완료. 원하는 앱에서 첨부해주세요.'
-        : '저장 실패. 다시 시도해주세요.');
-      if (ok) onClose();
+        const resp = await fetch(uri);
+        blob = await resp.blob();
+      } catch { return null; }
+    }
+    if (!blob || blob.size === 0) return null;
+    return blobToShareFile(blob, templateName);
+  };
+
+  const runShare = async (platform: 'native' | 'kakao' | 'instagram' | 'youtube') => {
+    showToast('📤 공유 준비 중...');
+    const file = await resolveShareFile();
+    if (!file) {
+      showToast('영상이 아직 준비되지 않았어요. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    try {
+      const res: ShareResult = await shareVideoToSns({
+        file, caption: shareText, title: templateName, platform,
+      });
+      showToast(res.message);
+      if (res.kind === 'web-share-success' || res.kind === 'fallback-success') onClose();
     } catch (e: any) {
-      if (e?.name !== 'AbortError') showToast('저장 실패. 다시 시도해주세요.');
+      if (e?.name === 'AbortError') { showToast('공유가 취소됐어요.'); return; }
+      if (e?.name === 'NotAllowedError') { showToast('브라우저가 공유를 허용하지 않았어요. 주소창 자물쇠에서 권한을 확인해주세요.'); return; }
+      if (e?.name === 'TypeError') { showToast('이 영상 형식은 공유할 수 없어요. 다시 촬영해주세요.'); return; }
+      showToast('공유 실패. 다시 시도해주세요.');
     }
   };
+
+  const handleWebShare = () => runShare('native');
 
   const handleDownload = async (): Promise<boolean> => {
     const uri = composedUri ?? rawVideoUri;
@@ -601,48 +620,15 @@ function ShareModal({
     },
     {
       label: 'Instagram 업로드', sub: 'Stories · Reels',  accent: false,
-      onPress: async () => {
-        const ok = await handleDownload();
-        await copyCaption();
-        openPlatformShare('instagram', shareText);
-        showToast(ok ? '영상 저장·캡션 복사 완료' : '캡션은 복사됨. 영상 저장은 다시 시도해주세요.');
-      },
+      onPress: () => runShare('instagram'),
     },
     {
       label: 'YouTube Shorts',   sub: '업로드 페이지 열기',  accent: false,
-      onPress: async () => {
-        // TEAM-SHARE-V2 (2026-04-23): 사용자 요청 "유튜브 연결 통로 추가".
-        //   YouTube 는 Data API v3 로 OAuth 필요해 순수 클라이언트 직접 업로드 어려움.
-        //   최선은 업로드 페이지(youtube.com/upload) 를 새 탭으로 + 영상 다운로드 + 캡션 복사.
-        const ok = await handleDownload();
-        await copyCaption();
-        openPlatformShare('youtube_shorts', shareText);
-        showToast(ok ? '영상 저장·캡션 복사 완료. YouTube 에서 첨부하세요.' : '캡션 복사됨. 영상 저장 재시도.');
-      },
+      onPress: () => runShare('youtube'),
     },
     {
       label: '카카오톡 공유',     sub: '저장 후 카톡에서 첨부', accent: false,
-      onPress: async () => {
-        // TEAM-SHARE-V3 (2026-04-23): 사용자 반복 피드백 "카톡은 '압축중' 2/3에서 전송 실패".
-        //   원인: Android KakaoTalk 은 Web Share 로 받은 webm 을 내부 트랜스코딩하다가
-        //   코덱 불일치 / 버퍼 초과로 멈춤. 당사 출력이 mp4 여도 용량·청크 경계 문제
-        //   동일 증상 보고. 따라서 카톡 버튼에서는 Web Share API 를 아예 사용하지 않고
-        //   **파일 저장 + 캡션 복사 + 카톡 딥링크** 경로로 통일 → 사용자가 카톡 채팅방에서
-        //   직접 첨부. 업로드 실패 0.
-        const ok = await handleDownload();
-        await copyCaption();
-        // 모바일: 카톡 앱 열기 (채팅 목록). 데스크톱: 카톡 다운로드 페이지.
-        if (typeof window !== 'undefined') {
-          const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-          const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-          if (isMobile) {
-            try { window.location.href = 'kakaotalk://'; } catch {}
-          }
-        }
-        showToast(ok
-          ? '영상 저장 · 캡션 복사됨. 카톡 채팅방에 첨부해주세요.'
-          : '저장 실패. 재시도해주세요.');
-      },
+      onPress: () => runShare('kakao'),
     },
     {
       label: 'X / Twitter',     sub: '게시글로 공유',      accent: false,
