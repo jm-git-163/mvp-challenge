@@ -337,28 +337,12 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
 
-  // TEAM-UX (2026-04-23): 홈페이지 전역 배경 다크 모드 토글.
-  //   사용자 피드백 "배경이 너무 밝음" → 네온 mesh 를 끄고 딥 블랙.
-  //   +html.tsx 에 정의된 `html.motiq-dark` 클래스만 토글. localStorage 영속.
-  const [themeDark, setThemeDark] = useState<boolean>(false);
+  // TEAM-UX (2026-04-23 v3): 사용자 최종 결정 — "화이트 모드 없어도 된다.
+  //   그냥 바탕을 어둡게." 다크 고정. 토글 버튼 제거, localStorage 의존성 제거.
+  //   html.motiq-dark 클래스를 마운트 시 영구 부착.
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    try {
-      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('motiq_theme') : null;
-      const dark = saved === 'dark';
-      setThemeDark(dark);
-      document.documentElement.classList.toggle('motiq-dark', dark);
-    } catch {}
-  }, []);
-  const toggleTheme = useCallback(() => {
-    setThemeDark(prev => {
-      const next = !prev;
-      if (typeof document !== 'undefined') {
-        document.documentElement.classList.toggle('motiq-dark', next);
-        try { localStorage.setItem('motiq_theme', next ? 'dark' : 'bright'); } catch {}
-      }
-      return next;
-    });
+    document.documentElement.classList.add('motiq-dark');
   }, []);
 
   const startSession = useSessionStore(s => s.startSession);
@@ -417,7 +401,7 @@ export default function HomeScreen() {
   const keyExtractor = useCallback((t: Template) => t.id, []);
 
   return (
-    <View style={[s.root, themeDark && { backgroundColor: '#050509' }]}>
+    <View style={[s.root, { backgroundColor: '#050509' }]}>
       {/* Team RELIABILITY (2026-04-22): 홈 최초 진입 시 1회 권한 안내 모달.
           허용 시 origin 에 권한이 캐시되어 카드 클릭/ /record 에서 팝업 없음. */}
       <PermissionWelcomeModal />
@@ -429,14 +413,6 @@ export default function HomeScreen() {
             <Text style={s.brandName}>Challenge</Text>
           </View>
           <View style={s.headerRight}>
-            <Pressable
-              onPress={toggleTheme}
-              style={s.iconBtn}
-              // @ts-ignore web
-              accessibilityLabel="Toggle dark mode"
-            >
-              <Text style={s.iconBtnText}>{themeDark ? '☀ 라이트' : '🌙 다크'}</Text>
-            </Pressable>
             <Pressable
               onPress={() => router.push('/(main)/profile')}
               style={s.iconBtn}

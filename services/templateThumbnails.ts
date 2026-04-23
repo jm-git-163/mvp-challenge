@@ -84,13 +84,14 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-04-23 — squat master: 여성 스쿼트 운동. OK.
+  // REVIEWED 2026-04-23 (v2) — 사용자 피드백 "스쿼트 마스터 썸네일 이상함".
+  //   Pixabay CDN 해시 URL 은 만료/차단 이슈. Unsplash 의 잘 알려진 바벨 스쿼트 사진.
   "fitness-squat-master-008": {
-    "url": "https://pixabay.com/get/ge32e5dbd3f4378fc336984e9c6bada77cf68ea575569c3fa920751c51e5f44848163d6e7a1d387fd3c1ee26c1a2d08ea62ebb216cf60c5828ab658ccaabd41b0_640.jpg",
-    "largeURL": "https://pixabay.com/get/ga5b1194aa0c447890889775eaf07be300a1c89e8fd068191e5fad53ac504cca5daf4c39b314ffc0e1385aead0ae8c4b2227a2c5211584ab27b681ee8f025771e_1280.jpg",
-    "tags": "woman, workout, squats, gym, fitness",
-    "user": "u_us19rkvq",
-    "pixabayId": 7539138
+    "url": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1280&q=80",
+    "tags": "squat, barbell, strength, gym, fitness, master",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   // REVIEWED 2026-04-23 — english speak: Pixabay 는 빈 칠판 정물(mismatch, 사람 없음).
   //   Unsplash 의 영어 회화 수업 장면으로 교체.
@@ -134,11 +135,11 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-04-23 — plank: (이전 사용자 피드백 "plank ≠ crunches").
-  //   Unsplash 의 옆에서 본 forearm plank.
+  // REVIEWED 2026-04-23 (v2) — 사용자 피드백 "플랭크 썸네일 이상함".
+  //   확실한 plank 사진으로 교체 (Unsplash 큐레이션).
   "fitness-plank-001": {
-    "url": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=1280&q=80",
+    "url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=1280&q=80",
     "tags": "plank, core, forearm plank, fitness, hold, posture",
     "user": "unsplash",
     "pixabayId": 0
