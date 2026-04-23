@@ -45,16 +45,16 @@ describe('HipMotionGate', () => {
     expect(lastResult?.reason).toBe('no-amplitude');
   });
 
-  it('hip visibility 가 항상 0.3 미만이면 allow=false (몸이 안 보임)', () => {
+  it('hip visibility 낮음 → allow=true (v4 폴백, 다른 디텍터가 판단하도록 양보)', () => {
     let t = 0;
     let last: ReturnType<HipMotionGate['update']> | null = null;
     for (let i = 0; i < 60; i++) {
-      const y = 0.5 + Math.sin(i * 0.5) * 0.15; // 큰 진폭이 있어도 visibility 가 낮으면 거부
+      const y = 0.5 + Math.sin(i * 0.5) * 0.15;
       last = gate.update(lm({ hipY: y, hipVis: 0.2 }), t);
       t += 50;
     }
-    expect(last?.allow).toBe(false);
-    // visibility 가 낮아 visible 샘플이 부족 → too-few-samples 또는 low-visibility
+    // v4: hip 관측 불가 프레임은 allow 폴백 — 근접 셀피 케이스 살리기 위해.
+    expect(last?.allow).toBe(true);
     expect(['low-visibility', 'too-few-samples']).toContain(last?.reason);
   });
 
@@ -87,9 +87,9 @@ describe('HipMotionGate', () => {
     expect(last?.reason).toBe('ok');
   });
 
-  it('landmarks 가 비었으면 allow=false', () => {
+  it('landmarks 비면 allow=true (v4 폴백) 그러나 reason=no-landmarks 로 디버그', () => {
     const r = gate.update([], 0);
-    expect(r.allow).toBe(false);
+    expect(r.allow).toBe(true);
     expect(r.reason).toBe('no-landmarks');
   });
 

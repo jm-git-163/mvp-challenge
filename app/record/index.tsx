@@ -1715,6 +1715,10 @@ export default function RecordScreen() {
       } else if (activeTemplate?.id === 'meditation-001') {
         // TEAM-UX (2026-04-23): 사용자 피드백 "명상은 눈치없이 너무 센목소리 tts가 명상 깨는거 같아".
         //   명상 챌린지는 TTS 완전 차단 — 자막만 부드럽게 표시.
+      } else if (activeTemplate?.genre === 'fitness') {
+        // TEAM-SILENCE (2026-04-23 v4): 사용자 재제보 "TTS 가 아직도 치어리딩처럼 떠들어".
+        //   fitness guide_text("1~4개 천천히", "무릎이 발끝 안쪽", "마지막 힘내요" 등) 전부 TTS 차단.
+        //   화면 자막은 유지 — 음성만 침묵.
       } else {
         if (m.guide_text) speakMission(m.guide_text);
       }

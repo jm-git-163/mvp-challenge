@@ -84,9 +84,13 @@ export class HipMotionGate {
    */
   update(landmarks: NormalizedLandmark[] | undefined | null, nowMs: number): HipGateResult {
     if (!landmarks || landmarks.length < 13) {
-      // hip 인덱스(11,12) 가 없는 경우 — landmark 자체가 비었거나 짧음.
+      // TEAM-ACCURACY v4 (2026-04-23): 사용자 재제보 "카운트 0 고정, 아예 안 올라감".
+      //   landmark 가 없는 프레임(=근접 셀피로 hip 이 프레임 밖)을 무조건 reject 하면
+      //   HSS/nose 디텍터가 '머리로 인식한 진짜 rep' 도 전부 차단됨.
+      //   게이트의 목적은 "가만히 앉아있는데 카운트" 막기지 "모든 rep 차단" 아님.
+      //   → hip 관측 불가 프레임은 **allow** 로 폴백 (다른 디텍터가 진짜 움직임으로 판단하면 통과).
       return {
-        allow: false, amplitude: 0, visibility: 0, samples: 0, reason: 'no-landmarks',
+        allow: true, amplitude: 0, visibility: 0, samples: 0, reason: 'no-landmarks',
       };
     }
     const lh = landmarks[11];
@@ -114,8 +118,11 @@ export class HipMotionGate {
 
     const visibleSamples = this.history.filter(s => s.visible);
     if (visibleSamples.length < MIN_SAMPLES) {
+      // TEAM-ACCURACY v4: 관측 부족 → allow 폴백 (위 'no-landmarks' 와 동일 근거).
+      //   근접 촬영에서 hip visibility 가 계속 낮아 샘플이 안 쌓이는 경우,
+      //   이를 "가짜 카운트" 로 간주하면 HSS/nose 경로가 전부 죽는다.
       return {
-        allow: false, amplitude: 0, visibility,
+        allow: true, amplitude: 0, visibility,
         samples: visibleSamples.length, reason: 'too-few-samples',
       };
     }
@@ -128,36 +135,27 @@ export class HipMotionGate {
     const amplitude = maxY - minY;
 
     if (visibility < MIN_VIS) {
+      // TEAM-ACCURACY v4: visibility 낮으면 amplitude 판단이 신뢰 불가 → allow 폴백.
       return {
-        allow: false, amplitude, visibility,
+        allow: true, amplitude, visibility,
         samples: visibleSamples.length, reason: 'low-visibility',
       };
     }
-    if (amplitude < MIN_HIP_AMPL) {
+    // TEAM-ACCURACY v4: 진짜로 "앉아있는데 카운트" 만 막는 경우.
+    //   hip 이 선명하게 보이고 최근 1.2 초 내 거의 움직임이 없을 때(진폭 < 0.035)만 reject.
+    //   실제 스쿼트 0.07~0.20, 의자에 가만히 앉아있음 ≤0.02. 0.035 = 안전 cut-off.
+    const STILL_CUTOFF = 0.05;
+    if (amplitude < STILL_CUTOFF) {
       return {
         allow: false, amplitude, visibility,
         samples: visibleSamples.length, reason: 'no-amplitude',
       };
     }
 
-    // 방향성 검증 — 진짜 스쿼트는 "max y 도달 후 다시 상승(y 감소)" 시퀀스.
-    //   max y 가 윈도 끝에 있으면(= 현재도 계속 내려가는 중) 카운트 금지.
-    //   max y 이후 최저 y 가 max − MIN_RETURN 이하여야 (올라왔다는 증거).
-    let maxYIdx = 0;
-    for (let i = 1; i < visibleSamples.length; i++) {
-      if (visibleSamples[i].y > visibleSamples[maxYIdx].y) maxYIdx = i;
-    }
-    let postMaxMinY = visibleSamples[maxYIdx].y;
-    for (let i = maxYIdx + 1; i < visibleSamples.length; i++) {
-      if (visibleSamples[i].y < postMaxMinY) postMaxMinY = visibleSamples[i].y;
-    }
-    const returned = visibleSamples[maxYIdx].y - postMaxMinY;
-    if (returned < MIN_RETURN) {
-      return {
-        allow: false, amplitude, visibility,
-        samples: visibleSamples.length, reason: 'no-return',
-      };
-    }
+    // TEAM-ACCURACY v4 (2026-04-23): 방향성(MIN_RETURN) 검증 제거.
+    //   MoveNet 근접 촬영에서 hip y 가 윈도 끝에 max 로 머무는 케이스 빈번 → 정당한 rep
+    //   도 reject. amplitude 가 STILL_CUTOFF 를 넘었다는 것 자체가 "앉아있지 않다" 의
+    //   증거로 충분. 실제 rep 완료 판정은 HSS/squatCounter 상태기계가 담당.
 
     return {
       allow: true, amplitude, visibility,
