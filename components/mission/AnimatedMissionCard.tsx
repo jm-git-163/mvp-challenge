@@ -128,8 +128,10 @@ export default function AnimatedMissionCard({ mission, elapsedMs, score, tag }: 
         {/* 중앙: 미션 텍스트 */}
         <View style={styles.textArea}>
           {mission.type === 'voice_read' && mission.read_text ? (
+            // FIX-SCRIPT-POOL (2026-04-23): 배열이면 첫 엔트리 표시 (미션 카드 프리뷰 용도).
+            //   실제 런타임 선택된 대본은 useJudgement.resolvedReadText 로 프롬프터에 표시.
             <Text style={styles.readText} numberOfLines={3}>
-              {mission.read_text}
+              {Array.isArray(mission.read_text) ? (mission.read_text[0] ?? '') : mission.read_text}
             </Text>
           ) : (
             <Text style={styles.guideText}>{mission.guide_text}</Text>

@@ -5,6 +5,141 @@
 import type { Template } from '../types/template';
 import type { UserSession, UserProfile } from '../types/session';
 
+// FIX-SCRIPT-POOL (2026-04-23): voice_read 미션 대본 풀.
+//   사용자가 같은 템플릿을 반복 실행해도 매번 다른 문장을 읽도록 풀 기반 로테이션.
+//   useJudgement 가 pickScriptWithHistory 로 localStorage 최근 3개 제외 랜덤 선택.
+//   각 문장 2~4초 분량 (30~60자). 한국어/영어 일관성 유지.
+
+const POOL_DAILY_VLOG: string[] = [
+  '안녕하세요! 오늘의 일상 브이로그를 시작할게요.',
+  '오늘 아침은 따뜻한 커피 한 잔으로 시작했어요.',
+  '햇살 좋은 날이라 동네 산책을 다녀왔답니다.',
+  '오늘도 평범하지만 소중한 하루를 기록해요.',
+  '점심은 가볍게 샐러드와 빵으로 먹었어요.',
+  '카페에 앉아 좋아하는 책을 읽는 중이에요.',
+  '오후엔 공원에서 바람을 쐬며 사색했어요.',
+  '저녁 노을이 너무 예뻐서 한참 바라봤어요.',
+  '집에 돌아와 따뜻한 차를 마시며 쉬었어요.',
+  '오늘 하루도 무사히 지나가서 감사해요.',
+  '내일은 조금 더 부지런한 하루를 보낼게요.',
+  '여러분도 오늘 하루 수고 많으셨어요.',
+];
+
+const POOL_NEWS_GREETING: string[] = [
+  '안녕하세요, 오늘의 주요 뉴스를 전해드리겠습니다.',
+  '시청자 여러분, 오늘도 저녁 뉴스 시간이 돌아왔습니다.',
+  '늦은 시각 뉴스를 찾아주셔서 감사합니다.',
+  '오늘의 헤드라인부터 차례대로 보시겠습니다.',
+  '안녕하십니까, 정시 뉴스를 시작하겠습니다.',
+];
+
+const POOL_NEWS_WEATHER: string[] = [
+  '오늘 날씨는 전국적으로 맑겠으며, 기온은 25도까지 오르겠습니다.',
+  '내일 아침은 쌀쌀하니 겉옷을 챙기시기 바랍니다.',
+  '주말에는 전국에 비 소식이 있겠습니다.',
+  '미세먼지 농도가 높으니 외출 시 마스크를 착용하세요.',
+  '태풍이 북상하고 있어 해안가 주민분들은 주의가 필요합니다.',
+];
+
+const POOL_NEWS_REPORT: string[] = [
+  '현장 기자에 따르면 오늘 챌린지 도전자가 새로운 기록을 세웠다고 합니다.',
+  '시민들은 이번 행사에 큰 관심을 보이고 있다고 전해집니다.',
+  '관계 당국은 빠른 시일 내 조치를 취하겠다고 밝혔습니다.',
+  '전문가들은 이번 결과를 긍정적으로 평가하고 있습니다.',
+];
+
+const POOL_NEWS_CLOSING: string[] = [
+  '이상으로 오늘의 뉴스를 마치겠습니다. 감사합니다.',
+  '지금까지 뉴스 앵커 챌린지였습니다. 시청해주셔서 감사합니다.',
+  '다음 뉴스 시간에 또 찾아뵙겠습니다. 안녕히 계십시오.',
+  '오늘 하루도 편안한 저녁 되시기 바랍니다.',
+];
+
+// 뉴스 전체 풀 (테스트에서 총합 검증용) — 4+5+4+4+4 = 21 ≥ 18.
+
+const POOL_STORYBOOK_INTRO: string[] = [
+  '옛날 옛적에 숲속 깊은 곳에 작은 오두막이 있었어요.',
+  '옛날 옛날 아주 먼 옛날, 착한 형제 흥부와 놀부가 살았어요.',
+  '옛날에 마음씨 고운 콩쥐와 심술궂은 팥쥐가 살았답니다.',
+  '오래전 하늘 아래 마을에 해님과 달님을 섬기는 남매가 있었어요.',
+  '어느 마을에 가난하지만 따뜻한 나무꾼이 살았어요.',
+];
+
+const POOL_STORYBOOK_MIDDLE: string[] = [
+  '그곳에는 마음씨 착한 소녀가 살고 있었답니다.',
+  '흥부는 제비의 부러진 다리를 정성껏 치료해 주었어요.',
+  '콩쥐는 울면서도 맡겨진 일을 묵묵히 해냈어요.',
+  '남매는 하늘에서 내려온 동아줄을 꼭 붙잡았답니다.',
+  '나무꾼은 은혜 갚은 까치의 도움으로 목숨을 구했어요.',
+];
+
+const POOL_STORYBOOK_END: string[] = [
+  '마법사가 소녀에게 말했어요. 소원을 말해봐!',
+  '제비가 물어다 준 박씨에서 금은보화가 쏟아졌답니다.',
+  '착한 콩쥐는 결국 행복을 찾고 행복하게 살았어요.',
+  '해님이 된 오빠는 누이를 따뜻하게 비추어 주었어요.',
+  '까치는 날개를 퍼덕이며 멀리 날아갔답니다.',
+];
+
+// 스토리북 전체 풀: 5+5+5 = 15.
+
+const POOL_TRAVEL: string[] = [
+  '안녕하세요! 지금 제가 여기 왔는데요, 진짜 대박이에요!',
+  '드디어 꿈에 그리던 이 여행지에 도착했어요.',
+  '바다가 눈앞에 펼쳐져서 정말 감동적이에요.',
+  '이 골목길, 사진으로 본 것보다 훨씬 예뻐요.',
+  '여기 카페는 현지인들이 꼭 추천하는 곳이래요.',
+  '전망대에 올라오니 도시 전체가 한눈에 보여요.',
+  '오늘 이 순간을 평생 잊지 못할 것 같아요.',
+  '여행 오길 정말 잘했다는 생각이 들어요.',
+  '다음엔 꼭 가족이랑 같이 오고 싶어요.',
+  '이 맛집 줄 서서 기다린 보람이 있네요.',
+  '현지 사람들이 너무 친절해서 기분이 좋아요.',
+  '오늘의 여행 인증 여러분께 자랑할게요.',
+];
+
+const POOL_FOOD_REVIEW: string[] = [
+  '안녕하세요! 오늘 제가 신상 아이템을 언박싱해볼게요!',
+  '오늘의 맛집, 직접 먹어보고 솔직하게 알려드릴게요.',
+  '비주얼부터 완전 합격이에요. 한 입 먹어볼게요.',
+  '이 소스 진짜 예술이에요. 따라 만들고 싶을 정도!',
+  '고기가 부드러워서 입에서 살살 녹아요.',
+  '가격 대비 양도 많고 맛도 훌륭해요.',
+  '이 집 시그니처 메뉴, 왜 유명한지 알겠어요.',
+  '디저트까지 완벽해서 놀랐어요.',
+  '분위기도 좋고 음악도 좋아서 데이트 코스로 추천해요.',
+  '다음에 꼭 다시 오고 싶은 맛집이네요.',
+  '여러분도 근처 오시면 꼭 들러보세요.',
+  '오늘 리뷰는 여기까지! 별점 다섯 개 드립니다.',
+];
+
+const POOL_ENGLISH: string[] = [
+  'Hello everyone! Nice to meet you!',
+  'The weather is beautiful today!',
+  'I love learning English every single day!',
+  'Challenge accepted and completed! Yes!',
+  'Hello! My name is Challenge Master!',
+  'My pronunciation is getting better and better!',
+  'Today is a wonderful day for a new start!',
+  'Thank you so much for watching my video.',
+  'Please like and subscribe if you enjoyed!',
+  'I am so excited to share this with you.',
+  'Let me know what you think in the comments.',
+  'See you in the next video! Take care!',
+];
+
+const POOL_MOTIVATION: string[] = [
+  '내가 제일 잘 나가!',
+  '내가 원하는 건 자유, 나만의 스타일로!',
+  '이게 나야, 아무도 막을 수 없어!',
+  '도전을 멈추지 마, 계속 전진해!',
+  '오늘의 나는 어제보다 한 걸음 더 나아가!',
+  '한계는 내가 정하는 거야, 한 번 더 가보자!',
+  '실패해도 괜찮아, 다시 일어서면 되니까!',
+  '나는 할 수 있다, 지금 이 순간 증명한다!',
+];
+
+
 export const MOCK_TEMPLATES: Template[] = [
 
   // ─── 1. 일상 브이로그 (daily_vlog) ───────────────────────────────────────
@@ -71,7 +206,7 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 5000, end_ms: 10000,
         type: 'voice_read',
-        read_text: '안녕하세요! 오늘의 일상 브이로그를 시작할게요.',
+        read_text: POOL_DAILY_VLOG,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '인사 멘트!', guide_emoji: '😊', anim_type: 'pulse',
       },
@@ -167,28 +302,28 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 5000, end_ms: 11000,
         type: 'voice_read',
-        read_text: '안녕하세요, 오늘의 주요 뉴스를 전해드리겠습니다.',
+        read_text: POOL_NEWS_GREETING,
         read_lang: 'ko',
         threshold: 0.55, guide_text: '앵커처럼 읽어보세요!', guide_emoji: '🎙️', anim_type: 'pulse',
       },
       {
         seq: 3, start_ms: 11000, end_ms: 18000,
         type: 'voice_read',
-        read_text: '오늘 날씨는 전국적으로 맑겠으며, 기온은 25도까지 오르겠습니다.',
+        read_text: POOL_NEWS_WEATHER,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '날씨 예보를 읽어요!', guide_emoji: '🌤️', anim_type: 'pulse',
       },
       {
         seq: 4, start_ms: 18000, end_ms: 25000,
         type: 'voice_read',
-        read_text: '현장 기자에 따르면 오늘 챌린지 도전자가 새로운 기록을 세웠다고 합니다.',
+        read_text: POOL_NEWS_REPORT,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '현장 리포트!', guide_emoji: '📡', anim_type: 'pulse',
       },
       {
         seq: 5, start_ms: 25000, end_ms: 30000,
         type: 'voice_read',
-        read_text: '이상으로 오늘의 뉴스를 마치겠습니다. 감사합니다.',
+        read_text: POOL_NEWS_CLOSING,
         read_lang: 'ko',
         threshold: 0.55, guide_text: '마무리 멘트!', guide_emoji: '🎬', anim_type: 'float',
       },
@@ -258,21 +393,21 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 4000, end_ms: 9000,
         type: 'voice_read',
-        read_text: 'Hello everyone! Nice to meet you!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.5, guide_text: '큰 소리로 읽어봐요!', guide_emoji: '🗣️', anim_type: 'pulse',
       },
       {
         seq: 3, start_ms: 9000, end_ms: 14000,
         type: 'voice_read',
-        read_text: 'I love learning English every single day!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.5, guide_text: '자신있게!', guide_emoji: '💪', anim_type: 'pulse',
       },
       {
         seq: 4, start_ms: 14000, end_ms: 20000,
         type: 'voice_read',
-        read_text: 'Challenge accepted and completed! Yes!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.55, guide_text: '도전 완료 선언!', guide_emoji: '🏆', anim_type: 'bounce',
       },
@@ -348,21 +483,21 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 4000, end_ms: 9000,
         type: 'voice_read',
-        read_text: '옛날 옛적에 숲속 깊은 곳에 작은 오두막이 있었어요.',
+        read_text: POOL_STORYBOOK_INTRO,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '동화처럼 읽어봐요!', guide_emoji: '📖', anim_type: 'float',
       },
       {
         seq: 3, start_ms: 9000, end_ms: 14000,
         type: 'voice_read',
-        read_text: '그곳에는 마음씨 착한 소녀가 살고 있었답니다.',
+        read_text: POOL_STORYBOOK_MIDDLE,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '계속 이야기해요!', guide_emoji: '🏡', anim_type: 'float',
       },
       {
         seq: 4, start_ms: 14000, end_ms: 20000,
         type: 'voice_read',
-        read_text: '마법사가 소녀에게 말했어요. 소원을 말해봐!',
+        read_text: POOL_STORYBOOK_END,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '마법사 목소리로!', guide_emoji: '🧙', anim_type: 'float',
       },
@@ -437,7 +572,7 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 4000, end_ms: 8000,
         type: 'voice_read',
-        read_text: '안녕하세요! 지금 제가 여기 왔는데요, 진짜 대박이에요!',
+        read_text: POOL_TRAVEL,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '여행지 소개!', guide_emoji: '🎤', anim_type: 'pulse',
       },
@@ -520,7 +655,7 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 4500, end_ms: 9000,
         type: 'voice_read',
-        read_text: '안녕하세요! 오늘 제가 신상 아이템을 언박싱해볼게요!',
+        read_text: POOL_FOOD_REVIEW,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '신상 소개 멘트!', guide_emoji: '🎤', anim_type: 'pulse',
       },
@@ -622,7 +757,7 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 4, start_ms: 14000, end_ms: 18000,
         type: 'voice_read',
-        read_text: '내가 제일 잘 나가!',
+        read_text: POOL_MOTIVATION,
         read_lang: 'ko',
         threshold: 0.55, guide_text: '아이돌처럼 외쳐봐요!', guide_emoji: '🎤', anim_type: 'pulse',
       },
@@ -792,28 +927,28 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 1, start_ms: 0, end_ms: 7000,
         type: 'voice_read',
-        read_text: 'Hello! My name is Challenge Master!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.6, guide_text: '크게 말해봐요!', guide_emoji: '🗣️', anim_type: 'pulse',
       },
       {
         seq: 2, start_ms: 7000, end_ms: 14000,
         type: 'voice_read',
-        read_text: 'The weather is beautiful today!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.6, guide_text: '날씨 표현!', guide_emoji: '☀️', anim_type: 'pulse',
       },
       {
         seq: 3, start_ms: 14000, end_ms: 21000,
         type: 'voice_read',
-        read_text: 'I love learning English every day!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.6, guide_text: '열정을 담아서!', guide_emoji: '📚', anim_type: 'pulse',
       },
       {
         seq: 4, start_ms: 21000, end_ms: 27000,
         type: 'voice_read',
-        read_text: 'Challenge accepted and completed!',
+        read_text: POOL_ENGLISH,
         read_lang: 'en',
         threshold: 0.65, guide_text: '자신있게!', guide_emoji: '🏆', anim_type: 'bounce',
       },
@@ -888,21 +1023,21 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 4000, end_ms: 8500,
         type: 'voice_read',
-        read_text: '토끼야, 어디 가니?',
+        read_text: POOL_STORYBOOK_INTRO,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '따라 읽어봐요!', guide_emoji: '🐰', anim_type: 'pulse',
       },
       {
         seq: 3, start_ms: 8500, end_ms: 13000,
         type: 'voice_read',
-        read_text: '나는 맛있는 당근을 찾아가요!',
+        read_text: POOL_STORYBOOK_MIDDLE,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '토끼처럼 말해요!', guide_emoji: '🥕', anim_type: 'pulse',
       },
       {
         seq: 4, start_ms: 13000, end_ms: 18000,
         type: 'voice_read',
-        read_text: '모두 함께라면 무엇이든 할 수 있어요!',
+        read_text: POOL_STORYBOOK_END,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '신나게 읽어요!', guide_emoji: '🌸', anim_type: 'float',
       },
@@ -1068,14 +1203,14 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 5000, end_ms: 11000,
         type: 'voice_read',
-        read_text: '내가 원하는 건 자유, 나만의 스타일로!',
+        read_text: POOL_MOTIVATION,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '라임을 날려봐!', guide_emoji: '🎤', anim_type: 'pulse',
       },
       {
         seq: 3, start_ms: 11000, end_ms: 17000,
         type: 'voice_read',
-        read_text: '이게 나야, 아무도 막을 수 없어!',
+        read_text: POOL_MOTIVATION,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '자신감 폭발!', guide_emoji: '🔥', anim_type: 'pulse',
       },
@@ -1087,7 +1222,7 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 5, start_ms: 23000, end_ms: 27000,
         type: 'voice_read',
-        read_text: '도전을 멈추지 마, 계속 전진해!',
+        read_text: POOL_MOTIVATION,
         read_lang: 'ko',
         threshold: 0.5, guide_text: '마지막 라임!', guide_emoji: '⚡', anim_type: 'pulse',
       },

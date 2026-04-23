@@ -167,3 +167,66 @@ export function pickScript(pool: string | readonly string[], rng: () => number =
   const idx = Math.min(pool.length - 1, Math.max(0, Math.floor(rng() * pool.length)));
   return pool[idx];
 }
+
+/**
+ * FIX-SCRIPT-POOL (2026-04-23): localStorage 기반 최근 N개 제외 로테이션.
+ *
+ * 동일 템플릿+미션 조합을 반복 실행할 때 같은 대본이 연속해서 나오지 않도록
+ * `motiq_script_history_<templateId>_<missionId>` 키로 최근 선택된 인덱스를 저장,
+ * 그 집합을 제외한 후보 중 랜덤 선택. 풀 크기가 historySize+1 이하이면 제외 없이
+ * 전체 풀에서 랜덤 (폴백).
+ *
+ * SSR 안전: typeof window === 'undefined' 이면 히스토리 없이 pickScript 동작.
+ *
+ * @param pool 스크립트 후보 배열
+ * @param templateId localStorage 키 네임스페이스용
+ * @param missionId  미션 식별자 (seq 등)
+ * @param opts.historySize 최근 제외 개수 (기본 3)
+ * @param opts.rng 테스트용 결정론적 난수 소스 (기본 Math.random)
+ */
+export function pickScriptWithHistory(
+  pool: readonly string[],
+  templateId: string,
+  missionId: string,
+  opts?: { historySize?: number; rng?: () => number },
+): string {
+  if (!pool || pool.length === 0) return '';
+  const rng = opts?.rng ?? Math.random;
+  if (pool.length === 1) return pool[0];
+
+  const historySize = Math.max(0, opts?.historySize ?? 3);
+  const storageKey = `motiq_script_history_${templateId}_${missionId}`;
+
+  // ── localStorage 히스토리 로드 (SSR 안전) ─────────────────────────
+  let history: number[] = [];
+  const hasWindow = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+  if (hasWindow) {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          history = parsed.filter((n: unknown): n is number => typeof n === 'number' && Number.isInteger(n));
+        }
+      }
+    } catch { /* corrupt storage → 무시 */ }
+  }
+
+  // 제외 집합 — 풀 크기가 너무 작으면 비워버려 전체에서 선택.
+  const excluded = new Set<number>(pool.length > historySize ? history.slice(0, historySize) : []);
+  const candidates: number[] = [];
+  for (let i = 0; i < pool.length; i++) if (!excluded.has(i)) candidates.push(i);
+  const chosen = candidates.length > 0
+    ? candidates[Math.min(candidates.length - 1, Math.max(0, Math.floor(rng() * candidates.length)))]
+    : Math.min(pool.length - 1, Math.max(0, Math.floor(rng() * pool.length)));
+
+  // ── 히스토리 업데이트 (맨 앞에 push, historySize 로 truncate) ────
+  if (hasWindow) {
+    try {
+      const next = [chosen, ...history.filter((i) => i !== chosen)].slice(0, historySize);
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch { /* 용량/권한 에러 무시 */ }
+  }
+
+  return pool[chosen];
+}

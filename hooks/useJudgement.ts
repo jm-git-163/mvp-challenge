@@ -18,6 +18,7 @@ import { HeadShoulderSquatDetector }   from '../engine/missions/headShoulderSqua
 import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
+import { pickScriptWithHistory } from '../engine/missions/scriptPrompterMission';
 import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
@@ -154,6 +155,10 @@ export function useJudgement(): {
   voiceAccuracy: number;
   squatCount: number;
   squatMode: 'full-body' | 'near-mode' | 'idle';
+  /** FIX-SCRIPT-POOL (2026-04-23): 현재 voice_read 미션에서 실제 선택된 대본 문자열.
+   *  풀(배열) 입력 시 세션 시작 시 한 번만 선택된 값이 고정되며, 단일 string 일 땐 그대로.
+   *  UI 는 mission.read_text 대신 이 값을 렌더링해야 사용자가 이번에 읽을 문장을 본다. */
+  resolvedReadText: string;
   // FIX-Z25: 대본 판정 결과 (voice_read 미션 final transcript 기준).
   //   RecordingCamera.drawFrame 에서 drawJudgementToast 에 넘김.
   latestJudgement: { tier: JudgementTier; at: number } | null;
@@ -207,6 +212,13 @@ export function useJudgement(): {
   //   첫 judge() 호출 시점에 0 으로 설정되며, landmarks 가 10 초 이상 비면 poseTimeout=true.
   const recordingStartRef      = useRef<number | null>(null);
 
+  // FIX-SCRIPT-POOL (2026-04-23): 세션 동안 미션별로 실제 선택된 read_text 를 저장.
+  //   mission.read_text 가 배열이면 pickScriptWithHistory 로 한 번만 뽑아서 여기에
+  //   고정 — 같은 미션이 재진입돼도 동일 문자열 유지 (seq 단위 캐시).
+  const resolvedReadTextRef = useRef<string>('');
+  const resolvedMissionKeyRef = useRef<string>('');
+  const [resolvedReadText, setResolvedReadText] = useState<string>('');
+
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceAccuracy,   setVoiceAccuracy]   = useState(0);
@@ -235,14 +247,39 @@ export function useJudgement(): {
         sr.resetForNextMission();
 
         // 새 미션 목표 텍스트 교체 — stop/start 없이
+        // FIX-SCRIPT-POOL (2026-04-23): read_text 가 배열이면 풀 로테이션 선택.
+        //   세션 내 동일 (templateId, missionSeq) 조합은 한 번만 뽑아 캐시 → 같은
+        //   미션이 다시 트리거돼도 대본이 중간에 바뀌지 않음.
+        let resolvedText = '';
         if (mission?.type === 'voice_read' && mission.read_text) {
-          _currentTarget = mission.read_text;
-          sr.setTargetText(mission.read_text);
+          const rt = mission.read_text;
+          const tmplId = template?.id ?? 'unknown';
+          const missionKey = `${tmplId}::${mission.seq}`;
+          if (Array.isArray(rt)) {
+            if (resolvedMissionKeyRef.current !== missionKey) {
+              resolvedText = pickScriptWithHistory(rt, tmplId, String(mission.seq));
+              resolvedMissionKeyRef.current = missionKey;
+            } else {
+              resolvedText = resolvedReadTextRef.current || pickScriptWithHistory(rt, tmplId, String(mission.seq));
+            }
+          } else {
+            resolvedText = rt;
+            resolvedMissionKeyRef.current = missionKey;
+          }
+        } else {
+          resolvedMissionKeyRef.current = '';
+        }
+        resolvedReadTextRef.current = resolvedText;
+        setResolvedReadText(resolvedText);
+
+        if (mission?.type === 'voice_read' && resolvedText) {
+          _currentTarget = resolvedText;
+          sr.setTargetText(resolvedText);
           // FIX-Y11 (2026-04-22): 영어/한국어 자동 감지.
           //   read_text 의 ASCII 알파벳 비율 > 50% → 영어로 추정.
           //   동화/뉴스 리딩 미션 지원.
-          const ascii = (mission.read_text.match(/[a-zA-Z]/g) || []).length;
-          const letters = (mission.read_text.match(/[a-zA-Z가-힣]/g) || []).length;
+          const ascii = (resolvedText.match(/[a-zA-Z]/g) || []).length;
+          const letters = (resolvedText.match(/[a-zA-Z가-힣]/g) || []).length;
           const lang: 'ko' | 'en' = letters > 0 && (ascii / letters) > 0.5 ? 'en' : 'ko';
           try { (sr as any).setLanguage?.(lang); } catch {}
         } else {
@@ -688,6 +725,10 @@ export function useJudgement(): {
     voiceTranscriptRef.current  = '';
     setVoiceTranscript('');
     setVoiceAccuracy(0);
+    // FIX-SCRIPT-POOL (2026-04-23): 다음 세션에서 다시 풀 로테이션 돌도록 초기화.
+    resolvedReadTextRef.current  = '';
+    resolvedMissionKeyRef.current = '';
+    setResolvedReadText('');
 
     // 스쿼트 초기화
     squatCountRef.current          = 0;
@@ -711,6 +752,7 @@ export function useJudgement(): {
     voiceAccuracy,
     squatCount,
     squatMode,
+    resolvedReadText,
     latestJudgement: latestJudgementRef.current,
     lastSquatCountAt: lastSquatCountAtRef.current,
     micPermissionDeniedAt: micDeniedAtRef.current,

@@ -736,27 +736,35 @@ function MissionCard({ mission, progress, tag, voiceTranscript, anim, maxW }: {
         {mission.gesture_emoji ?? mission.guide_emoji ?? '🎯'}
       </Animated.Text>
 
+      {/* FIX-SCRIPT-POOL (2026-04-23): read_text 가 배열일 수 있으므로 정규화.
+           MissionCard 는 실제로는 voice_read 이외 미션에서만 렌더되지만(상위 조건)
+           타입 안정성 위해 배열 → 첫 엔트리 폴백 문자열. */}
       <Text style={mc.mainText}>
-        {mission.type === 'voice_read' && mission.read_text ? mission.read_text : mission.guide_text ?? ''}
+        {mission.type === 'voice_read' && mission.read_text
+          ? (Array.isArray(mission.read_text) ? (mission.read_text[0] ?? '') : mission.read_text)
+          : mission.guide_text ?? ''}
       </Text>
 
-      {mission.type === 'voice_read' && (
-        <View style={[mc.voiceBox, voiceTranscript ? mc.voiceBoxActive : mc.voiceBoxEmpty]}>
-          <Text style={mc.voiceLabel}>🎤 내가 말한 것:</Text>
-          <Text style={mc.voiceText}>{voiceTranscript !== '' ? `"${voiceTranscript}"` : '마이크에 대고 말해주세요...'}</Text>
-          {mission.read_text && voiceTranscript !== '' && (
-            <View style={mc.voiceScoreBar}>
-              <Text style={mc.voiceScoreLabel}>정확도</Text>
-              <View style={mc.voiceScoreBg}>
-                <View style={[mc.voiceScoreFill, {
-                  width: `${Math.min(100, Math.max(10, (voiceTranscript.length / Math.max(1, mission.read_text.length)) * 100))}%` as any,
-                  backgroundColor: voiceTranscript.length >= mission.read_text.length * 0.7 ? '#22c55e' : '#f59e0b',
-                }]} />
+      {mission.type === 'voice_read' && (() => {
+        const readText = Array.isArray(mission.read_text) ? (mission.read_text[0] ?? '') : (mission.read_text ?? '');
+        return (
+          <View style={[mc.voiceBox, voiceTranscript ? mc.voiceBoxActive : mc.voiceBoxEmpty]}>
+            <Text style={mc.voiceLabel}>🎤 내가 말한 것:</Text>
+            <Text style={mc.voiceText}>{voiceTranscript !== '' ? `"${voiceTranscript}"` : '마이크에 대고 말해주세요...'}</Text>
+            {readText && voiceTranscript !== '' && (
+              <View style={mc.voiceScoreBar}>
+                <Text style={mc.voiceScoreLabel}>정확도</Text>
+                <View style={mc.voiceScoreBg}>
+                  <View style={[mc.voiceScoreFill, {
+                    width: `${Math.min(100, Math.max(10, (voiceTranscript.length / Math.max(1, readText.length)) * 100))}%` as any,
+                    backgroundColor: voiceTranscript.length >= readText.length * 0.7 ? '#22c55e' : '#f59e0b',
+                  }]} />
+                </View>
               </View>
-            </View>
-          )}
-        </View>
-      )}
+            )}
+          </View>
+        );
+      })()}
 
       <View style={mc.progBg}>
         <Animated.View style={[mc.progFill, {
@@ -1368,7 +1376,7 @@ export default function RecordScreen() {
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, squatMode, resetVoice,
           latestJudgement, lastSquatCountAt, micPermissionDeniedAt,
-          injectSquatBaseline } = useJudgement();
+          injectSquatBaseline, resolvedReadText } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
   const [showIntro,  setShowIntro]  = useState(false);
@@ -2254,7 +2262,9 @@ export default function RecordScreen() {
               )}
 
               {isRecording && !showIntro && currentMission?.type==='voice_read' && (
-                <VoiceTranscriptOverlay transcript={voiceTranscript} readText={currentMission.read_text} />
+                // FIX-SCRIPT-POOL (2026-04-23): 배열 풀 → useJudgement 가 뽑은 resolvedReadText
+                //   사용. 프롬프터가 이번 세션에 선택된 한 문장만 보여줌.
+                <VoiceTranscriptOverlay transcript={voiceTranscript} readText={resolvedReadText || (Array.isArray(currentMission.read_text) ? currentMission.read_text[0] : currentMission.read_text)} />
               )}
 
               {isIdle && (

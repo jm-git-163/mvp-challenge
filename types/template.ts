@@ -26,7 +26,11 @@ export interface Mission {
   gesture_id?: GestureId;
   gesture_emoji?: string;    // e.g. "✌️"
   // voice_read type
-  read_text?: string;        // text to read aloud
+  // FIX-SCRIPT-POOL (2026-04-23): 단일 문자열(고정) 또는 배열(세션마다 로테이션) 허용.
+  //   배열인 경우 useJudgement 가 pickScriptWithHistory 로 localStorage 기반 최근
+  //   3개 제외 랜덤 선택 → 사용자가 동일 템플릿을 반복 실행해도 다른 대본을 읽게 됨.
+  //   기존 단일 string 은 하위호환 유지.
+  read_text?: string | string[];
   read_lang?: 'ko' | 'en';  // language for speech recognition
   // common
   threshold: number;         // 0~1 pass threshold
