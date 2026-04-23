@@ -10,9 +10,9 @@ import type { TemplateThumb } from './templateThumbnails';
 
 export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   "021ccc86-7d9f-41c0-88bd-970406bebd2e": {
-    "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=640&q=75&v=5",
-    "largeURL": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1280&q=80",
-    "tags": "daily vlog, self filming, tripod, content creator",
+    "url": "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=640&q=75&v=8",
+    "largeURL": "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1280&q=80",
+    "tags": "daily life, street, people, cafe, city",
     "user": "unsplash",
     "pixabayId": 0
   },
@@ -31,9 +31,9 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 2787754
   },
   "8e0b4493-5c5e-4ece-82dd-2ba93f9b8036": {
-    "url": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=640&q=75&v=7",
-    "largeURL": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1280&q=80",
-    "tags": "open storybook, colorful pages, fairy tale, children book",
+    "url": "https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=640&q=75&v=8",
+    "largeURL": "https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=1280&q=80",
+    "tags": "teddy bear, plush toy, kids, fairy tale",
     "user": "unsplash",
     "pixabayId": 0
   },
@@ -52,9 +52,9 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 0
   },
   "e2d9cc60-08c3-4200-86ba-3a7cdfa6ad54": {
-    "url": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=640&q=75&v=6",
-    "largeURL": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1280&q=80",
-    "tags": "street dance, asian, kpop, performance",
+    "url": "https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=640&q=75&v=8",
+    "largeURL": "https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=1280&q=80",
+    "tags": "dance group, performance, kpop, choreography",
     "user": "unsplash",
     "pixabayId": 0
   },
