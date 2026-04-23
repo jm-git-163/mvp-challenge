@@ -280,7 +280,7 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
 // ─── shareInvite ───────────────────────────────────────────────────────
 
 export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
-  const { slug, fromName, templateName, score, thumbnailUrl, message } = opts;
+  const { slug, fromName, templateName, score, thumbnailUrl: _thumb, message } = opts;
   const env = detectEnv();
   log('invite.start', { slug, fromName, hasScore: typeof score === 'number', env });
 
@@ -299,19 +299,21 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
   const caption = buildInviteShareCaption({ templateName, fromName, score, inviteUrl: url });
   const shortCaption = buildInviteShortCaption({ templateName, fromName, score });
 
-  // 2) Clipboard first — this is the ONE thing we can always do.
-  const captionCopied = await copyToClipboard(caption);
-  log('invite.clipboard', captionCopied);
+  // 2) URL-only Web Share.
+  // FIX-INVITE-E2E (2026-04-23): 이전엔 `await copyToClipboard(caption)` 을 share 전에
+  //   호출해 iOS Safari 의 user-gesture 체인이 깨져 navigator.share 가 NotAllowedError
+  //   를 던지는 사례가 있었다. 또 최종 메시지가 "✓ 링크 복사됨" 으로 표면화돼
+  //   사용자 입장에서는 "버튼을 눌렀는데 공유창이 안 뜬다" 는 버그로 보인다.
+  //   지금은: (a) Kakao 등 in-app 브라우저가 아니면 **무조건** navigator.share 를
+  //   먼저 시도, (b) 모든 "복사됨" 문구 제거, (c) 실패 시 clipboard 는 **조용한
+  //   편의 기능** 으로만 돌리고 토스트는 "공유 실패 — 메신저 앱을 직접 열어주세요".
+  //
+  // 카카오톡/라인 등 메신저는 URL 만 받으면 `/share/challenge/<slug>` 의 OG meta
+  // 를 크롤해 리치 썸네일 카드를 자동 렌더한다 (commit 83005bb). file 은 일절
+  // 넘기지 않는다 — file 이 있으면 수신 메신저가 text/url 을 드롭한다.
+  const hasNavShare = typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function';
 
-  // 3) URL-only Web Share.
-  // FIX-KAKAO-INVITE (2026-04-23): 이전에는 PNG 카드를 `files` 로 넘겼는데,
-  //   카카오톡/라인 등 메신저가 **file 이 있으면 text/url 을 드롭**해버려서
-  //   수신자가 링크를 못 받는 문제가 있었다. 지금은 `/share/challenge/<slug>`
-  //   경로에 Edge Function OG meta (commit 83005bb) 가 있어서 **URL 만 보내도**
-  //   카카오톡이 자동으로 리치 썸네일 카드를 렌더한다. 따라서 file 을 일절 넘기지 않고
-  //   URL 만 공유하는 것이 안전하고 UX 가 더 좋다.
-  //   PNG 카드/clipboard 는 in-app browser 나 Web Share 미지원 환경의 fallback 전용.
-  if (env.canShareText) {
+  if (hasNavShare && !env.inAppBrowser) {
     try {
       log('invite.url.share.attempt', { url });
       await (navigator as any).share({
@@ -325,52 +327,45 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
       return {
         kind: 'web-share-text',
         message: '도전장을 보냈어요!',
-        captionCopied,
       };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
+        log('invite.share.cancelled');
         return {
           kind: 'cancelled',
-          message: captionCopied
-            ? '공유는 취소됐지만 링크가 복사됐어요.'
-            : '공유가 취소됐어요.',
-          captionCopied,
+          message: '공유가 취소됐어요.',
         };
       }
       log('invite.url.share.fail', e);
-      // fall through to clipboard path
+      // Silently copy URL to clipboard as a convenience for the user, but do
+      // NOT surface it as the primary outcome — that was the original bug.
+      try { await copyToClipboard(url); } catch {}
+      return {
+        kind: 'error',
+        message: '공유 실패 — 메신저 앱을 직접 열어 도전장을 붙여넣어주세요.',
+        error: e,
+      };
     }
   }
 
-  // 5) Path C — in-app browser (Kakao) or no Web Share at all.
-  //    Clipboard is already populated. Open SMS on mobile as last resort.
+  // Kakao/Line/Instagram in-app browser: Web Share is broken-by-platform.
+  // Silently stage clipboard, but tell user exactly what to do — no "복사됨" copy.
   if (env.inAppBrowser) {
+    try { await copyToClipboard(url); } catch {}
     return {
       kind: 'fallback',
-      message: captionCopied
-        ? '✓ 도전장이 복사됐어요. 채팅창에 붙여넣어주세요.'
-        : '⚠ 클립보드 사용이 막혔어요. 주소창 권한을 확인해주세요.',
-      captionCopied,
+      message: '인앱 브라우저에서는 공유창이 뜨지 않아요. 우상단 ⋯ → 다른 브라우저로 열기 후 다시 시도해주세요.',
     };
   }
 
+  // Desktop / browser without Web Share API — silently clipboard, explicit error.
+  try { await copyToClipboard(url); } catch {}
   if ((env.ios || env.android) && typeof window !== 'undefined') {
     try { window.location.href = `sms:?body=${encodeURIComponent(caption)}`; } catch {}
-    return {
-      kind: 'fallback',
-      message: captionCopied
-        ? '✓ 링크 복사됨. 문자 앱이 열리면 붙여넣기 하세요.'
-        : '문자 앱을 열었어요. 내용을 직접 입력해주세요.',
-      captionCopied,
-    };
   }
-
   return {
-    kind: captionCopied ? 'fallback' : 'unsupported',
-    message: captionCopied
-      ? '✓ 도전장 링크가 복사됐어요. 메신저에 붙여넣어주세요.'
-      : '이 브라우저는 공유를 지원하지 않아요. 업데이트 후 다시 시도해주세요.',
-    captionCopied,
+    kind: 'unsupported',
+    message: '이 브라우저는 공유 API 를 지원하지 않아요. 모바일 Safari/Chrome 에서 다시 시도해주세요.',
   };
 }
 

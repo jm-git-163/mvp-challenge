@@ -37,12 +37,18 @@ export default function ChallengeInviteScreen() {
   //   Web 환경에선 window.location.href 를 1순위로 사용 (expo-router 가 일부 파라미터를
   //   놓치는 엣지케이스 방어).
   const { ctx, fullUrl } = useMemo(() => {
-    const slug = (params.slug ?? '').toString();
-    if (typeof window !== 'undefined' && window.location && window.location.pathname.includes(`/challenge/${slug}`)) {
+    // FIX-INVITE-E2E (2026-04-23): 수신측은 무조건 **window.location.href 를 1순위**
+    //   로 파싱. expo-router 의 useLocalSearchParams 는 web 에서 초기 렌더 시 빈
+    //   객체이거나 일부 쿼리(`c=<base64>`)를 누락하는 사례가 있어 신뢰할 수 없다.
+    //   URL 전체를 parseInviteUrl 에 넘기면 `/share/challenge/`, `/challenge/`, `/c/`
+    //   세 경로 + v1/v2 쿼리 포맷을 모두 처리한다.
+    if (typeof window !== 'undefined' && window.location && window.location.href) {
       const live = window.location.href;
       const parsed = parseInviteUrl(live);
       if (parsed) return { ctx: parsed, fullUrl: live };
     }
+    // SSR / no-window 폴백: expo-router params 로 URL 재조립.
+    const slug = (params.slug ?? '').toString();
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://motiq.app';
     const qs = new URLSearchParams();
     if (params.c)     qs.set('c',     String(params.c));
