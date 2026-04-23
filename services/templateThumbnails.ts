@@ -1,155 +1,189 @@
 /**
  * services/templateThumbnails.ts
  *
- * 자동 생성 — scripts/fetch-pixabay-thumbnails.js 로 재생성.
- * 각 템플릿 ID → Pixabay 큐레이션 이미지 URL (정적, CDN, 키 없음).
- * 출처 표기: Pixabay 무료 라이선스 (크레딧 불필요, 상업적 사용 가능).
+ * 템플릿 ID → 큐레이션 썸네일 URL.
+ * Pixabay 자동 수집본을 베이스로, 주제와 어긋나는 항목은 Unsplash CDN URL 로 교체.
+ * Unsplash 는 API 키 불필요·크레딧 불필요 (Unsplash License).
+ * Pixabay 는 자동 수집(scripts/fetch-pixabay-thumbnails.js)이 키워드 매칭 오류로
+ * 잘못된 사진을 가져올 수 있어 본 파일을 단일 진실 소스로 운영.
+ *
+ * 마지막 감사(audit): 2026-04-23. 각 항목 // REVIEWED 2026-04-23 주석 참조.
+ *
+ * 갱신 규칙:
+ *  - Pixabay 재수집 후에도 본 파일에 손으로 검토한 URL 이 우선.
+ *  - 새 템플릿 추가 시: scripts/fetch-pixabay-thumbnails.js 키워드 등록 → 실행 →
+ *    결과를 사람이 검수 후 본 파일에 병합 (mismatch 발견 시 Unsplash 로 교체).
+ *  - mockData.ts 의 thumbnail_url 은 폴백 체인이므로 변경 금지.
  */
 
 export interface TemplateThumb {
-  url: string;       // webformat ~640px
-  largeURL: string;  // full-res
+  url: string;       // ~640px (썸네일 그리드용)
+  largeURL: string;  // ~1280px (상세/로딩 시 풀화면용)
   tags: string;
   user: string;
-  pixabayId: number;
+  pixabayId: number; // Pixabay 0 = Unsplash 출처
 }
 
 export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
+  // REVIEWED 2026-04-23 — daily vlog: 셀카 찍는 여성. Pixabay 수집본 적합.
   "daily-vlog-001": {
     "url": "https://pixabay.com/get/g5daae4d230ed783e466bbc82a2d759ce57abda2d42b234b6c4085a4e783dc0dc8ba9883c9a739649591643fd9974fc3f520fa6439b01dd337f895eb5b9007df0_640.jpg",
     "largeURL": "https://pixabay.com/get/g2e4f6f442a8dea5314452a3f633376808ec41d5b62803abff6106c1a0c5657e57587ca8249ad2cc2a6b1469b6554ca14bdb2056cdc1030500b81f1908b436c30_1280.jpg",
-    "tags": "woman, young woman, excursion, holiday, gran canaria, canary islands, hat, phone, mobile phone, selfie, selfie, selfie, selfie, selfie, selfie",
+    "tags": "woman, young woman, holiday, hat, phone, mobile phone, selfie",
     "user": "summerstock",
     "pixabayId": 1993219
   },
+  // REVIEWED 2026-04-23 — news anchor: Pixabay 결과는 컨트리뮤직 스튜디오 마이크였음 (mismatch).
+  //   Unsplash 의 뉴스 데스크/방송실 사진으로 교체. 차분한 블루 톤.
   "news-anchor-002": {
-    "url": "https://pixabay.com/get/g408554d7d10b0a37765b936645a64cbf71d4ef33028612ae385881d8ff7d64ec75a784a79c7dba15b275219e3bc9b3860ebe46e7c77596fb90ed4be45a769684_640.jpg",
-    "largeURL": "https://pixabay.com/get/g29bfd30b522e8388fe8b243d7c1efef99b49db32f114edd491e73338b827686c2ae23366c7d8ccef80f2e92e7ab22d3fdc7889d5af3b04ba13665b7851f370d4_1280.jpg",
-    "tags": "tube microphone, dual tube microphone, gemini, recording, large diaphragm microphone, percussion, precise, studio, live sound, tour sound, rental company, audience, performing arts, concert, rock star, country music, singer, gemini, country music, country music, country music, country music, country music",
-    "user": "tonischerrenberg",
-    "pixabayId": 3780707
-  },
-  "english-lesson-003": {
-    "url": "https://pixabay.com/get/gb09de625816925bc07b4b525e166f418a6cbdfbf129fd16e899796529f43c0701fabe87dcb1c28376a8a1ed82cbc540a8c82cc92bf64fb1a87cf66dd88a25c20_640.jpg",
-    "largeURL": "https://pixabay.com/get/gd1f5d894fe0a0e4a64cd4fd746aa62088342a6451d0a14c122d612f8ddd205cbacfd462a5d53827b22f127d689363b4d6f537569d1702a64899024bc7de6019e_1280.jpg",
-    "tags": "education, photo, language learning, glasses, read, english, hungarian, dictionary, research, school, study, book, attention, paper, diary, notes, notebook, to learn, note, text, language learning, dictionary, dictionary, dictionary, dictionary, dictionary",
-    "user": "akirEVarga",
-    "pixabayId": 4382169
-  },
-  "fairy-tale-004": {
-    "url": "https://pixabay.com/get/gc5fac0e023f035b0de57cffc3e94dd95c5dff4a5cb99af7b244ec9acd56febd0246790366f47286173fa85a46556419bfab003884d5db9801eba8b029f02e261_640.jpg",
-    "largeURL": "https://pixabay.com/get/g71790395777a0033c3c1e0ccedd7591769950a9892d269ccd4acd94a393f12e7ca4fc6e8d3f03535172cb8869168a91e98a1cd6a44dc31117a06dd0afa81be01_1280.jpg",
-    "tags": "christmas, digital background, background, laptop wallpaper, rabbit, snow, hd wallpaper, winter, winter landscape, desktop backgrounds, full hd wallpaper, beautiful wallpaper, free wallpaper, 4k wallpaper, cool backgrounds, windows wallpaper, fairy tale, free background, fantasy, mac wallpaper, wallpaper hd, 4k wallpaper 1920x1080, nature, wallpaper 4k, christmas card",
-    "user": "BiancaVanDijk",
-    "pixabayId": 6723086
-  },
-  "travel-cert-005": {
-    "url": "https://pixabay.com/get/g6571567ebd36cede014be5b68de1a5798ca272697828d0b34792a885a092eba5044056ed0d571720578d9f363b4b6c9ef9da6945f901ce8cc7eb6bd0c2c6bf24_640.jpg",
-    "largeURL": "https://pixabay.com/get/g8b17c15708fdf11be10d3395e243987fff3380dbf2f64a56b51781bb8e068bcede9635dee30befaa6db53c1595723ed95ee7e827560abed6bbe42236ca7b8068_1280.jpg",
-    "tags": "angkor, ruin, cambodia, temple, architecture, to travel, buddhism, asia, khmer, stone, unesco, archaeology, landmark, tourist, selfie, angkor, cambodia, cambodia, cambodia, khmer, khmer, khmer, khmer, khmer, archaeology, selfie",
-    "user": "Sushuti",
-    "pixabayId": 3741233
-  },
-  "product-unbox-006": {
-    "url": "https://pixabay.com/get/ga7b47737a84b243cc653d4cace24dac0e6ad0ce58c81d34ef3304ee92e3ed15e4e074e57fdfc99e047b6ba9e836b6cab6f068e960786f4e4a9f7b3efbfb5a1fa_640.jpg",
-    "largeURL": "https://pixabay.com/get/gbf0e1f5afba57fc0bee055c4443e0f7cba916dc536c3ba8188a1eba19a1e94720cfaf1d4c49ec45a6706fdee3aba89f899fad9283b26add9a717c785fc786723_1280.jpg",
-    "tags": "space, wood, deliver, logistics, receive, transportation, business, logistic, transfer, courier, office, paper, pack, send, fragile, service, object, container, carton, box, storage, shipping, cardboard, parcel, package, brown office, brown box, brown service, logistics, courier, courier, box, box, box, parcel, parcel, parcel, parcel, parcel, package, package",
-    "user": "ha11ok",
-    "pixabayId": 4967335
-  },
-  "kpop-idol-007": {
-    "url": "https://pixabay.com/get/gbba5c97cc0e020048814bf2a670fcc227ef72ea13e635f4aedfa113fba73a08b0fd6ce8bd9161a773961e824bfc60007fb41a115820f52adbf6888481cbb4824_640.jpg",
-    "largeURL": "https://pixabay.com/get/gdea785032e4ca6de9f3e72d8f7192840851feb6fecd362137ad07e19515ed53d198f2a9018c421030619af31475d75a56ce452c3f783467d6631518982fcf8b2_1280.jpg",
-    "tags": "concert, stage, band, singer, drums, guitar, microphone, black and white, live performance, crowd, musicians, musical, lighting, culture, artist, club, audience, emotions, energy, entertainment",
-    "user": "MyriChagnon",
-    "pixabayId": 10226175
-  },
-  "fitness-squat-master-008": {
-    "url": "https://pixabay.com/get/ge32e5dbd3f4378fc336984e9c6bada77cf68ea575569c3fa920751c51e5f44848163d6e7a1d387fd3c1ee26c1a2d08ea62ebb216cf60c5828ab658ccaabd41b0_640.jpg",
-    "largeURL": "https://pixabay.com/get/ga5b1194aa0c447890889775eaf07be300a1c89e8fd068191e5fad53ac504cca5daf4c39b314ffc0e1385aead0ae8c4b2227a2c5211584ab27b681ee8f025771e_1280.jpg",
-    "tags": "woman, workout, fitness, fit, exercise, wellness, squats, sport, athletic, gym, active wear, squats, gym, gym, gym, gym, gym",
-    "user": "u_us19rkvq",
-    "pixabayId": 7539138
-  },
-  "english-speak-009": {
-    "url": "https://pixabay.com/get/g7dc179984081e5d2e77d04d08c5ef66c87e48b71e7cacb7057eca4212e6cc2f5af3873669667b0454ea18cb53f4a27c46b8e41eaae0fb3942a4f98e9ae96a9da_640.jpg",
-    "largeURL": "https://pixabay.com/get/ga95de94e85dbd79bf7c80c925af98f4cc3c997f67345bf8da666739063f4c5d6c9b0b5091fdaa9dacad0f77a68a9813646faacc03db918dda435c701ee9dde9f_1280.jpg",
-    "tags": "chalkboard, slate, green, blackboard, education, wood, frame, framed, school, chalk, chalkboard, chalkboard, chalkboard, chalkboard, blackboard, blackboard, blackboard, blackboard, blackboard",
-    "user": "4Me2Design",
-    "pixabayId": 2629436
-  },
-  "kids-story-010": {
-    "url": "https://pixabay.com/get/g156b9d4084ccd51f4d728c6bde76eccfe2450c2e33a0b5edd7a343450ddd2fa6089e2af4838d981d227270cf18ff91bfae032498f7da497f0cbfae59518f4140_640.jpg",
-    "largeURL": "https://pixabay.com/get/g864d063ffb85829de4329a4b0f44161c605566853605170e566caee3187a733142b5041bd90cab46839e17682138a9e1b81b7ba8b384e33e0dbe4eb59915e705_1280.jpg",
-    "tags": "children, books, reading, learning, preschool, graphics, infants, playing, babies, toddler, childhood, brown learning, brown reading, preschool, preschool, preschool, preschool, preschool",
-    "user": "ParentiPacek",
-    "pixabayId": 4624899
-  },
-  "travel-vlog-011": {
-    "url": "https://pixabay.com/get/g7262c809b4747347ac8e0df19d6767467d0b5ba551fae8c277e8b46aa6a651f7d749b9304f4322296b2869159572b8fe_640.jpg",
-    "largeURL": "https://pixabay.com/get/gf953bab708f778a917d73ecfe90c7ad05073a75c666aaf21a89745088fd0ce03b8fc9b36f1004ef6999b3e7312e4000433f9a4902d29f4c650edea07bd53a0b1_1280.jpg",
-    "tags": "girl, camera, old, nature, retro, holds, travel, summer, photographer, old camera, holding",
-    "user": "Alexsander-777",
-    "pixabayId": 549154
-  },
-  "hiphop-cypher-012": {
-    "url": "https://pixabay.com/get/gc882e6ff8287d8a675b0b74ef0506fe28971529e68cc1f9a0d2dfd7e8cfaa9761a23d02dbdf59cc804c967d1578635a47f1d50b7a6753acc8c7f424965686ee5_640.jpg",
-    "largeURL": "https://pixabay.com/get/g86084680e87e11843c96d1cacdba0d496be98a024e7038c132f91edc2738e56033bd71ad825fd23e31af1a4f882b26fcb344b16e14919cff7e2bfdbcd9d98167_1280.jpg",
-    "tags": "man, microphone, music, musician, recording, singer, rapper, rap, singing, audio equipment, recording studio, microphone, singer, singer, rapper, rapper, rapper, rap, rap, rap, rap, rap, singing, singing, singing, recording studio",
-    "user": "Pexels",
-    "pixabayId": 1845432
-  },
-  "fitness-squat-001": {
-    "url": "https://pixabay.com/get/g09ccd417617af4877c3d1e69aed38274ba88dbb1a63752bf89e78baa1557a8a20084eae2c1428e09e844768c7ea93c95fb980b9d9ae81ba72c9903e1385bd356_640.jpg",
-    "largeURL": "https://pixabay.com/get/gd7ffba9be6f85a84330f469142a5f68ec48d9c9e184d6f328a68fa75f60a2a1df72675753450e7baaa10b44e1c3283b92ea662588abae17fa83851d594914fee_1280.jpg",
-    "tags": "yoga, girl, exercise, health, yoga mat, woman, home workout, downward dog pose, sport, stretching, comfort, body shape, position, youth, silhouette, gym, active, being fit, body, meditation",
-    "user": "UnluckyPaw",
-    "pixabayId": 10197728
-  },
-  "fitness-plank-001": {
-    // TEAM-UX (2026-04-23): 사용자 피드백 "플랭크 이미지가 플랭크가 아님 (crunches)".
-    //   Pixabay 이미지 기계 수집이 크런치/복근 운동을 플랭크로 혼동 → Unsplash 의
-    //   실제 plank 자세 사진으로 교체. 무료 (Unsplash License: 상업용·크레딧 불필요).
-    //   사진 ID `photo-1566241440091-ec10de8db2e1` (옆에서 본 플랭크 홀드).
-    "url": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=1280&q=80",
-    "tags": "plank, core, forearm plank, fitness, hold, 30s, posture",
+    "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1280&q=80",
+    "tags": "news, newspaper, journalism, broadcast, anchor, studio",
     "user": "unsplash",
     "pixabayId": 0
   },
-  "dance-kpop-001": {
-    "url": "https://pixabay.com/get/ge4fc185117628094788ee7bfda01fdb8a91929f4421111b574061302635546b4e43b04a1cc19d383498eb9bd139d056cfae3857f5e94bd900bc4afdca2ccbef2_640.jpg",
-    "largeURL": "https://pixabay.com/get/gc65a2e40cbcbbc6adf85e879a638c24fab7b7d649682db181f7a83c43456ab536beb269fafe75c5e102c4a79fd13c42f609c98451e06d9b0b6ef98ee454aa3ea_1280.jpg",
-    "tags": "ballerina, swan lake, performance, dancer, ballet, balance, woman, show, elegance, stage, ballerina, ballerina, ballerina, ballerina, dancer, dancer, dancer, ballet, ballet, ballet, ballet, ballet",
-    "user": "nikidinov",
-    "pixabayId": 2122473
+  // REVIEWED 2026-04-23 — english lesson: 영어 사전·노트 정물. 수업 분위기 OK.
+  "english-lesson-003": {
+    "url": "https://pixabay.com/get/gb09de625816925bc07b4b525e166f418a6cbdfbf129fd16e899796529f43c0701fabe87dcb1c28376a8a1ed82cbc540a8c82cc92bf64fb1a87cf66dd88a25c20_640.jpg",
+    "largeURL": "https://pixabay.com/get/gd1f5d894fe0a0e4a64cd4fd746aa62088342a6451d0a14c122d612f8ddd205cbacfd462a5d53827b22f127d689363b4d6f537569d1702a64899024bc7de6019e_1280.jpg",
+    "tags": "education, language learning, english, dictionary, book, notes",
+    "user": "akirEVarga",
+    "pixabayId": 4382169
   },
+  // REVIEWED 2026-04-23 — fairy tale: Pixabay 결과는 크리스마스 데스크탑 배경화면(mismatch).
+  //   Unsplash 의 동화책/판타지 일러스트 톤 사진으로 교체. 따뜻한 색감.
+  "fairy-tale-004": {
+    "url": "https://images.unsplash.com/photo-1535905557558-afc4877a26fc?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1535905557558-afc4877a26fc?auto=format&fit=crop&w=1280&q=80",
+    "tags": "fairy tale, storybook, fantasy, magical, warm",
+    "user": "unsplash",
+    "pixabayId": 0
+  },
+  // REVIEWED 2026-04-23 — travel cert: 앙코르와트 전경. 여행 인증샷 톤 OK.
+  "travel-cert-005": {
+    "url": "https://pixabay.com/get/g6571567ebd36cede014be5b68de1a5798ca272697828d0b34792a885a092eba5044056ed0d571720578d9f363b4b6c9ef9da6945f901ce8cc7eb6bd0c2c6bf24_640.jpg",
+    "largeURL": "https://pixabay.com/get/g8b17c15708fdf11be10d3395e243987fff3380dbf2f64a56b51781bb8e068bcede9635dee30befaa6db53c1595723ed95ee7e827560abed6bbe42236ca7b8068_1280.jpg",
+    "tags": "travel, temple, landmark, tourist, selfie",
+    "user": "Sushuti",
+    "pixabayId": 3741233
+  },
+  // REVIEWED 2026-04-23 — product unbox: 택배 상자. 언박싱 컨텍스트 OK.
+  "product-unbox-006": {
+    "url": "https://pixabay.com/get/ga7b47737a84b243cc653d4cace24dac0e6ad0ce58c81d34ef3304ee92e3ed15e4e074e57fdfc99e047b6ba9e836b6cab6f068e960786f4e4a9f7b3efbfb5a1fa_640.jpg",
+    "largeURL": "https://pixabay.com/get/gbf0e1f5afba57fc0bee055c4443e0f7cba916dc536c3ba8188a1eba19a1e94720cfaf1d4c49ec45a6706fdee3aba89f899fad9283b26add9a717c785fc786723_1280.jpg",
+    "tags": "package, parcel, box, unboxing, delivery",
+    "user": "ha11ok",
+    "pixabayId": 4967335
+  },
+  // REVIEWED 2026-04-23 — kpop idol: Pixabay 는 흑백 락밴드 공연(분위기 미스매치).
+  //   Unsplash 의 네온 핑크/퍼플 콘서트 무대 사진으로 교체. K-pop 비주얼 매칭.
+  "kpop-idol-007": {
+    "url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1280&q=80",
+    "tags": "concert, stage, neon, lights, idol, performance",
+    "user": "unsplash",
+    "pixabayId": 0
+  },
+  // REVIEWED 2026-04-23 — squat master: 여성 스쿼트 운동. OK.
+  "fitness-squat-master-008": {
+    "url": "https://pixabay.com/get/ge32e5dbd3f4378fc336984e9c6bada77cf68ea575569c3fa920751c51e5f44848163d6e7a1d387fd3c1ee26c1a2d08ea62ebb216cf60c5828ab658ccaabd41b0_640.jpg",
+    "largeURL": "https://pixabay.com/get/ga5b1194aa0c447890889775eaf07be300a1c89e8fd068191e5fad53ac504cca5daf4c39b314ffc0e1385aead0ae8c4b2227a2c5211584ab27b681ee8f025771e_1280.jpg",
+    "tags": "woman, workout, squats, gym, fitness",
+    "user": "u_us19rkvq",
+    "pixabayId": 7539138
+  },
+  // REVIEWED 2026-04-23 — english speak: Pixabay 는 빈 칠판 정물(mismatch, 사람 없음).
+  //   Unsplash 의 영어 회화 수업 장면으로 교체.
+  "english-speak-009": {
+    "url": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1280&q=80",
+    "tags": "classroom, students, speaking, english, education",
+    "user": "unsplash",
+    "pixabayId": 0
+  },
+  // REVIEWED 2026-04-23 — kids story: 책 읽는 아이들. OK.
+  "kids-story-010": {
+    "url": "https://pixabay.com/get/g156b9d4084ccd51f4d728c6bde76eccfe2450c2e33a0b5edd7a343450ddd2fa6089e2af4838d981d227270cf18ff91bfae032498f7da497f0cbfae59518f4140_640.jpg",
+    "largeURL": "https://pixabay.com/get/g864d063ffb85829de4329a4b0f44161c605566853605170e566caee3187a733142b5041bd90cab46839e17682138a9e1b81b7ba8b384e33e0dbe4eb59915e705_1280.jpg",
+    "tags": "children, books, reading, learning",
+    "user": "ParentiPacek",
+    "pixabayId": 4624899
+  },
+  // REVIEWED 2026-04-23 — travel vlog: 카메라 든 여성. OK (레트로 톤).
+  "travel-vlog-011": {
+    "url": "https://pixabay.com/get/g7262c809b4747347ac8e0df19d6767467d0b5ba551fae8c277e8b46aa6a651f7d749b9304f4322296b2869159572b8fe_640.jpg",
+    "largeURL": "https://pixabay.com/get/gf953bab708f778a917d73ecfe90c7ad05073a75c666aaf21a89745088fd0ce03b8fc9b36f1004ef6999b3e7312e4000433f9a4902d29f4c650edea07bd53a0b1_1280.jpg",
+    "tags": "girl, camera, travel, photographer",
+    "user": "Alexsander-777",
+    "pixabayId": 549154
+  },
+  // REVIEWED 2026-04-23 — hiphop cypher: 래퍼 마이크. OK.
+  "hiphop-cypher-012": {
+    "url": "https://pixabay.com/get/gc882e6ff8287d8a675b0b74ef0506fe28971529e68cc1f9a0d2dfd7e8cfaa9761a23d02dbdf59cc804c967d1578635a47f1d50b7a6753acc8c7f424965686ee5_640.jpg",
+    "largeURL": "https://pixabay.com/get/g86084680e87e11843c96d1cacdba0d496be98a024e7038c132f91edc2738e56033bd71ad825fd23e31af1a4f882b26fcb344b16e14919cff7e2bfdbcd9d98167_1280.jpg",
+    "tags": "rapper, microphone, recording, hip hop",
+    "user": "Pexels",
+    "pixabayId": 1845432
+  },
+  // REVIEWED 2026-04-23 — squat: Pixabay 결과는 다운워드 도그(요가, mismatch).
+  //   Unsplash 의 실제 스쿼트 자세 사진으로 교체.
+  "fitness-squat-001": {
+    "url": "https://images.unsplash.com/photo-1567598508481-65985588e295?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1567598508481-65985588e295?auto=format&fit=crop&w=1280&q=80",
+    "tags": "squat, legs, fitness, bodyweight, woman",
+    "user": "unsplash",
+    "pixabayId": 0
+  },
+  // REVIEWED 2026-04-23 — plank: (이전 사용자 피드백 "plank ≠ crunches").
+  //   Unsplash 의 옆에서 본 forearm plank.
+  "fitness-plank-001": {
+    "url": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=1280&q=80",
+    "tags": "plank, core, forearm plank, fitness, hold, posture",
+    "user": "unsplash",
+    "pixabayId": 0
+  },
+  // REVIEWED 2026-04-23 — kpop dance: Pixabay 는 발레리나(mismatch).
+  //   Unsplash 의 K-pop 안무/스튜디오 댄스 사진으로 교체. 핑크/퍼플 톤 우선.
+  "dance-kpop-001": {
+    "url": "https://images.unsplash.com/photo-1535525153412-5a092d46af55?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1535525153412-5a092d46af55?auto=format&fit=crop&w=1280&q=80",
+    "tags": "dance, performance, stage, kpop, choreography",
+    "user": "unsplash",
+    "pixabayId": 0
+  },
+  // REVIEWED 2026-04-23 — meditation: 명상 자세 여성. OK (소프트 파스텔).
   "meditation-001": {
     "url": "https://pixabay.com/get/g8188c9055b3ec1ba3fd3bf04b655ab92d599450b14af8a6099d12b457072a4c82ff65f5da87842330fe65940cf51de37f462dc679528ddbaa8315ec20c6a01b6_640.jpg",
     "largeURL": "https://pixabay.com/get/gda21d7a0011aaf98d58b467485e2c3d97212a6c8424e9289184b296bb8414dbede6676773fce1238f835647ba10fb8d03c2b9ab10efb079a1160935f458962b5_1280.jpg",
-    "tags": "people, woman, meditation, outdoor, relax, health, meditation, meditation, meditation, meditation, meditation, health, health, health",
+    "tags": "meditation, woman, relax, peaceful, outdoor",
     "user": "StockSnap",
     "pixabayId": 2564459
   },
+  // REVIEWED 2026-04-23 — pushup: Pixabay 결과는 역기 드는 여성(mismatch, weightlifting).
+  //   Unsplash 의 푸시업 자세 사진으로 교체.
   "fitness-pushup-001": {
-    "url": "https://pixabay.com/get/g80ec547b6796273a2e32dd85df55a8d1b7ddfe2be293178cf70ed1427e0678a95dced3678ed4c62afb0b8b4f68a40150_640.jpg",
-    "largeURL": "https://pixabay.com/get/g3b13a4131ccc295b426bcfdf5e08066c8fdbae48aa2ed341b1665c184e800e42857d8740d1fcc08d4906e9148117d6fbf9e64e843e5fcfdf66ed707788769fc9_1280.jpg",
-    "tags": "crossfit, sports, fitness, training, exercise, athlete, young, healthy, workout, fit, muscular, body, people, strength, power, strong, female, sport, woman, athletic, girl, women, active, gym, exercising, weight lifting, weight, gray fitness, gray gym, gray exercise, gray training, gray healthy, gray workout, gray sports, gray body, gray power, sports, fitness, fitness, exercise, workout, sport, gym, gym, gym, gym, gym",
-    "user": "Ichigo121212",
-    "pixabayId": 534615
+    "url": "https://images.unsplash.com/photo-1598971639058-fab3c3109a00?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1598971639058-fab3c3109a00?auto=format&fit=crop&w=1280&q=80",
+    "tags": "pushup, push-up, exercise, upper body, floor",
+    "user": "unsplash",
+    "pixabayId": 0
   },
+  // REVIEWED 2026-04-23 — hiphop dance: 스트리트 힙합 댄서. OK.
   "dance-hiphop-001": {
     "url": "https://pixabay.com/get/g896004f4b1b6c23b29eb0391cf3a83aafb74156acb76cbfe541c3278f3a909df3b9bd8880565b884eb9c7751ae21bbc343ac27bd3e2f9ca3a4789a7e2b09006b_640.jpg",
     "largeURL": "https://pixabay.com/get/g8dd7a5a0058dc1fbe6934c91d67a3feea3519e732fe9795a8dcc13757b334ecf2f889a62e88c9c9f3139623565d58e47ee3464acc2ec35add38755216016e156_1280.jpg",
-    "tags": "urban, hip hop, casual, dancer, stylish, fashion, grunge, people, hip hop dancer, hip-hop, funky, music, wall, person, american, style, young, modern, street, brown music, brown street, hip hop, hip hop, hip hop, hip hop, hip hop, dancer, hip-hop, funky, funky",
+    "tags": "hip hop, dancer, street, urban",
     "user": "tazzanderson",
     "pixabayId": 2093990
   },
+  // REVIEWED 2026-04-23 — squat 50 challenge: Pixabay 는 트레드밀 스트레칭(mismatch).
+  //   Unsplash 의 홈 스쿼트 챌린지 사진으로 교체.
   "fitness-squat-50": {
-    "url": "https://pixabay.com/get/gf4b422ba75e2833e3cfbd605af7846133c9123fe5fd5a79fb8f818aa811888270bf2990627a38e286829487b8f91453458d7100ff43ddba4d0e22ca92631f557_640.jpg",
-    "largeURL": "https://pixabay.com/get/g657b5346c734176c6e4d773e56f60b9ffd4b8eb8a238a7bcd504540294f0a414eb1cd9314671f46b2c85f2a24ca2dac7362e016445a4d659d9334a06dec83ac1_1280.jpg",
-    "tags": "girl, stretching, warming up, run, treadmill, young woman, sports, fitness, young woman, young woman, young woman, young woman, young woman, fitness",
-    "user": "sobima",
-    "pixabayId": 7832385
+    "url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1280&q=80",
+    "tags": "squat, home workout, woman, challenge, fitness",
+    "user": "unsplash",
+    "pixabayId": 0
   }
 } as const;
