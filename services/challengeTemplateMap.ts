@@ -77,7 +77,9 @@ export const LAYERED_TEMPLATES: Record<string, Template> = {
 function stripClutterLayers(t: Template): Template {
   const layers = (t as any).layers;
   if (!Array.isArray(layers)) return t;
-  const KILL_TYPES = new Set(['news_ticker', 'kinetic_text']);
+  // FIX-SUBTITLE-DUP v2 (2026-04-23): karaoke_caption 은 스크립트 동기 하단 자막 —
+  //   voice_read 미션 템플릿에서 상단 텔레프롬프터와 내용이 달라 혼선. 전역 제거.
+  const KILL_TYPES = new Set(['news_ticker', 'kinetic_text', 'karaoke_caption']);
   const KILL_IDS = new Set(['hashtag_strip']);
   // FIX-EFFECT-INTENSITY (2026-04-23): 사용자 피드백 "효과가 너무 심해 피사체가 안 보임".
   //   배경·파티클·그레인·비트플래시·크로매틱 등 피사체 가독성을 해치는 오버레이 레이어의

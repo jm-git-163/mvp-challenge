@@ -174,7 +174,8 @@
       "Bash(curl -s -o /dev/null -w \"eng=%{http_code} \" \"https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=640&q=75\")",
       "Bash(curl -s -o /dev/null -w \"travel=%{http_code} \" \"https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=640&q=75\")",
       "Bash(curl -s -o /dev/null -w \"food=%{http_code} \" \"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=640&q=75\")",
-      "Bash(curl -s -o /dev/null -w \"speech=%{http_code} \" \"https://images.unsplash.com/photo-1551817958-d9d86fb29431?auto=format&fit=crop&w=640&q=75\")"
+      "Bash(curl -s -o /dev/null -w \"speech=%{http_code} \" \"https://images.unsplash.com/photo-1551817958-d9d86fb29431?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const p='services/supabaseThumbnails.ts';let s=fs.readFileSync\\(p,'utf8'\\);s=s.replace\\(/&v=\\\\d+\\\\\"/g,'&v=10\\\\\"'\\);fs.writeFileSync\\(p,s\\);console.log\\('bumped'\\);\")"
     ]
   }
 }

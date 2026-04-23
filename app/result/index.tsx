@@ -1165,23 +1165,29 @@ export default function ResultScreen() {
     }
   }, [userId, activeTemplate, frameTags, rawVideoUri, composedUri, stats]);
 
+  const [navigating, setNavigating] = useState(false);
   const goHome = useCallback(() => {
-    // FIX-NAV (2026-04-23 v4): router.replace 는 빌드/배포 환경 차이로 React #300
-    //   (Too many re-renders) 재현 사례가 계속 보고됨. 루트 Index.tsx → Redirect 경로도
-    //   일부 WebView/브라우저 조합에서 루프. 가장 확실한 복귀 방법은 **풀 페이지 네비게이션**.
-    //   블롭 URL 해제·세션 리셋을 먼저 수행한 뒤 location.href 로 이동하면
-    //   React 재조정이 일어나지 않으므로 루프 자체가 불가능.
-    try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
-    try { reset(); } catch {}
-    if (typeof window !== 'undefined' && window.location) {
-      // FIX-NAV v5: '/' → Redirect → '/(main)/home' 경로에서도 드물게 루프 보고.
-      // 직접 '/home' 으로 이동해 Index.tsx Redirect 를 건너뛴다.
-      window.location.href = '/home?_b=' + Date.now();
-      return;
+    // FIX-NAV (2026-04-23 v6): reset() 이 Zustand 상태를 비우면 result 페이지의
+    //   자식 컴포넌트들이 null/undefined 로 리렌더되며 예외를 던져 ErrorBoundary 가
+    //   잠깐 깜빡임. v6 는 (1) navigating=true 로 전환해 페이지 UI 를 스켈레톤 으로 짧게 바꾸고
+    //   (2) 다음 프레임에 blob 해제·location.href 로 즉시 풀 리로드.
+    //   reset() 은 리로드 이후 새 페이지가 자동으로 초기화하므로 호출하지 않는다.
+    setNavigating(true);
+    const go = () => {
+      try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
+      if (typeof window !== 'undefined' && window.location) {
+        window.location.href = '/home?_b=' + Date.now();
+        return;
+      }
+      try { router.replace('/'); } catch {}
+    };
+    // requestAnimationFrame 으로 상태 업데이트 → 페인트 → 이동 순서 보장
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => requestAnimationFrame(go));
+    } else {
+      setTimeout(go, 16);
     }
-    // Native (iOS/Android app) 폴백
-    try { router.replace('/'); } catch {}
-  }, [reset, composedUri, router]);
+  }, [composedUri, router]);
 
   const doRetake = useCallback(() => {
     if (composedUri) URL.revokeObjectURL(composedUri);
@@ -1193,6 +1199,15 @@ export default function ResultScreen() {
   }, [activeTemplate, startSession, fullResetForRetake, composedUri, router]);
 
   const hPad = Math.min(20, (width - 360) / 2 + 16);
+
+  // FIX-NAV v6: 홈으로 이동하는 순간 기존 트리를 떼어내 ErrorBoundary 깜빡임 방지
+  if (navigating) {
+    return (
+      <SafeAreaView style={[st.root, { alignItems:'center', justifyContent:'center' }]} edges={['top','bottom']}>
+        <Text style={{ color:'rgba(255,255,255,0.6)', fontSize:14 }}>홈으로 이동 중…</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={st.root} edges={['top', 'bottom']}>
