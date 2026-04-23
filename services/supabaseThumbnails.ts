@@ -31,9 +31,9 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 2787754
   },
   "8e0b4493-5c5e-4ece-82dd-2ba93f9b8036": {
-    "url": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=640&q=75&v=5",
-    "largeURL": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=1280&q=80",
-    "tags": "toddler, storybook, reading, fairy tale",
+    "url": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=640&q=75&v=7",
+    "largeURL": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1280&q=80",
+    "tags": "open storybook, colorful pages, fairy tale, children book",
     "user": "unsplash",
     "pixabayId": 0
   },
