@@ -10,11 +10,11 @@ import type { TemplateThumb } from './templateThumbnails';
 
 export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   "021ccc86-7d9f-41c0-88bd-970406bebd2e": {
-    "url": "https://pixabay.com/get/gdda2f02139ed8d2754a63ea29dce0c8b9f918d7cc524dbec415a3eae468d55db19800fd186c04b3c36c3c5f7347d1ffb57998a25592b83db3e4e49846247b894_640.jpg",
-    "largeURL": "https://pixabay.com/get/g9f368c7e6f54002f39fadb5a4a74f70b9b5262d4a28cd23037f5aec7ce6987292c0896a576d7b36f0f2ca619a3b6c5fa5ff17e9ec980f051e740b7843db0b23b_1280.jpg",
-    "tags": "woman, young woman, excursion, holiday, gran canaria, canary islands, hat, phone, mobile phone, selfie, selfie, selfie, selfie, selfie, selfie",
-    "user": "summerstock",
-    "pixabayId": 1993219
+    "url": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=1280&q=80",
+    "tags": "daily vlog, self filming, tripod, content creator",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   "77756254-94ea-40a2-9c9e-b5c4257945cd": {
     "url": "https://pixabay.com/get/g3e248f5e1e51f23721a1bbee0f5c7d5f0f09af87ae3cb41ea5e3638b0b1771379b77d35e8184837b040e6a7dd61cc19334957b1c383d2310c100873e6736a7b1_640.jpg",
@@ -31,11 +31,11 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 2787754
   },
   "8e0b4493-5c5e-4ece-82dd-2ba93f9b8036": {
-    "url": "https://pixabay.com/get/g0ed158bfae53cd28fae4db2fcb254c940d9ec2879fdeeb9e0ced821b3b110d45346c3161ff169b2da54e61660e2387d4a133b34a1f5e9c690412905380593035_640.jpg",
-    "largeURL": "https://pixabay.com/get/g11bcf3f7919ceac6d0d7ee328c9c22856669b5793f5e83fdd5076b9dec7d83e504e23748258b051319e59cc080874be61984f57fa3b81a0049996b25b89f7e9b_1280.jpg",
-    "tags": "baby, read, play, reading, playing, toys, baby toys, toddler, infant, book, story book, portrait, baby portrait, baby boy, boy, kid, childhood, baby, baby, baby, baby, baby, reading, toys, book",
-    "user": "katerinakucherenko",
-    "pixabayId": 5953965
+    "url": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=1280&q=80",
+    "tags": "toddler, storybook, reading, fairy tale",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   "4c3f1f85-ec15-48fd-a197-dc507ceb8400": {
     "url": "https://pixabay.com/get/g0373df05f64d857f82a0f2882493f9a55b08d5dd6a284d4a97ec2d8713b8f8cb5484bbbb87f28a907a3a3644634b08c3a726f83522b3c5748a82e54b890e853a_640.jpg",
@@ -52,11 +52,11 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 410324
   },
   "e2d9cc60-08c3-4200-86ba-3a7cdfa6ad54": {
-    "url": "https://pixabay.com/get/ge4fc185117628094788ee7bfda01fdb8a91929f4421111b574061302635546b4e43b04a1cc19d383498eb9bd139d056cfae3857f5e94bd900bc4afdca2ccbef2_640.jpg",
-    "largeURL": "https://pixabay.com/get/gc65a2e40cbcbbc6adf85e879a638c24fab7b7d649682db181f7a83c43456ab536beb269fafe75c5e102c4a79fd13c42f609c98451e06d9b0b6ef98ee454aa3ea_1280.jpg",
-    "tags": "ballerina, swan lake, performance, dancer, ballet, balance, woman, show, elegance, stage, ballerina, ballerina, ballerina, ballerina, dancer, dancer, dancer, ballet, ballet, ballet, ballet, ballet",
-    "user": "nikidinov",
-    "pixabayId": 2122473
+    "url": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=1280&q=80",
+    "tags": "kpop, dance, stage, performance, group",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   "981093f7-b455-4e48-82b2-6ce05850929a": {
     "url": "https://pixabay.com/get/g9d716d992d149268cf111248053f4ad4931b4e81c8bc08193073c56193d60f5db90256b515412f112b9f7c8fc280d6a42b9782ddf24ce1c26257d2b98f65b51d_640.jpg",
