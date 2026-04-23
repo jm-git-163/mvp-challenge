@@ -70,17 +70,11 @@ export const squatMaster: Template = {
     { id: 'intro_flash',   type: 'beat_flash',       zIndex: 28, opacity: 1, enabled: true, props: { color: YELLOW, peakOpacity: 0.5 }, activeRange: { startSec: 0, endSec: 0.6 } },
     { id: 'intro_title',   type: 'kinetic_text',     zIndex: 29, opacity: 1, enabled: true, props: { text: 'SQUAT × 10', fontSize: 100, color: YELLOW, strokeColor: INDIGO, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 200, staggerMs: 60 }, activeRange: { startSec: 0, endSec: 2.5 } },
 
-    // ── 미드 훅 (2) ────────────────────────────────────────────
-    { id: 'mid_tag',       type: 'kinetic_text',     zIndex: 42, opacity: 1, enabled: true, props: { text: '🔥 KEEP GOING', fontSize: 64, color: RED, strokeColor: WHITE, strokeWidth: 6, mode: 'pop', position: 'top-center', startMs: 9500, staggerMs: 50 }, activeRange: { startSec: 9.5, endSec: 12 } },
-    { id: 'mid_burst',     type: 'particle_burst',   zIndex: 43, opacity: 0.55, enabled: true, props: { colors: [YELLOW, RED], count: 24, durationMs: 800 }, activeRange: { startSec: 9.5, endSec: 11 } },
-
-    // ── 아웃트로 (3) ───────────────────────────────────────────
-    { id: 'outro_flash',   type: 'beat_flash',       zIndex: 74, opacity: 0.6, enabled: true, props: { color: RED, peakOpacity: 0.30 }, activeRange: { startSec: 17, endSec: 17.5 } },
-    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'COMPLETE!', fontSize: 88, color: RED, strokeColor: WHITE, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 55 }, activeRange: { startSec: 17, endSec: 20 } },
-    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.32, enabled: true, props: { x: 540, y: 700, color: YELLOW, size: 320 }, activeRange: { startSec: 17, endSec: 20 } },
-
-    // ── 해시태그 ───────────────────────────────────────────────
-    { id: 'hashtag_strip', type: 'news_ticker',      zIndex: 72, opacity: 0.9, enabled: true, props: { texts: ['#squat', '#fitness', '#workout', '#hr', '#challenge', '#motiq'], separator: '   ', speedPxPerSec: 90, fontSize: 28, bgColor: 'rgba(27,42,78,0.7)', color: YELLOW, accentColor: RED, position: 'bottom' }, activeRange: { startSec: 2.5, endSec: 17 } },
+    // TEAM-CHAOS (2026-04-23 v3): mid_tag "🔥 KEEP GOING", mid_burst, outro_title "COMPLETE!",
+    //   hashtag_strip 전부 제거 — 사용자 피드백 "난리 났다, 텍스트 오버레이 스팸".
+    //   카운트 HUD + 타이머 + 비트 반응만 남기고 군더더기 제거. 조용한 마무리.
+    { id: 'outro_flash',   type: 'beat_flash',       zIndex: 74, opacity: 0.5, enabled: true, props: { color: RED, peakOpacity: 0.25 }, activeRange: { startSec: 17, endSec: 17.5 } },
+    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.3, enabled: true, props: { x: 540, y: 700, color: YELLOW, size: 260 }, activeRange: { startSec: 17, endSec: 20 } },
   ],
 
   hashtags: ['squat', 'fitness', 'workout', 'hr', 'challenge', 'motiq'],

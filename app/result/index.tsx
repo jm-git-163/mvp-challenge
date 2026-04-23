@@ -986,11 +986,18 @@ export default function ResultScreen() {
   const scoreNum    = Math.round(stats.avgScore * 100);
   const accentColor = stats.avgScore >= 0.8 ? '#7c3aed' : stats.avgScore >= 0.6 ? '#f59e0b' : '#ef4444';
 
-  const scoreGrade =
-    stats.avgScore >= 0.9 ? '🏆 완벽해요!' :
-    stats.avgScore >= 0.8 ? '🌟 훌륭해요!' :
-    stats.avgScore >= 0.6 ? '💪 잘했어요!' :
-    stats.avgScore >= 0.4 ? '🙌 노력했어요!' : '다음엔 더 잘할 수 있어요!';
+  // TEAM-CHAOS (2026-04-23 v3): 스쿼트 결과는 점수가 아닌 **실제 카운트** 기준 한 줄.
+  //   사용자 지시: 0-3 "다음엔 더 힘내봐요" / 4-7 "잘 했어요" / 8+ "완벽한 스쿼트!".
+  //   단일 메시지 — 스팸 금지.
+  const isSquat = activeTemplate?.genre === 'fitness';
+  const scoreGrade = isSquat
+    ? (squatCountParam >= 8 ? '💪 완벽한 스쿼트!' :
+       squatCountParam >= 4 ? '🙌 잘 했어요' :
+                              '🔄 다음엔 더 힘내봐요')
+    : (stats.avgScore >= 0.9 ? '🏆 완벽해요!' :
+       stats.avgScore >= 0.8 ? '🌟 훌륭해요!' :
+       stats.avgScore >= 0.6 ? '💪 잘했어요!' :
+       stats.avgScore >= 0.4 ? '🙌 노력했어요!' : '다음엔 더 잘할 수 있어요!');
 
   // Badges
   const unlockedBadges = useMemo(
