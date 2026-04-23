@@ -83,6 +83,17 @@ html, body, #root {
     linear-gradient(180deg, #150A28 0%, #0F0A1F 100%);
   background-attachment: fixed;
 }
+
+/* TEAM-UX (2026-04-23): 사용자 피드백 "배경이 너무 밝음" → 다크 모드 토글.
+   <html class="motiq-dark"> 가 붙으면 네온 radial 제거하고 순수 딥 블랙으로.
+   home 에 토글 버튼, localStorage('motiq_theme') 로 세션 영속. */
+html.motiq-dark, html.motiq-dark body, html.motiq-dark #root {
+  background-color: #050509;
+  background-image:
+    radial-gradient(50% 40% at 15% 12%, rgba(255,61,127,0.08) 0%, rgba(255,61,127,0) 70%),
+    radial-gradient(40% 35% at 88% 22%, rgba(0,229,255,0.06) 0%, rgba(0,229,255,0) 72%),
+    linear-gradient(180deg, #07070C 0%, #050509 100%);
+}
 body {
   margin: 0;
   overflow: hidden;

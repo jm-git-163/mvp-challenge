@@ -4,7 +4,7 @@
  * No emoji chrome, no gradients, no bouncing animations.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -337,6 +337,30 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const [selectedGenre, setSelectedGenre] = useState<string>('all');
 
+  // TEAM-UX (2026-04-23): 홈페이지 전역 배경 다크 모드 토글.
+  //   사용자 피드백 "배경이 너무 밝음" → 네온 mesh 를 끄고 딥 블랙.
+  //   +html.tsx 에 정의된 `html.motiq-dark` 클래스만 토글. localStorage 영속.
+  const [themeDark, setThemeDark] = useState<boolean>(false);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('motiq_theme') : null;
+      const dark = saved === 'dark';
+      setThemeDark(dark);
+      document.documentElement.classList.toggle('motiq-dark', dark);
+    } catch {}
+  }, []);
+  const toggleTheme = useCallback(() => {
+    setThemeDark(prev => {
+      const next = !prev;
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.toggle('motiq-dark', next);
+        try { localStorage.setItem('motiq_theme', next ? 'dark' : 'bright'); } catch {}
+      }
+      return next;
+    });
+  }, []);
+
   const startSession = useSessionStore(s => s.startSession);
 
   const { templates, loading, error, refetch } = useTemplates(
@@ -405,6 +429,14 @@ export default function HomeScreen() {
             <Text style={s.brandName}>Challenge</Text>
           </View>
           <View style={s.headerRight}>
+            <Pressable
+              onPress={toggleTheme}
+              style={s.iconBtn}
+              // @ts-ignore web
+              accessibilityLabel="Toggle dark mode"
+            >
+              <Text style={s.iconBtnText}>{themeDark ? '☀ 라이트' : '🌙 다크'}</Text>
+            </Pressable>
             <Pressable
               onPress={() => router.push('/(main)/profile')}
               style={s.iconBtn}

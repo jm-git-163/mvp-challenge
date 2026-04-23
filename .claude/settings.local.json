@@ -143,7 +143,10 @@
       "Bash(curl -s -I \"https://mvp-ivory-kappa.vercel.app/selftest?t=$\\(date +%s\\)\")",
       "Bash(git -c commit.gpgsign=false commit -m 'fix\\(cache\\): disable Vercel Edge CDN cache for SPA HTML *)",
       "Bash(git -c commit.gpgsign=false commit -m 'fix\\(vercel\\): remove invalid _comment field from headers schema *)",
-      "Bash(git -c commit.gpgsign=false commit -m 'fix\\(stt,hss\\): STT gesture-stack fix + HSS threshold v2 *)"
+      "Bash(git -c commit.gpgsign=false commit -m 'fix\\(stt,hss\\): STT gesture-stack fix + HSS threshold v2 *)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(ls C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\mvp\\\\\\\\PROGRESS.md)"
     ]
   }
 }
