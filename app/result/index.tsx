@@ -528,44 +528,55 @@ function ShareModal({
     ]).start();
   };
 
-  // TEAM-SHARE-V5 (2026-04-23): shareVideoToSns 로 단일화.
-  //   Web Share API 가 파일을 받을 수 있으면 native share sheet 를 그대로 띄우고,
-  //   못 받으면 저장 + 캡션 복사 + (플랫폼 지정 시) 딥링크 조합으로 자동 폴백.
-  //   AbortError(사용자 취소) 와 실제 실패를 명시적으로 구분.
-  const resolveShareFile = async (): Promise<File | null> => {
-    // composedBlob 이 있으면 그대로 사용. 없으면 rawVideoUri 를 fetch 해서 Blob 생성.
-    let blob: Blob | null = composedBlob;
-    if (!blob) {
-      const uri = composedUri ?? rawVideoUri;
-      if (!uri) return null;
-      try {
-        const resp = await fetch(uri);
-        blob = await resp.blob();
-      } catch { return null; }
-    }
-    if (!blob || blob.size === 0) return null;
-    return blobToShareFile(blob, templateName);
-  };
+  // TEAM-SHARE-V6 (2026-04-23): iOS Safari user-gesture 보존.
+  //   navigator.share() 는 반드시 **사용자 탭 핸들러 동기 호출 스택**에서 실행되어야 한다.
+  //   이전 버전은 resolveShareFile() 안에서 fetch 를 await 한 뒤 navigator.share 를 호출해
+  //   iOS 가 "not triggered by user activation" 으로 거부 → 아무 일도 안 일어났다.
+  //   해결: 모달이 열려 있고 소스가 바뀔 때마다 File 을 **미리** 만들어 ref 에 캐시.
+  //   탭 시점엔 ref 에서 꺼내 즉시 shareVideoToSns 호출.
+  const preparedFileRef = useRef<File | null>(null);
+  const [fileReady, setFileReady] = useState(false);
 
-  const runShare = async (platform: 'native' | 'kakao' | 'instagram' | 'youtube') => {
-    showToast('📤 공유 준비 중...');
-    const file = await resolveShareFile();
+  useEffect(() => {
+    let cancelled = false;
+    setFileReady(false);
+    preparedFileRef.current = null;
+    (async () => {
+      let blob: Blob | null = composedBlob;
+      if (!blob) {
+        const uri = composedUri ?? rawVideoUri;
+        if (!uri) return;
+        try {
+          const resp = await fetch(uri);
+          blob = await resp.blob();
+        } catch { return; }
+      }
+      if (cancelled) return;
+      if (!blob || blob.size === 0) return;
+      preparedFileRef.current = blobToShareFile(blob, templateName);
+      setFileReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [composedBlob, composedUri, rawVideoUri, templateName, visible]);
+
+  const runShare = (platform: 'native' | 'kakao' | 'instagram' | 'youtube') => {
+    const file = preparedFileRef.current;
     if (!file) {
       showToast('영상이 아직 준비되지 않았어요. 잠시 후 다시 시도해주세요.');
       return;
     }
-    try {
-      const res: ShareResult = await shareVideoToSns({
-        file, caption: shareText, title: templateName, platform,
-      });
+    // 동기 호출: iOS 가 user gesture 로 인식하도록 await 없이 Promise 만 받는다.
+    const p = shareVideoToSns({ file, caption: shareText, title: templateName, platform });
+    showToast('📤 공유 열기...');
+    p.then((res: ShareResult) => {
       showToast(res.message);
       if (res.kind === 'web-share-success' || res.kind === 'fallback-success') onClose();
-    } catch (e: any) {
+    }).catch((e: any) => {
       if (e?.name === 'AbortError') { showToast('공유가 취소됐어요.'); return; }
-      if (e?.name === 'NotAllowedError') { showToast('브라우저가 공유를 허용하지 않았어요. 주소창 자물쇠에서 권한을 확인해주세요.'); return; }
+      if (e?.name === 'NotAllowedError') { showToast('브라우저가 공유를 허용하지 않았어요. 길게 눌러 저장해주세요.'); return; }
       if (e?.name === 'TypeError') { showToast('이 영상 형식은 공유할 수 없어요. 다시 촬영해주세요.'); return; }
-      showToast('공유 실패. 다시 시도해주세요.');
-    }
+      showToast('공유 실패. 길게 눌러 저장해주세요.');
+    });
   };
 
   const handleWebShare = () => runShare('native');

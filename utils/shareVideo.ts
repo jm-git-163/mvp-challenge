@@ -65,9 +65,10 @@ function isAndroid(): boolean { return /Android/i.test(getUserAgent()); }
 function isIOS(): boolean { return /iPhone|iPad|iPod/i.test(getUserAgent()); }
 function isMobile(): boolean { return isAndroid() || isIOS(); }
 
-// Minimum plausible finished-video size. Anything smaller implies the
-// recording pipeline failed and we refuse to share a broken file.
-export const MIN_VIDEO_BYTES = 500 * 1024;
+// Minimum plausible finished-video size. 10KB — short clips (~2s) can legitimately
+// land under 500KB depending on codec + bitrate, so we only reject obviously-broken
+// 0~few-KB blobs from a failed recording pipeline.
+export const MIN_VIDEO_BYTES = 10 * 1024;
 
 // ── Primitives ──────────────────────────────────────────────────────────
 
