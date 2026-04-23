@@ -23,15 +23,22 @@
 
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 
-// 1.5 초 윈도 — 한 rep (≈700~1500ms) 동안 hip 이 한 번은 크게 움직여야.
-const WINDOW_MS = 1500;
-// 0.06 = 화면 높이의 6%. 진짜 스쿼트는 보통 12~25% (앉은 자세 → 선 자세 hip 변위).
-//   6% 는 매우 보수적인 최소선 — 앉은 채 살짝 들썩이는 정도는 통과 못함.
-const MIN_HIP_AMPL = 0.06;
+// 1.2 초 윈도 — 한 rep (≈700~1200ms) 동안 hip 이 한 번은 크게 움직여야.
+//   v2 (2026-04-23): 1.5→1.2 단축. 윈도 길수록 과거 미세움직임이 누적되어 false-allow.
+const WINDOW_MS = 1200;
+// 0.12 = 화면 높이의 12%. 진짜 스쿼트는 보통 15~25% hip 변위.
+//   v2: 0.06→0.12 강화. 0.06 은 일상 자세변경(의자 들썩, 다리꼬기, 슬럼프)으로도
+//       쉽게 초과되어 사용자 "앉아있었는데 카운트 3" 재현. 12% 면 의도적 굽힘 필요.
+const MIN_HIP_AMPL = 0.12;
 // hip visibility 최소값. MoveNet 근접촬영에서 hip 이 frame 밖이면 0 근처.
-const MIN_VIS = 0.4;
+//   v2: 0.4→0.5 강화. 부분가시는 noise y 추정으로 false amplitude 유발.
+const MIN_VIS = 0.5;
 // 최소 샘플 수 — 너무 적으면 amplitude 가 작은 jitter 우연한 큰값일 수 있음.
 const MIN_SAMPLES = 8;
+// 방향성 검증 — 진짜 스쿼트는 "내려갔다(y 증가) 올라옴(y 감소)" 시퀀스.
+//   윈도 안에 max y(가장 깊이 앉은 시점) 이후 y 가 다시 ≥ MIN_RETURN 만큼 감소해야.
+//   슬럼프(한 방향 이동만)는 통과 못함.
+const MIN_RETURN = 0.05;
 
 interface HipSample {
   t: number;
@@ -49,13 +56,22 @@ export interface HipGateResult {
   /** 윈도 내 visible 샘플 수. */
   samples: number;
   /** 거부 사유 (디버그/UI 용). */
-  reason: 'ok' | 'no-amplitude' | 'low-visibility' | 'too-few-samples' | 'no-landmarks';
+  reason: 'ok' | 'no-amplitude' | 'low-visibility' | 'too-few-samples' | 'no-landmarks' | 'no-return';
 }
 
 export class HipMotionGate {
   private history: HipSample[] = [];
 
   reset(): void {
+    this.history = [];
+  }
+
+  /**
+   * 카운트 성공 직후 호출. 현재 히스토리를 소진하여 **다음 rep 은 새 hip 움직임**이
+   * 필요하도록 강제. 이렇게 하지 않으면 한 번의 큰 자세 변경이 게이트를 1.2초간
+   * 열어 그 동안 누적된 작은 노이즈도 카운트 통과 → 가짜 3연속 카운트.
+   */
+  consume(): void {
     this.history = [];
   }
 
@@ -119,6 +135,26 @@ export class HipMotionGate {
         samples: visibleSamples.length, reason: 'no-amplitude',
       };
     }
+
+    // 방향성 검증 — 진짜 스쿼트는 "max y 도달 후 다시 상승(y 감소)" 시퀀스.
+    //   max y 가 윈도 끝에 있으면(= 현재도 계속 내려가는 중) 카운트 금지.
+    //   max y 이후 최저 y 가 max − MIN_RETURN 이하여야 (올라왔다는 증거).
+    let maxYIdx = 0;
+    for (let i = 1; i < visibleSamples.length; i++) {
+      if (visibleSamples[i].y > visibleSamples[maxYIdx].y) maxYIdx = i;
+    }
+    let postMaxMinY = visibleSamples[maxYIdx].y;
+    for (let i = maxYIdx + 1; i < visibleSamples.length; i++) {
+      if (visibleSamples[i].y < postMaxMinY) postMaxMinY = visibleSamples[i].y;
+    }
+    const returned = visibleSamples[maxYIdx].y - postMaxMinY;
+    if (returned < MIN_RETURN) {
+      return {
+        allow: false, amplitude, visibility,
+        samples: visibleSamples.length, reason: 'no-return',
+      };
+    }
+
     return {
       allow: true, amplitude, visibility,
       samples: visibleSamples.length, reason: 'ok',

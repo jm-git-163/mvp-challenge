@@ -365,6 +365,8 @@ export function useJudgement(): {
             squatCountState.current = effective;
             setSquatCount(effective);
             squatPhaseOut = closeState.phase;
+            // TEAM-ACCURACY v2 (2026-04-23): 게이트 히스토리 소진 — 다음 rep 은 새 hip 움직임 필요.
+            hipGateRef.current.consume();
             // FIX-N: 이 증분은 근접(얼굴) 디텍터 소스. full-body 가 아직 안 잡혔으면 near-mode.
             if (squatSourceRef.current !== 'full-body') {
               squatSourceRef.current = 'near-mode';
@@ -424,18 +426,29 @@ export function useJudgement(): {
               squatPhaseRef.current = 'down';
               squatPhaseOut = 'down';
             } else if (squatPhaseRef.current === 'down' && stable === 'up') {
-              // 진짜 1 rep 완료
-              squatCountRef.current += 1;
-              squatPhaseRef.current = 'up';
-              squatPhaseOut = 'up';
-              if (squatCountRef.current !== squatCountState.current) {
-                squatCountState.current = squatCountRef.current;
-                setSquatCount(squatCountRef.current);
-              }
-              // FIX-N: full-body 실제 무릎각도 기반 rep 완료 → 정밀 모드 확정.
-              if (squatSourceRef.current !== 'full-body') {
-                squatSourceRef.current = 'full-body';
-                setSquatMode('full-body');
+              // 진짜 1 rep 완료 — 단, hip 진폭 게이트 통과 필수.
+              // TEAM-ACCURACY v2 (2026-04-23): 사용자 재제보 "앉아 있었는데 3 카운트".
+              //   풀바디 경로에도 게이트 적용. 의자에 앉으면 무릎각이 자연스레 90도 →
+              //   detectSquat 가 'down' 으로 판정, 미세한 움직임으로 'up' 토글되면 누적 카운트.
+              //   hip 이 실제로 움직이지 않았다면 rep 으로 인정 안 함.
+              if (hipGate.allow) {
+                squatCountRef.current += 1;
+                squatPhaseRef.current = 'up';
+                squatPhaseOut = 'up';
+                if (squatCountRef.current !== squatCountState.current) {
+                  squatCountState.current = squatCountRef.current;
+                  setSquatCount(squatCountRef.current);
+                }
+                hipGateRef.current.consume();
+                // FIX-N: full-body 실제 무릎각도 기반 rep 완료 → 정밀 모드 확정.
+                if (squatSourceRef.current !== 'full-body') {
+                  squatSourceRef.current = 'full-body';
+                  setSquatMode('full-body');
+                }
+              } else {
+                // 게이트 거부 — phase 만 진행(다음 rep 기회 열어둠), 카운트 증가 없음.
+                squatPhaseRef.current = 'up';
+                squatPhaseOut = 'up';
               }
             }
           }
@@ -461,6 +474,7 @@ export function useJudgement(): {
               setSquatCount(effective);
               squatPhaseOut = hssRes.phase;
               lastSquatCountAtRef.current = now;
+              hipGateRef.current.consume();
               if (squatSourceRef.current !== 'full-body') {
                 squatSourceRef.current = 'near-mode';
                 setSquatMode('near-mode');
@@ -488,6 +502,7 @@ export function useJudgement(): {
                   setSquatCount(effective);
                   squatPhaseOut = noseRes.phase;
                   lastSquatCountAtRef.current = now;
+                  hipGateRef.current.consume();
                   if (squatSourceRef.current !== 'full-body') {
                     squatSourceRef.current = 'near-mode';
                     setSquatMode('near-mode');
