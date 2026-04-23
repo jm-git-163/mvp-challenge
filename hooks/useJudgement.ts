@@ -20,7 +20,7 @@ import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
 import { pickScriptWithHistory } from '../engine/missions/scriptPrompterMission';
-import { SCRIPT_POOLS_BY_THEME } from '../services/mockData';
+import { SCRIPT_POOLS_BY_THEME, pickSubPoolForText } from '../services/mockData';
 import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
@@ -271,15 +271,20 @@ export function useJudgement(): {
           const rt = mission.read_text;
           const tmplId = template?.id ?? 'unknown';
           const missionKey = `${tmplId}::${mission.seq}`;
-          // FIX-SCRIPT-POOL-PROD (2026-04-23): Supabase DB read_text 는 단일 문자열이므로
-          //   theme_id/genre 로 풀을 찾아 배열 로테이션. 매칭 풀 없으면 원문 그대로.
+          // FIX-SCRIPT-POOL-PROD (2026-04-23 v2): 서브풀 우선 매칭 — news 템플릿이라도
+          //   인사 미션에 마무리 멘트("시청 감사합니다") 같은 엉뚱한 문장이 뜨지 않도록
+          //   원문 read_text 가 속하는 서브풀을 먼저 찾는다. 없으면 장르/테마 포괄 풀.
           let pool: string[] | null = Array.isArray(rt) ? rt : null;
           if (!pool && typeof rt === 'string') {
-            const key = (template?.theme_id || template?.genre || '').toLowerCase();
-            const candidate = SCRIPT_POOLS_BY_THEME[key];
-            if (candidate && candidate.length > 0) {
-              // 원문 read_text 도 풀에 포함 (중복 제거)
-              pool = candidate.includes(rt) ? candidate : [rt, ...candidate];
+            const sub = pickSubPoolForText(rt);
+            if (sub && sub.length > 1) {
+              pool = sub;
+            } else {
+              const key = (template?.theme_id || template?.genre || '').toLowerCase();
+              const candidate = SCRIPT_POOLS_BY_THEME[key];
+              if (candidate && candidate.length > 0) {
+                pool = candidate.includes(rt) ? candidate : [rt, ...candidate];
+              }
             }
           }
           if (pool && pool.length > 1) {

@@ -10,8 +10,8 @@ import type { TemplateThumb } from './templateThumbnails';
 
 export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   "021ccc86-7d9f-41c0-88bd-970406bebd2e": {
-    "url": "https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=640&q=75&v=4",
-    "largeURL": "https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=1280&q=80",
+    "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=640&q=75&v=5",
+    "largeURL": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1280&q=80",
     "tags": "daily vlog, self filming, tripod, content creator",
     "user": "unsplash",
     "pixabayId": 0
@@ -31,8 +31,8 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 2787754
   },
   "8e0b4493-5c5e-4ece-82dd-2ba93f9b8036": {
-    "url": "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=640&q=75&v=4",
-    "largeURL": "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=1280&q=80",
+    "url": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=640&q=75&v=5",
+    "largeURL": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=1280&q=80",
     "tags": "toddler, storybook, reading, fairy tale",
     "user": "unsplash",
     "pixabayId": 0
@@ -45,16 +45,16 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 3741233
   },
   "af337411-5b84-408a-b16a-e4fc04e78ebb": {
-    "url": "https://pixabay.com/get/g704edaab3a856189b3349701331b731a57a36bfd0aea9f8aae6365ee5d118d1e144d389a9a7b350de711f7c304150bd4_640.jpg",
-    "largeURL": "https://pixabay.com/get/gfc6f7050c6fdbc9a775f870e50e874e4bf539e5d322c8279be83d3ca53384655fb66f708ae4159911f3ca5b1035b1569ec57c2bdb7f77c23d22185a8e55af448_1280.jpg",
-    "tags": "iphone, smartphone, apps, apple inc, mobile phone, cell phone, phone, communication, mobile, telephone, technology, cellular, call, screen, wireless, business, modern, digital, message, connection, communicate, electronic, display, contact, hand, touch, conversation, portable, computer, touchscreen, applications, ios, holding, typing, browsing, brown business, brown computer, brown technology, brown laptop, brown phone, brown apple, brown mobile, brown community, brown digital, brown communication, brown company, brown conversation, brown smartphone, brown telephone, brown iphone, iphone, iphone, iphone, smartphone, smartphone, mobile phone, cell phone, phone, phone, phone, phone, phone, mobile, mobile",
-    "user": "JESHOOTS-com",
-    "pixabayId": 410324
+    "url": "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&w=640&q=75&v=6",
+    "largeURL": "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&w=1280&q=80",
+    "tags": "gift box, present, wrapped, ribbon, unboxing",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   "e2d9cc60-08c3-4200-86ba-3a7cdfa6ad54": {
-    "url": "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=640&q=75&v=4",
-    "largeURL": "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1280&q=80",
-    "tags": "kpop, dance, stage, performance, group",
+    "url": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=640&q=75&v=6",
+    "largeURL": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1280&q=80",
+    "tags": "street dance, asian, kpop, performance",
     "user": "unsplash",
     "pixabayId": 0
   },

@@ -252,6 +252,64 @@ const POOL_MOTIVATION: string[] = [
  * genre/theme_id 로 적절한 풀을 찾아 fallback 으로 제공하는 맵.
  * useJudgement.ts 에서 `read_text` 가 string 일 때 이 맵을 조회해 로테이션.
  */
+/**
+ * FIX-SCRIPT-SUBPOOL (2026-04-23 v2):
+ * 사용자 불만 "자막 챌린지 중 '지금까지 시청 감사합니다' 같은 엉뚱한 문장이 뜸".
+ * 원인: news 템플릿의 greeting/weather/report/closing 서브풀을 하나로 합쳐 로테이션해서
+ *       인사 미션에 마무리 멘트가 튀어나옴.
+ * 해결: 원본 read_text 문자열이 어느 서브풀에 속하는지(또는 가장 닮았는지) 먼저 판정하고,
+ *       그 서브풀 안에서만 로테이션. 미션의 의도(greeting/weather/report/closing 등)를 유지.
+ */
+export const SCRIPT_SUBPOOLS: Record<string, string[]> = {
+  daily_vlog: POOL_DAILY_VLOG,
+  news_greeting: POOL_NEWS_GREETING,
+  news_weather: POOL_NEWS_WEATHER,
+  news_report: POOL_NEWS_REPORT,
+  news_closing: POOL_NEWS_CLOSING,
+  storybook_intro: POOL_STORYBOOK_INTRO,
+  storybook_middle: POOL_STORYBOOK_MIDDLE,
+  storybook_end: POOL_STORYBOOK_END,
+  travel: POOL_TRAVEL,
+  food_review: POOL_FOOD_REVIEW,
+  english: POOL_ENGLISH,
+  motivation: POOL_MOTIVATION,
+};
+
+/** 원본 read_text 에 가장 잘 맞는 서브풀을 반환. 매칭 실패 시 null. */
+export function pickSubPoolForText(originalText: string): string[] | null {
+  if (!originalText) return null;
+  const src = originalText.trim();
+  // 1) 원문이 이미 풀에 들어있으면 그 풀 확정.
+  for (const pool of Object.values(SCRIPT_SUBPOOLS)) {
+    if (pool.includes(src)) return pool;
+  }
+  // 2) 키워드 힌트 매칭 (공지성 문구 / 뉴스 세그먼트 등).
+  const t = src.toLowerCase();
+  const has = (s: string) => t.includes(s.toLowerCase());
+  if (has('시청해주셔') || has('시청 감사') || has('다음 시간') || has('마칩니다') || has('감사합니다')) {
+    return SCRIPT_SUBPOOLS.news_closing;
+  }
+  if (has('날씨') || has('기온') || has('비 ') || has('눈 ') || has('맑겠') || has('흐리')) {
+    return SCRIPT_SUBPOOLS.news_weather;
+  }
+  if (has('뉴스입니다') || has('안녕하십니까') || has('뉴스를 시작') || has('속보') || has('아침 뉴스')) {
+    return SCRIPT_SUBPOOLS.news_greeting;
+  }
+  if (has('보도') || has('발표') || has('예정입니다') || has('공개') || has('집계')) {
+    return SCRIPT_SUBPOOLS.news_report;
+  }
+  if (has('옛날 옛적') || has('살았습니다') || has('공주') || has('왕자') || has('꿈을 꿨')) {
+    return SCRIPT_SUBPOOLS.storybook_intro;
+  }
+  if (has('행복하게 살았') || has('그 후로') || has('끝입니다') || has('이야기의 끝')) {
+    return SCRIPT_SUBPOOLS.storybook_end;
+  }
+  if (has('hello') || has('nice to meet') || has('thank you') || has('good morning')) {
+    return SCRIPT_SUBPOOLS.english;
+  }
+  return null;
+}
+
 export const SCRIPT_POOLS_BY_THEME: Record<string, string[]> = {
   daily: POOL_DAILY_VLOG,
   daily_vlog: POOL_DAILY_VLOG,

@@ -1203,7 +1203,7 @@ const tov = StyleSheet.create({
 
 // ─── SquatHUD (left panel) ────────────────────────────────────────────────────
 
-function SquatHUD({ count, phase, kneeAngle }: { count:number; phase:'up'|'down'|'unknown'; kneeAngle:number }) {
+function SquatHUD({ count, phase, kneeAngle, mode }: { count:number; phase:'up'|'down'|'unknown'; kneeAngle:number; mode?:'full-body'|'near-mode'|null }) {
   const bounceAnim = useRef(new Animated.Value(1)).current;
   const prevCount  = useRef(count);
 
@@ -1229,6 +1229,13 @@ function SquatHUD({ count, phase, kneeAngle }: { count:number; phase:'up'|'down'
         <Text style={sq.repNum}>{count}</Text>
         <Text style={sq.repUnit}>회</Text>
       </Animated.View>
+      {mode === 'near-mode' && count > 0 && (
+        // TEAM-ACCURACY (2026-04-23): 사용자 피드백 "정확하지 않은 카운트가 뜸".
+        //   전신 미보임 상태에서 머리/어깨 신호로 추정한 카운트는 부정확할 수 있음 → 명시.
+        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', letterSpacing:0.5, marginTop:-4 }}>
+          ※ 추정치 · 전신 보이게
+        </Text>
+      )}
 
       <View style={sq.phaseRow}>
         <View style={[sq.phaseDot, { backgroundColor:phaseColor,
@@ -2076,7 +2083,7 @@ export default function RecordScreen() {
               )}
 
               {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
-                <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} />
+                <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} mode={squatMode} />
               )}
 
               {/* FIX-T: 스쿼트 자세 가이드. FIX-Y1(2026-04-22): `visible` 를 명시적 boolean 으로.
