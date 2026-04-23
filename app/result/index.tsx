@@ -610,6 +610,40 @@ function ShareModal({
       },
     },
     {
+      label: 'YouTube Shorts',   sub: '업로드 페이지 열기',  accent: false,
+      onPress: async () => {
+        // TEAM-SHARE-V2 (2026-04-23): 사용자 요청 "유튜브 연결 통로 추가".
+        //   YouTube 는 Data API v3 로 OAuth 필요해 순수 클라이언트 직접 업로드 어려움.
+        //   최선은 업로드 페이지(youtube.com/upload) 를 새 탭으로 + 영상 다운로드 + 캡션 복사.
+        const ok = await handleDownload();
+        await copyCaption();
+        openPlatformShare('youtube_shorts', shareText);
+        showToast(ok ? '영상 저장·캡션 복사 완료. YouTube 에서 첨부하세요.' : '캡션 복사됨. 영상 저장 재시도.');
+      },
+    },
+    {
+      label: '카카오톡 공유',     sub: '시스템 공유 시트',   accent: false,
+      onPress: async () => {
+        // 카카오 SDK 는 서버 호스팅 URL 필요 → 제약 §12 (서버 금지). 대안: 네이티브 share 시트
+        //   Android 에서 열면 카카오톡 포함 다수 앱 선택 가능. 앱이 파일 수신.
+        if (typeof navigator !== 'undefined' && navigator.share && composedBlob) {
+          try {
+            const filename = buildDownloadFilename(templateName, composedBlob);
+            const file = new File([composedBlob], filename, { type: composedBlob.type || 'video/webm' });
+            await navigator.share({ files: [file], title: `${templateName} 챌린지`, text: shareText });
+            onClose();
+            return;
+          } catch (e: any) {
+            if (e?.name === 'AbortError') return;
+          }
+        }
+        // 폴백: 다운로드 → 카톡에서 직접 첨부
+        const ok = await handleDownload();
+        await copyCaption();
+        showToast(ok ? '영상 저장·캡션 복사 완료. 카톡에서 첨부하세요.' : '저장 실패. 재시도해주세요.');
+      },
+    },
+    {
       label: 'X / Twitter',     sub: '게시글로 공유',      accent: false,
       onPress: () => openPlatformShare('twitter', shareText),
     },
@@ -641,8 +675,8 @@ function ShareModal({
               onPress={handleWebShare}
             >
               <View style={sm.primaryRowInner}>
-                <Text style={sm.primaryRowLabel}>기기 기본 공유</Text>
-                <Text style={sm.primaryRowSub}>시스템 공유 시트</Text>
+                <Text style={sm.primaryRowLabel}>한 번에 공유 (원탭)</Text>
+                <Text style={sm.primaryRowSub}>카톡·인스타·유튜브·라인 등 앱 선택</Text>
               </View>
               <Text style={sm.primaryRowArrow}>→</Text>
             </Pressable>
@@ -1140,20 +1174,23 @@ export default function ResultScreen() {
   }, [userId, activeTemplate, frameTags, rawVideoUri, composedUri, stats]);
 
   const goHome = useCallback(() => {
-    // FIX-NAV (2026-04-23): expo-router v5+ 는 그룹 세그먼트 `(main)` 을 URL 에 노출하지 않음.
-    //   `/(main)/home` replace 는 Not Found → catch 로 떨어져 location.href 폴백이 발생하고
-    //   그 과정에서 "홈으로 이동 에러" 경험. 올바른 path 는 `/home`.
-    //   reset/revokeObjectURL 은 navigation 완료 후 수행해 unmount race 방지.
-    try {
-      router.replace('/home');
-    } catch (e) {
-      console.warn('[result] goHome router.replace failed, falling back to location.href', e);
-      if (typeof window !== 'undefined') window.location.href = '/home?_b=' + Date.now();
-    }
-    setTimeout(() => {
+    // FIX-NAV (2026-04-23 v3): 가장 안정적인 경로는 루트 Index.tsx 로 이동하여
+    //   expo-router 의 `<Redirect href="/(main)/home"/>` 를 통과시키는 것.
+    //   직접 `/home` 또는 `/(main)/home` 은 빌드/배포 환경에 따라 라우터 해석 차이로
+    //   React #300 (Too many re-renders) 발생 사례 보고됨.
+    //   reset 은 navigation 완료 후 수행 → result 페이지 unmount race 방지.
+    const t = setTimeout(() => {
       try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
       try { reset(); } catch {}
-    }, 0);
+    }, 50);
+    try {
+      router.replace('/');
+    } catch (e) {
+      clearTimeout(t);
+      try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
+      try { reset(); } catch {}
+      if (typeof window !== 'undefined') window.location.href = '/?_b=' + Date.now();
+    }
   }, [reset, composedUri, router]);
 
   const doRetake = useCallback(() => {

@@ -113,16 +113,15 @@ export function canUseWebShareFiles(
   fileName: string,
 ): boolean {
   if (!nav || typeof nav.share !== 'function' || !blob) return false;
-  const ext = extensionForBlob(blob);
-  // webm 은 어떤 플랫폼이든 Web Share 파일 모드 금지 — 모바일 앱들이 안정적으로 수신 못함.
-  if (ext === 'webm' || ext === 'ogv') return false;
-
   // 환경에 따라 File 생성자가 없을 수 있음 (node/test) → 안전 guard
   if (typeof File !== 'function') return false;
   try {
+    // TEAM-SHARE-V2 (2026-04-23): 이전 버전은 webm 전역 차단했으나
+    //   사용자 피드백 "원탭 공유가 아예 안 열림" — 차단 너무 넓어 네이티브 share sheet 봉쇄.
+    //   webm 도 일단 canShare 에 물어보고, 브라우저가 허용하면 열어줌. 실제 앱 선택은 사용자가.
     const probe = new File([blob], fileName, { type: blob.type || 'video/webm' });
     if (typeof nav.canShare === 'function') return !!nav.canShare({ files: [probe] });
-    return true; // canShare 미구현 → 시도해볼 만함
+    return true;
   } catch {
     return false;
   }

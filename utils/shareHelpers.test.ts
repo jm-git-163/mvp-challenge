@@ -102,10 +102,12 @@ describe('canUseWebShareFiles', () => {
     const blob = new Blob([], { type: 'video/mp4' });
     expect(canUseWebShareFiles(nav, blob, 'x.mp4')).toBe(false);
   });
-  it('iOS Safari + webm → false (early reject)', () => {
+  it('webm + canShare=true → true (TEAM-SHARE-V2: webm 전역차단 해제)', () => {
+    // 이전엔 false 였으나 사용자 피드백으로 네이티브 share sheet 봉쇄가 너무 넓음.
+    // canShare 가 true 반환하면 일단 시도. 앱 선택은 사용자 책임.
     const nav = { share: vi.fn(), canShare: vi.fn(() => true), userAgent: 'iPhone Safari' };
     const blob = new Blob([], { type: 'video/webm' });
-    expect(canUseWebShareFiles(nav, blob, 'x.webm')).toBe(false);
+    expect(canUseWebShareFiles(nav, blob, 'x.webm')).toBe(true);
   });
   it('iOS Safari + mp4 → true', () => {
     const nav = { share: vi.fn(), canShare: vi.fn(() => true), userAgent: 'iPhone Safari' };
