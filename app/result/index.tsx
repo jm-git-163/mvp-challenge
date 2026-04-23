@@ -622,25 +622,27 @@ function ShareModal({
       },
     },
     {
-      label: '카카오톡 공유',     sub: '시스템 공유 시트',   accent: false,
+      label: '카카오톡 공유',     sub: '저장 후 카톡에서 첨부', accent: false,
       onPress: async () => {
-        // 카카오 SDK 는 서버 호스팅 URL 필요 → 제약 §12 (서버 금지). 대안: 네이티브 share 시트
-        //   Android 에서 열면 카카오톡 포함 다수 앱 선택 가능. 앱이 파일 수신.
-        if (typeof navigator !== 'undefined' && navigator.share && composedBlob) {
-          try {
-            const filename = buildDownloadFilename(templateName, composedBlob);
-            const file = new File([composedBlob], filename, { type: composedBlob.type || 'video/webm' });
-            await navigator.share({ files: [file], title: `${templateName} 챌린지`, text: shareText });
-            onClose();
-            return;
-          } catch (e: any) {
-            if (e?.name === 'AbortError') return;
-          }
-        }
-        // 폴백: 다운로드 → 카톡에서 직접 첨부
+        // TEAM-SHARE-V3 (2026-04-23): 사용자 반복 피드백 "카톡은 '압축중' 2/3에서 전송 실패".
+        //   원인: Android KakaoTalk 은 Web Share 로 받은 webm 을 내부 트랜스코딩하다가
+        //   코덱 불일치 / 버퍼 초과로 멈춤. 당사 출력이 mp4 여도 용량·청크 경계 문제
+        //   동일 증상 보고. 따라서 카톡 버튼에서는 Web Share API 를 아예 사용하지 않고
+        //   **파일 저장 + 캡션 복사 + 카톡 딥링크** 경로로 통일 → 사용자가 카톡 채팅방에서
+        //   직접 첨부. 업로드 실패 0.
         const ok = await handleDownload();
         await copyCaption();
-        showToast(ok ? '영상 저장·캡션 복사 완료. 카톡에서 첨부하세요.' : '저장 실패. 재시도해주세요.');
+        // 모바일: 카톡 앱 열기 (채팅 목록). 데스크톱: 카톡 다운로드 페이지.
+        if (typeof window !== 'undefined') {
+          const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+          const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+          if (isMobile) {
+            try { window.location.href = 'kakaotalk://'; } catch {}
+          }
+        }
+        showToast(ok
+          ? '영상 저장 · 캡션 복사됨. 카톡 채팅방에 첨부해주세요.'
+          : '저장 실패. 재시도해주세요.');
       },
     },
     {
@@ -1174,23 +1176,19 @@ export default function ResultScreen() {
   }, [userId, activeTemplate, frameTags, rawVideoUri, composedUri, stats]);
 
   const goHome = useCallback(() => {
-    // FIX-NAV (2026-04-23 v3): 가장 안정적인 경로는 루트 Index.tsx 로 이동하여
-    //   expo-router 의 `<Redirect href="/(main)/home"/>` 를 통과시키는 것.
-    //   직접 `/home` 또는 `/(main)/home` 은 빌드/배포 환경에 따라 라우터 해석 차이로
-    //   React #300 (Too many re-renders) 발생 사례 보고됨.
-    //   reset 은 navigation 완료 후 수행 → result 페이지 unmount race 방지.
-    const t = setTimeout(() => {
-      try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
-      try { reset(); } catch {}
-    }, 50);
-    try {
-      router.replace('/');
-    } catch (e) {
-      clearTimeout(t);
-      try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
-      try { reset(); } catch {}
-      if (typeof window !== 'undefined') window.location.href = '/?_b=' + Date.now();
+    // FIX-NAV (2026-04-23 v4): router.replace 는 빌드/배포 환경 차이로 React #300
+    //   (Too many re-renders) 재현 사례가 계속 보고됨. 루트 Index.tsx → Redirect 경로도
+    //   일부 WebView/브라우저 조합에서 루프. 가장 확실한 복귀 방법은 **풀 페이지 네비게이션**.
+    //   블롭 URL 해제·세션 리셋을 먼저 수행한 뒤 location.href 로 이동하면
+    //   React 재조정이 일어나지 않으므로 루프 자체가 불가능.
+    try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
+    try { reset(); } catch {}
+    if (typeof window !== 'undefined' && window.location) {
+      window.location.href = '/?_b=' + Date.now();
+      return;
     }
+    // Native (iOS/Android app) 폴백
+    try { router.replace('/'); } catch {}
   }, [reset, composedUri, router]);
 
   const doRetake = useCallback(() => {
