@@ -3,15 +3,17 @@
  *
  * TEAM-TEMPLATE-v2 (2026-04-23) — 영어 스피킹 비주얼 강화.
  *
- * 팔레트: 아카데미 — 칠판 다크그린(#1E3A34) + 초크 화이트(#F5F0E1) + TOEFL 골드(#D4AF37).
+ * 팔레트: 아카데미 — 차분한 네이비(#0B1F3A) + 책 페이지 아이보리(#F5F0E1) + TOEFL 골드(#D4AF37).
  * v2: 14 → 23 레이어, 스크립트 8 → 18.
+ * FIX-TONE (2026-04-23 v3): 사용자 요청 "영어는 차분한 네이비·책 페이지" — 칠판 그린을
+ *   네이비 지배 팔레트로 교체. 책 페이지 느낌은 bg_mesh 에 아이보리 비중 확대.
  */
 import type { Template } from '../../engine/templates/schema';
 
-const CHALK_BG = '#1E3A34';
-const CHALK_FG = '#F5F0E1';
+const CHALK_BG = '#0B1F3A';   // 네이비 (구 칠판 그린 → 책 페이지 분위기 네이비)
+const CHALK_FG = '#F5F0E1';   // 아이보리 (책 종이)
 const GOLD     = '#D4AF37';
-const NAVY     = '#0B1828';
+const NAVY     = '#071428';   // 딥 네이비 (bg mesh 끝점)
 
 export const englishSpeaking: Template = {
   id: 'english-speaking',
@@ -35,8 +37,10 @@ export const englishSpeaking: Template = {
 
   layers: [
     // ── 배경 (4) ────────────────────────────────────────────────
-    { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1, enabled: true, props: { colors: [CHALK_BG, '#0F2320', NAVY], rotatePeriodSec: 90 } },
-    { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.18, enabled: true, props: { color: CHALK_FG, perspective: false, scrollPerBarPx: 0 } },
+    // FIX-TONE: 책 페이지 느낌 — 네이비 딥 + 아이보리 하이라이트. 그린 완전 제거.
+    { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1, enabled: true, props: { colors: [NAVY, CHALK_BG, '#12294C'], rotatePeriodSec: 90 } },
+    // FIX-TONE: animated_grid → 가로 "밑줄" 느낌(스크롤 없음, 수평선) 강화 — 책 페이지의 괘선.
+    { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.16, enabled: true, props: { color: CHALK_FG, perspective: false, scrollPerBarPx: 0 } },
     { id: 'bg_grain',      type: 'noise_pattern',    zIndex: 3, opacity: 0.18, enabled: true },
     { id: 'bg_dust',       type: 'particle_ambient', zIndex: 4, opacity: 0.4, enabled: true, props: { preset: 'glitter_down', count: 18, tint: GOLD } },
 
