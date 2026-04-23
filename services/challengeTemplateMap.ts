@@ -81,26 +81,32 @@ function stripClutterLayers(t: Template): Template {
   //   voice_read 미션 템플릿에서 상단 텔레프롬프터와 내용이 달라 혼선. 전역 제거.
   // FIX-SUBTITLE-DUP v3 (2026-04-23): subtitle_track/lower_third 등 하단 텍스트 레이어
   //   일체 제거. 유저 요구: "voice_read 미션 중 하단 자막 전부 없애라".
+  // FIX-COUNTER-TEXT (2026-04-23): 사용자 피드백 "0/10, 1/10 같은 N/M 카운터 텍스트가
+  //   화면에 박혀서 보기 나쁘다". counter_hud(= '{n}/10' 류 템플릿 텍스트 레이어)
+  //   전역 제거. 스쿼트 실제 카운트는 별도 SquatHUD React 컴포넌트가 표시.
   const KILL_TYPES = new Set([
     'news_ticker', 'kinetic_text', 'karaoke_caption',
     'subtitle_track', 'lower_third', 'hashtag_strip', 'ticker',
+    'counter_hud',
   ]);
   const KILL_IDS = new Set(['hashtag_strip', 'bottom_ticker', 'subtitle_timeline']);
   // FIX-EFFECT-INTENSITY (2026-04-23): 사용자 피드백 "효과가 너무 심해 피사체가 안 보임".
   //   배경·파티클·그레인·비트플래시·크로매틱 등 피사체 가독성을 해치는 오버레이 레이어의
   //   opacity 를 강제 캡 → 카메라 피드가 선명히 드러나도록.
+  // FIX-EFFECT-INTENSITY-v2 (2026-04-23): 스쿼트 등에서 여전히 과함 → ~40% 추가 tighten.
   const OPACITY_CAPS: Record<string, number> = {
-    particle_ambient: 0.30,
-    particle_burst:   0.35,
-    beat_flash:       0.25,
-    chromatic_pulse:  0.20,
-    lens_flare:       0.30,
-    noise_pattern:    0.06,
-    animated_grid:    0.22,
-    gradient_mesh:    0.55,
-    image_bg:         0.60,
-    scanlines:        0.15,
-    vignette:         0.40,
+    particle_ambient: 0.18,
+    particle_burst:   0.22,
+    beat_flash:       0.14,
+    chromatic_pulse:  0.12,
+    lens_flare:       0.18,
+    noise_pattern:    0.04,
+    animated_grid:    0.14,
+    gradient_mesh:    0.45,
+    image_bg:         0.55,
+    scanlines:        0.10,
+    vignette:         0.28,
+    pulse_circle:     0.16,
   };
   const cleaned = layers
     .filter((L: any) => !(L && (KILL_TYPES.has(L.type) || KILL_IDS.has(L.id))))

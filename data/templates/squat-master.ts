@@ -42,22 +42,23 @@ export const squatMaster: Template = {
   layers: [
     // ── 배경 (4) ────────────────────────────────────────────────
     { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1,    enabled: true, props: { colors: [NAVY, INDIGO, '#000000'], rotatePeriodSec: 60 } },
-    { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.55, enabled: true, props: { color: YELLOW, perspective: true, scrollPerBarPx: 48 }, reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.2, easing: 'easeOut', durationMs: 240 } } },
-    { id: 'bg_sweat',      type: 'particle_ambient', zIndex: 3, opacity: 0.5,  enabled: true, props: { preset: 'electric_blue_rise', count: 28 } },
-    { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.35, enabled: true, props: { shapes: ['star'], yBand: [120, 420], tint: YELLOW, sizeJitter: 0.4 } },
+    // FIX-EFFECT-INTENSITY-v2 (2026-04-23): 스쿼트 효과 과도 → 피사체 가독성 우선, opacity ~45% 감소.
+    { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.30, enabled: true, props: { color: YELLOW, perspective: true, scrollPerBarPx: 48 }, reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.1, easing: 'easeOut', durationMs: 240 } } },
+    { id: 'bg_sweat',      type: 'particle_ambient', zIndex: 3, opacity: 0.28, enabled: true, props: { preset: 'electric_blue_rise', count: 18 } },
+    { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.20, enabled: true, props: { shapes: ['star'], yBand: [120, 420], tint: YELLOW, sizeJitter: 0.4 } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
     { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true },
-    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.3,  enabled: true, props: { ringColor: YELLOW, ringWidth: 3, glowBlur: 12 },
-      reactive: { onBeat: { every: 2, property: 'glow', amount: 0.35, easing: 'overshoot', durationMs: 130 } } },
+    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.18, enabled: true, props: { ringColor: YELLOW, ringWidth: 3, glowBlur: 12 },
+      reactive: { onBeat: { every: 2, property: 'glow', amount: 0.2, easing: 'overshoot', durationMs: 130 } } },
 
     // ── 비트 반응 레이어 (3) ─────────────────────────────────────
-    { id: 'beat_flash',    type: 'beat_flash',       zIndex: 73, opacity: 1, enabled: true, props: { color: YELLOW, maxAlpha: 0.18 },
-      reactive: { onBeat: { every: 2, property: 'opacity', amount: 0.18, easing: 'standard', durationMs: 150 } }, activeRange: { startSec: 3, endSec: 17 } },
-    { id: 'beat_pulse',    type: 'pulse_circle',     zIndex: 24, opacity: 0.25, enabled: true, props: { cx: 540, cy: 1100, baseRadius: 420, color: RED },
-      reactive: { onBeat: { every: 4, property: 'scale', amount: 0.18, easing: 'easeOut', durationMs: 360 } }, activeRange: { startSec: 3, endSec: 17 } },
-    { id: 'chroma_pulse',  type: 'chromatic_pulse',  zIndex: 74, opacity: 0.6, enabled: true, props: { peakPx: 0.4 },
-      reactive: { onBeat: { every: 8, property: 'opacity', amount: 0.5, easing: 'easeOut', durationMs: 220 } }, activeRange: { startSec: 4, endSec: 16 } },
+    { id: 'beat_flash',    type: 'beat_flash',       zIndex: 73, opacity: 0.55, enabled: true, props: { color: YELLOW, maxAlpha: 0.10 },
+      reactive: { onBeat: { every: 2, property: 'opacity', amount: 0.10, easing: 'standard', durationMs: 150 } }, activeRange: { startSec: 3, endSec: 17 } },
+    { id: 'beat_pulse',    type: 'pulse_circle',     zIndex: 24, opacity: 0.13, enabled: true, props: { cx: 540, cy: 1100, baseRadius: 420, color: RED },
+      reactive: { onBeat: { every: 4, property: 'scale', amount: 0.12, easing: 'easeOut', durationMs: 360 } }, activeRange: { startSec: 3, endSec: 17 } },
+    { id: 'chroma_pulse',  type: 'chromatic_pulse',  zIndex: 74, opacity: 0.30, enabled: true, props: { peakPx: 0.25 },
+      reactive: { onBeat: { every: 8, property: 'opacity', amount: 0.25, easing: 'easeOut', durationMs: 220 } }, activeRange: { startSec: 4, endSec: 16 } },
 
     // ── HUD (4) ────────────────────────────────────────────────
     { id: 'hud_counter',   type: 'counter_hud',      zIndex: 60, opacity: 1, enabled: true, props: { target: 10, format: '{n} / 10', fontSize: 72, position: 'bottom-center', fontFamily: '"JetBrains Mono"' } },
@@ -71,12 +72,12 @@ export const squatMaster: Template = {
 
     // ── 미드 훅 (2) ────────────────────────────────────────────
     { id: 'mid_tag',       type: 'kinetic_text',     zIndex: 42, opacity: 1, enabled: true, props: { text: '🔥 KEEP GOING', fontSize: 64, color: RED, strokeColor: WHITE, strokeWidth: 6, mode: 'pop', position: 'top-center', startMs: 9500, staggerMs: 50 }, activeRange: { startSec: 9.5, endSec: 12 } },
-    { id: 'mid_burst',     type: 'particle_burst',   zIndex: 43, opacity: 1, enabled: true, props: { colors: [YELLOW, RED], count: 40, durationMs: 800 }, activeRange: { startSec: 9.5, endSec: 11 } },
+    { id: 'mid_burst',     type: 'particle_burst',   zIndex: 43, opacity: 0.55, enabled: true, props: { colors: [YELLOW, RED], count: 24, durationMs: 800 }, activeRange: { startSec: 9.5, endSec: 11 } },
 
     // ── 아웃트로 (3) ───────────────────────────────────────────
-    { id: 'outro_flash',   type: 'beat_flash',       zIndex: 74, opacity: 1, enabled: true, props: { color: RED, peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
+    { id: 'outro_flash',   type: 'beat_flash',       zIndex: 74, opacity: 0.6, enabled: true, props: { color: RED, peakOpacity: 0.30 }, activeRange: { startSec: 17, endSec: 17.5 } },
     { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'COMPLETE!', fontSize: 88, color: RED, strokeColor: WHITE, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 55 }, activeRange: { startSec: 17, endSec: 20 } },
-    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.6, enabled: true, props: { x: 540, y: 700, color: YELLOW, size: 320 }, activeRange: { startSec: 17, endSec: 20 } },
+    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.32, enabled: true, props: { x: 540, y: 700, color: YELLOW, size: 320 }, activeRange: { startSec: 17, endSec: 20 } },
 
     // ── 해시태그 ───────────────────────────────────────────────
     { id: 'hashtag_strip', type: 'news_ticker',      zIndex: 72, opacity: 0.9, enabled: true, props: { texts: ['#squat', '#fitness', '#workout', '#hr', '#challenge', '#motiq'], separator: '   ', speedPxPerSec: 90, fontSize: 28, bgColor: 'rgba(27,42,78,0.7)', color: YELLOW, accentColor: RED, position: 'bottom' }, activeRange: { startSec: 2.5, endSec: 17 } },
