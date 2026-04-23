@@ -24,8 +24,13 @@ import { useSessionStore } from '../../store/sessionStore';
 import { useUserStore }    from '../../store/userStore';
 import { useInviteStore }  from '../../store/inviteStore';
 import {
-  buildInviteUrl, buildInviteShareCaption, buildReplyCaption,
+  buildInviteUrl, buildInviteShareCaption, buildInviteShortCaption, buildReplyCaption,
 } from '../../utils/inviteLinks';
+import { generateInviteShareCard, canShareInviteCard } from '../../utils/inviteShareCard';
+import { pickOfficialSlug } from '../../utils/officialSlug';
+import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../services/supabaseThumbnails';
+import { TEMPLATE_THUMBNAILS } from '../../services/templateThumbnails';
+import { getThumbnailUrl } from '../../utils/thumbnails';
 import {
   createSession, upsertUserProfile, fetchUserProfile,
 } from '../../services/supabase';
@@ -1213,7 +1218,8 @@ export default function ResultScreen() {
   const [inviteToast, setInviteToast] = useState<string>('');
 
   const templateSlug = useMemo(() => {
-    return (activeTemplate as any)?.slug ?? activeTemplate?.id ?? 'squat-master';
+    // FIX-INVITE-2026-04-23: 공식 슬러그로 정규화해 수신자측 매칭 실패 방지.
+    return pickOfficialSlug(activeTemplate);
   }, [activeTemplate]);
 
   /** "친구에게 챌린지 도전장 보내기" — 내가 친구에게 보내는 flow. */
@@ -1229,26 +1235,65 @@ export default function ResultScreen() {
         score: scoreNum,
         inviteUrl: url,
       });
+      const shortCaption = buildInviteShortCaption({
+        templateName: activeTemplate.name, fromName: mySenderName, score: scoreNum,
+      });
       // 1) 링크+캡션 클립보드 복사 (항상 성공)
       try {
         if (typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(caption);
         }
       } catch {}
-      // 2) 네이티브 share sheet (Web Share API, text only → 모든 플랫폼 호환)
+
+      // 2a) 썸네일 카드 PNG 첨부 공유 — 카카오톡·라인은 이미지 카드 미리보기 자동 렌더.
       let shared = false;
-      try {
-        if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
-          await (navigator as any).share({
-            title: `${activeTemplate.name} 도전장`,
-            text: caption,
-            url,
+      if (canShareInviteCard()) {
+        const tid = activeTemplate.id;
+        const thumb =
+          SUPABASE_TEMPLATE_THUMBNAILS[tid]?.largeURL
+          || SUPABASE_TEMPLATE_THUMBNAILS[tid]?.url
+          || TEMPLATE_THUMBNAILS[tid]?.largeURL
+          || TEMPLATE_THUMBNAILS[tid]?.url
+          || (activeTemplate as any).thumbnail_url
+          || getThumbnailUrl((activeTemplate as any).genre, tid, 1280);
+        try {
+          const png = await generateInviteShareCard({
+            thumbnailUrl: thumb,
+            headline: `${mySenderName}이(가) 도전장을 보냈어요`,
+            subline: scoreNum > 0
+              ? `${activeTemplate.name} · ${scoreNum}점`
+              : activeTemplate.name,
           });
-          shared = true;
+          if (png) {
+            const file = new File([png], 'invite.png', { type: 'image/png' });
+            if ((navigator as any).canShare?.({ files: [file] })) {
+              await (navigator as any).share({
+                title: `${activeTemplate.name} 도전장`,
+                text: `${shortCaption}\n${url}`,
+                url,
+                files: [file],
+              });
+              shared = true;
+            }
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') { shared = true; /* 사용자 취소 = 성공 처리 */ }
         }
-      } catch (e: any) {
-        if (e?.name !== 'AbortError') {
-          // noop — 폴백 토스트 메시지만
+      }
+
+      // 2b) 폴백: 텍스트 only Web Share
+      if (!shared) {
+        try {
+          if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+            await (navigator as any).share({
+              title: `${activeTemplate.name} 도전장`,
+              text: caption,
+              url,
+            });
+            shared = true;
+          }
+        } catch (e: any) {
+          if (e?.name !== 'AbortError') { /* noop */ }
         }
       }
       setInviteToast(shared

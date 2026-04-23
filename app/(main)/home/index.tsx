@@ -22,7 +22,13 @@ import { useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import { useInviteStore } from '../../../store/inviteStore';
-import { buildInviteUrl, buildInviteShareCaption } from '../../../utils/inviteLinks';
+import {
+  buildInviteUrl,
+  buildInviteShareCaption,
+  buildInviteShortCaption,
+} from '../../../utils/inviteLinks';
+import { generateInviteShareCard, canShareInviteCard } from '../../../utils/inviteShareCard';
+import { pickOfficialSlug } from '../../../utils/officialSlug';
 import type { Template } from '../../../types/template';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
@@ -433,25 +439,66 @@ export default function HomeScreen() {
 
   const handleInvite = useCallback(async (t: Template) => {
     try {
-      const slug = (t as any).slug ?? t.id;
+      // FIX-INVITE-2026-04-23: (a) 공식 slug 로 정규화해야 수신자 쪽 templates 매칭 성공.
+      //   이전엔 t.id (UUID) 를 그대로 보내서 landing 에서 "챌린지를 찾을 수 없어요" 에러.
+      //   (b) 새 v2 포맷 ?c=<base64url> → URL 길이 절반. (c) 카카오톡에 썸네일 카드 PNG 첨부.
+      const slug = pickOfficialSlug(t);
       const url = buildInviteUrl(slug, mySenderName);
       const caption = buildInviteShareCaption({
-        templateName: t.name,
-        fromName: mySenderName,
-        inviteUrl: url,
+        templateName: t.name, fromName: mySenderName, inviteUrl: url,
+      });
+      const shortCaption = buildInviteShortCaption({
+        templateName: t.name, fromName: mySenderName,
       });
       try {
         if (typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(caption);
         }
       } catch {}
+
+      // 썸네일 카드 PNG 우선 (카카오톡 카드 미리보기).
       let shared = false;
-      try {
-        if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
-          await (navigator as any).share({ title: `${t.name} 도전장`, text: caption, url });
-          shared = true;
+      if (canShareInviteCard()) {
+        const thumb =
+          SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.largeURL
+          || SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.url
+          || TEMPLATE_THUMBNAILS[t.id]?.largeURL
+          || TEMPLATE_THUMBNAILS[t.id]?.url
+          || (t as any).thumbnail_url
+          || getThumbnailUrl(t.genre, t.id, 1280);
+        try {
+          const png = await generateInviteShareCard({
+            thumbnailUrl: thumb,
+            headline: `${mySenderName}이(가) 도전장을 보냈어요`,
+            subline: t.name,
+          });
+          if (png) {
+            const file = new File([png], 'invite.png', { type: 'image/png' });
+            if ((navigator as any).canShare?.({ files: [file] })) {
+              await (navigator as any).share({
+                title: `${t.name} 도전장`,
+                text: `${shortCaption}\n${url}`,
+                url,
+                files: [file],
+              });
+              shared = true;
+            }
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') return; // 사용자가 공유 취소
         }
-      } catch (e: any) { /* AbortError 무시 */ }
+      }
+
+      // 파일 공유 실패 시 텍스트 only 폴백.
+      if (!shared) {
+        try {
+          if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+            await (navigator as any).share({ title: `${t.name} 도전장`, text: caption, url });
+            shared = true;
+          }
+        } catch (e: any) { /* AbortError 무시 */ }
+      }
+
       setInviteToast(shared
         ? '✓ 도전장 전송 완료'
         : '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요');

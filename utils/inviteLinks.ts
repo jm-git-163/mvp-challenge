@@ -4,13 +4,17 @@
  * 챌린지 초대-답장 시스템의 **순수 클라이언트 딥링크 인코더/파서**.
  * CLAUDE.md §12 준수: 서버·업로드·추적 없음. 모든 컨텍스트는 쿼리스트링에만 담는다.
  *
- * 링크 포맷:
- *   https://<host>/challenge/<slug>?from=<encodedName>&msg=<encodedMsg>&score=<n>
+ * v2 포맷 (컴팩트, 2026-04-23):
+ *   https://<host>/c/<slug>?c=<base64url>
+ *   base64url(JSON({ f, m?, s? }))   — slug 는 pathname, 나머지는 1개 파라미터로 압축
  *
- *   - slug  : 공식 챌린지 slug (services/challengeTemplateMap OFFICIAL_CHALLENGE_SLUGS)
- *   - from  : 초대한 친구 이름 (URL-encoded, 최대 40자)
- *   - msg   : 선택적 개인 메시지 (URL-encoded, 최대 120자)
- *   - score : 초대자가 받은 점수 (0~100, 선택)
+ *   - slug : 공식 챌린지 slug (OFFICIAL_CHALLENGE_SLUGS) 또는 template id
+ *   - f    : 초대자 이름 (최대 40자)
+ *   - m    : 선택 메시지 (최대 120자)
+ *   - s    : 0~100 점수
+ *
+ * 기존 v1 포맷도 계속 파싱 가능 (backward compatibility):
+ *   https://<host>/challenge/<slug>?from=…&msg=…&score=…
  *
  * 파서는 관대한(Postel) 입력을 받지만 출력은 엄격하게 정규화한다.
  */
@@ -24,16 +28,44 @@ export interface InviteContext {
 
 const MAX_NAME_LEN = 40;
 const MAX_MSG_LEN  = 120;
-const SLUG_RE      = /^[a-z0-9][a-z0-9-]{0,40}$/i;
+// FIX-INVITE-2026-04-23: UUID 포맷(36자 with dashes) 도 허용해야 홈에서 t.id(UUID) 를
+//   slug 로 넘겨도 throw 하지 않음. 길이를 80자까지 허용.
+const SLUG_RE      = /^[a-z0-9][a-z0-9-]{0,79}$/i;
 
 function clampStr(raw: string, max: number): string {
   const s = (raw ?? '').toString().trim();
   return s.length > max ? s.slice(0, max) : s;
 }
 
+// ── base64url (브라우저 + node 양쪽 동작) ───────────────────────
+function toBase64Url(s: string): string {
+  let b64: string;
+  if (typeof btoa === 'function') {
+    // UTF-8 safe: encodeURIComponent → percent → bytes
+    b64 = btoa(unescape(encodeURIComponent(s)));
+  } else {
+    // node / SSR
+    b64 = Buffer.from(s, 'utf-8').toString('base64');
+  }
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(s: string): string | null {
+  try {
+    const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+    const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + pad;
+    if (typeof atob === 'function') {
+      return decodeURIComponent(escape(atob(b64)));
+    }
+    return Buffer.from(b64, 'base64').toString('utf-8');
+  } catch {
+    return null;
+  }
+}
+
 /**
- * 전송자용 초대 URL 빌더.
- * host 는 `window.location.origin` 로 호출 측에서 결정. 테스트 용도로 override.
+ * 전송자용 초대 URL 빌더. v2 컴팩트 포맷.
+ * origin 은 `window.location.origin` 으로 호출 측이 결정. 테스트 override 가능.
  */
 export function buildInviteUrl(
   slug: string,
@@ -49,35 +81,34 @@ export function buildInviteUrl(
     ?? (typeof window !== 'undefined' ? window.location.origin : 'https://motiq.app')
   ).replace(/\/+$/, '');
 
-  const params = new URLSearchParams();
-  params.set('from', name);
+  const payload: { f: string; m?: string; s?: number } = { f: name };
   if (opts?.message) {
     const m = clampStr(opts.message, MAX_MSG_LEN);
-    if (m) params.set('msg', m);
+    if (m) payload.m = m;
   }
   if (typeof opts?.score === 'number' && isFinite(opts.score)) {
-    const n = Math.max(0, Math.min(100, Math.round(opts.score)));
-    params.set('score', String(n));
+    payload.s = Math.max(0, Math.min(100, Math.round(opts.score)));
   }
-  return `${origin}/challenge/${cleanSlug}?${params.toString()}`;
+  const c = toBase64Url(JSON.stringify(payload));
+  // 경로는 /challenge/<slug> 로 유지 (기존 라우트 호환). /c/<slug> 로 가려면
+  // app/c/[slug]/index.tsx 추가가 필요하므로 보류.
+  return `${origin}/challenge/${cleanSlug}?c=${c}`;
 }
 
 /**
- * 수신자 URL 파싱. 유효하지 않으면 null.
- * 쿼리스트링 단독(`?from=…`) 또는 full URL 모두 지원.
+ * 수신자 URL 파싱. v2(`?c=`) + v1(`?from=…`) 둘 다 처리. 유효하지 않으면 null.
+ * 쿼리스트링 단독(`?c=…`) 또는 full URL 모두 지원.
  */
 export function parseInviteUrl(url: string): InviteContext | null {
   if (!url || typeof url !== 'string') return null;
   let slug = '';
   let qs = '';
   try {
-    // full URL 우선
     const u = new URL(url, 'https://placeholder.invalid');
-    const m = u.pathname.match(/\/challenge\/([^/]+)/i);
+    const m = u.pathname.match(/\/(?:challenge|c)\/([^/]+)/i);
     if (m) slug = decodeURIComponent(m[1]);
     qs = u.search.startsWith('?') ? u.search.slice(1) : u.search;
   } catch {
-    // 쿼리스트링 단독
     qs = url.startsWith('?') ? url.slice(1) : url;
   }
   if (!slug) return null;
@@ -85,6 +116,32 @@ export function parseInviteUrl(url: string): InviteContext | null {
   if (!SLUG_RE.test(slug)) return null;
 
   const params = new URLSearchParams(qs);
+
+  // v2 — 단일 base64url 파라미터 `c`
+  const packed = params.get('c');
+  if (packed) {
+    const raw = fromBase64Url(packed);
+    if (raw) {
+      try {
+        const obj = JSON.parse(raw);
+        const fromName = clampStr(String(obj.f ?? ''), MAX_NAME_LEN);
+        if (!fromName) return null;
+        const ctx: InviteContext = { slug, fromName };
+        if (obj.m) {
+          const m = clampStr(String(obj.m), MAX_MSG_LEN);
+          if (m) ctx.message = m;
+        }
+        if (typeof obj.s === 'number' && isFinite(obj.s)) {
+          ctx.score = Math.max(0, Math.min(100, Math.round(obj.s)));
+        }
+        return ctx;
+      } catch {
+        // fall through to v1 attempt
+      }
+    }
+  }
+
+  // v1 — 레거시 ?from=&msg=&score=
   const fromRaw = params.get('from') ?? '';
   const fromName = clampStr(fromRaw, MAX_NAME_LEN);
   if (!fromName) return null;
@@ -105,7 +162,6 @@ export function parseInviteUrl(url: string): InviteContext | null {
 
 /**
  * 초대자가 점수를 보낸 경우 수신자에게 보여줄 "도전장" 카피.
- * 메시지가 있으면 우선, 없으면 점수 기반 기본 카피.
  */
 export function buildInviteBannerText(ctx: InviteContext, templateName: string): string {
   if (ctx.message && ctx.message.length > 0) {
@@ -118,7 +174,7 @@ export function buildInviteBannerText(ctx: InviteContext, templateName: string):
 }
 
 /**
- * 전송자 측 네이티브 share sheet 용 기본 캡션.
+ * 전송자 측 공유 캡션 (짧게 — 카톡 한 줄 미리보기 친화).
  */
 export function buildInviteShareCaption(opts: {
   templateName: string;
@@ -127,8 +183,22 @@ export function buildInviteShareCaption(opts: {
   inviteUrl: string;
 }): string {
   const { templateName, fromName, score, inviteUrl } = opts;
-  const scorePart = typeof score === 'number' ? ` ${score}점 받았어!` : '';
-  return `내가 ${templateName}${scorePart} 너도 해볼래? ${inviteUrl}`;
+  const scorePart = typeof score === 'number' ? ` ${score}점!` : '';
+  return `${fromName}이(가) ${templateName}${scorePart} 도전장을 보냈어요. ${inviteUrl}`;
+}
+
+/**
+ * 공유 카드(이미지+텍스트)에 들어갈 짧은 캡션.
+ * 이미지 미리보기를 만드는 플랫폼(카카오톡)에서 카드 본문용.
+ */
+export function buildInviteShortCaption(opts: {
+  templateName: string;
+  fromName: string;
+  score?: number;
+}): string {
+  const { templateName, fromName, score } = opts;
+  const head = `${fromName}이(가) ${templateName} 도전장을 보냈어요!`;
+  return typeof score === 'number' ? `${head} (${score}점 달성)` : head;
 }
 
 /**

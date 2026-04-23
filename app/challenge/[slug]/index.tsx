@@ -28,31 +28,48 @@ import type { Template } from '../../../types/template';
 
 export default function ChallengeInviteScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ slug?: string; from?: string; msg?: string; score?: string }>();
+  const params = useLocalSearchParams<{ slug?: string; from?: string; msg?: string; score?: string; c?: string }>();
   const startSession = useSessionStore(s => s.startSession);
   const setInviteContext = useInviteStore(s => s.setInviteContext);
 
-  // 현재 full URL 재구성 후 parse (server-side origin 이 없어도 동작)
+  // FIX-INVITE-2026-04-23: v2 `?c=<base64url>` + v1 `?from=&msg=&score=` 양쪽 지원.
+  //   expo-router 의 useLocalSearchParams 는 모든 key 를 파싱하므로 여기서 다시 조립.
+  //   Web 환경에선 window.location.href 를 1순위로 사용 (expo-router 가 일부 파라미터를
+  //   놓치는 엣지케이스 방어).
   const { ctx, fullUrl } = useMemo(() => {
     const slug = (params.slug ?? '').toString();
+    if (typeof window !== 'undefined' && window.location && window.location.pathname.includes(`/challenge/${slug}`)) {
+      const live = window.location.href;
+      const parsed = parseInviteUrl(live);
+      if (parsed) return { ctx: parsed, fullUrl: live };
+    }
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://motiq.app';
     const qs = new URLSearchParams();
+    if (params.c)     qs.set('c',     String(params.c));
     if (params.from)  qs.set('from',  String(params.from));
     if (params.msg)   qs.set('msg',   String(params.msg));
     if (params.score) qs.set('score', String(params.score));
     const url = `${origin}/challenge/${slug}?${qs.toString()}`;
     return { ctx: parseInviteUrl(url) as InviteContext | null, fullUrl: url };
-  }, [params.slug, params.from, params.msg, params.score]);
+  }, [params.slug, params.from, params.msg, params.score, params.c]);
 
   const { templates, loading } = useTemplates();
   const template: Template | null = useMemo(() => {
     if (!ctx) return null;
-    // 1) 정확 id/slug 매칭
-    const exact = templates.find(t => t.id === ctx.slug || (t as any).slug === ctx.slug);
-    if (exact) return exact;
-    // 2) layered 템플릿 폴백 (genre alias 포함)
+    // 1) layered 템플릿(공식 slug) 우선 — 항상 매칭 보장, resolveLayeredTemplate 가
+    //    genre alias 도 포함하므로 'kpop' 같은 축약도 처리된다.
     const layered = resolveLayeredTemplate(ctx.slug);
-    return (layered as any) ?? null;
+    if (layered) return (layered as any);
+    // 2) DB 템플릿에서 id/slug/theme_id/genre 매칭
+    const exact = templates.find(t =>
+      t.id === ctx.slug
+      || (t as any).slug === ctx.slug
+      || (t as any).theme_id === ctx.slug
+      || (t as any).genre === ctx.slug
+    );
+    if (exact) return exact;
+    // 3) 마지막 폴백: 첫 번째 DB 템플릿이라도 보여줌 (에러 화면보다 낫다)
+    return templates[0] ?? null;
   }, [templates, ctx]);
 
   const [accepting, setAccepting] = useState(false);
