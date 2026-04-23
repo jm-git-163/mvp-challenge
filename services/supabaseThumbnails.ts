@@ -44,9 +44,9 @@ const RAW: Record<string, RawThumb> = {
     "pixabayId": 0
   },
   "77756254-94ea-40a2-9c9e-b5c4257945cd": {
-    "url": "https://images.unsplash.com/photo-1586953208448-b95a79798f07?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1586953208448-b95a79798f07?auto=format&fit=crop&w=1280&q=80",
-    "tags": "news anchor, newsroom, broadcast",
+    "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1280&q=80",
+    "tags": "newspaper, news, print, broadcast",
     "user": "unsplash",
     "pixabayId": 0
   },

@@ -25,6 +25,7 @@ import { useUserStore }    from '../../store/userStore';
 import { useInviteStore }  from '../../store/inviteStore';
 import {
   buildInviteUrl, buildInviteShareCaption, buildInviteShortCaption, buildReplyCaption,
+  buildDisplayUrl,
 } from '../../utils/inviteLinks';
 import { generateInviteShareCard, canShareInviteCard, isInAppBrowserWithBrokenShare } from '../../utils/inviteShareCard';
 import { pickOfficialSlug } from '../../utils/officialSlug';
@@ -1221,11 +1222,24 @@ export default function ResultScreen() {
 
   /** "친구에게 챌린지 도전장 보내기" — 내가 친구에게 보내는 flow. */
   const handleSendInvite = useCallback(async () => {
-    if (!activeTemplate) return;
+    // DEBUG-INVITE-2026-04-23 (v2): 사용자 반복 리포트 "버튼 눌러도 아무 반응 없음".
+    //   onPress 가 호출되는지, 각 단계 어디서 죽는지 즉각 보이게 toast 로 계단식 로깅.
+    //   버튼이 작동하는 것이 확인되면 이 즉각 로깅은 축약으로 되돌린다.
+    setInviteToast('🥊 도전장 준비 중...');
+    if (!activeTemplate) {
+      setInviteToast('오류: 템플릿 정보 없음 — 결과 페이지를 다시 열어주세요');
+      setTimeout(() => setInviteToast(''), 3000);
+      return;
+    }
     try {
-      const url = buildInviteUrl(templateSlug, mySenderName, {
-        score: scoreNum,
-      });
+      let url: string;
+      try {
+        url = buildInviteUrl(templateSlug, mySenderName, { score: scoreNum });
+      } catch (e: any) {
+        setInviteToast(`링크 생성 실패: ${e?.message || 'slug 오류'} (slug=${templateSlug})`);
+        setTimeout(() => setInviteToast(''), 4500);
+        return;
+      }
       const caption = buildInviteShareCaption({
         templateName: activeTemplate.name,
         fromName: mySenderName,
@@ -1236,9 +1250,11 @@ export default function ResultScreen() {
         templateName: activeTemplate.name, fromName: mySenderName, score: scoreNum,
       });
       // 1) 링크+캡션 클립보드 복사 (항상 성공)
+      let clipboardOk = false;
       try {
         if (typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(caption);
+          clipboardOk = true;
         }
       } catch {}
 
@@ -1260,13 +1276,18 @@ export default function ResultScreen() {
             subline: scoreNum > 0
               ? `${activeTemplate.name} · ${scoreNum}점`
               : activeTemplate.name,
+            // FIX-INVITE-KAKAO-PNG (2026-04-23): URL 을 카드 PNG 에 "그려넣음" →
+            // 카톡/라인이 url/text 메타를 드롭해도 수신자가 주소를 읽어 접속 가능.
+            displayUrl: buildDisplayUrl(url),
           });
           if (png) {
             const file = new File([png], 'invite.png', { type: 'image/png' });
             if ((navigator as any).canShare?.({ files: [file] })) {
+              // text 필드 마지막 줄에 \n\n + full URL. 카톡이 text 를 보존하면
+              // 링크로 자동 인식, 드롭해도 카드 PNG 에 URL 이 박혀있어 복구 가능.
               await (navigator as any).share({
                 title: `${activeTemplate.name} 도전장`,
-                text: `${shortCaption}\n${url}`,
+                text: `${shortCaption}\n\n${url}`,
                 url,
                 files: [file],
               });
@@ -1275,6 +1296,9 @@ export default function ResultScreen() {
           }
         } catch (e: any) {
           if (e?.name === 'AbortError') { shared = true; /* 사용자 취소 = 성공 처리 */ }
+          else {
+            setInviteToast(`카드 공유 실패(${e?.name || 'Err'}) — 텍스트 공유로 폴백`);
+          }
         }
       }
 
@@ -1290,16 +1314,20 @@ export default function ResultScreen() {
             shared = true;
           }
         } catch (e: any) {
-          if (e?.name !== 'AbortError') { /* noop */ }
+          if (e?.name === 'AbortError') { /* 사용자 취소 */ }
+          else { setInviteToast(`공유 창 오류(${e?.name || 'Err'}) — 링크는 복사됨`); }
         }
       }
-      setInviteToast(shared
+      const msg = shared
         ? '✓ 도전장 전송 완료'
-        : '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요');
-      setTimeout(() => setInviteToast(''), 2600);
-    } catch (e) {
-      setInviteToast('도전장 생성 실패 — 다시 시도해주세요');
-      setTimeout(() => setInviteToast(''), 2600);
+        : (clipboardOk
+            ? '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요'
+            : '⚠ 클립보드 차단됨 — 주소창 권한 확인 후 재시도');
+      setInviteToast(msg);
+      setTimeout(() => setInviteToast(''), 3200);
+    } catch (e: any) {
+      setInviteToast(`도전장 생성 실패: ${e?.message || e?.name || 'Unknown'}`);
+      setTimeout(() => setInviteToast(''), 4500);
     }
   }, [activeTemplate, templateSlug, mySenderName, scoreNum]);
 

@@ -21,6 +21,13 @@ export interface ShareCardOpts {
   headline: string;           // 1줄 헤드라인, 예: "지민이 도전장을 보냈어요!"
   subline: string;            // 2줄째, 예: "스쿼트 마스터 · 87점"
   brand?: string;             // 좌상단 브랜드 워터마크, 기본 "MotiQ 챌린지"
+  /**
+   * 카드 하단에 **눈으로 보이게** 박아넣을 짧은 display URL.
+   * FIX-INVITE-KAKAO-PNG (2026-04-23): 카카오톡/라인이 `navigator.share` 의
+   * url/text 를 드롭해도 수신자가 이 문자열을 보고 직접 입력/복사할 수 있게 함.
+   * 예: "motiq.app/challenge/squat-master?c=eyJmI…"
+   */
+  displayUrl?: string;
   width?: number;
   height?: number;
 }
@@ -30,12 +37,18 @@ export interface ShareCardOpts {
  */
 async function loadImage(url: string): Promise<HTMLImageElement | null> {
   if (typeof Image === 'undefined') return null;
+  // DEBUG-INVITE-2026-04-23: 3s timeout — Unsplash/Supabase 가 cold-cache 나
+  //   네트워크 지연일 때 onload/onerror 둘 다 안 불려 공유가 영원히 hang 되는
+  //   사례 보고. 3초 안에 못 받으면 null 반환 → 호출자가 그라디언트-only 카드로 진행.
   return new Promise((resolve) => {
+    let done = false;
+    const finish = (v: HTMLImageElement | null) => { if (done) return; done = true; resolve(v); };
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
+    img.onload = () => finish(img);
+    img.onerror = () => finish(null);
+    setTimeout(() => finish(null), 3000);
+    try { img.src = url; } catch { finish(null); }
   });
 }
 
@@ -103,22 +116,54 @@ export async function generateInviteShareCard(opts: ShareCardOpts): Promise<Blob
   ctx.fillStyle = '#fff';
   ctx.fillText(brand, 48 + brandPadX, 48 + brandPadY + 2);
 
-  // 헤드라인 (2줄까지 자동 줄바꿈)
+  // URL strip (있을 때만) — 카드 최하단. 카카오톡/라인이 메타데이터를 드롭해도
+  // 수신자가 이 주소를 보고 브라우저에 입력/복사할 수 있다.
+  const urlStripH = opts.displayUrl ? 96 : 0;
+  const contentBottom = H - urlStripH;
+
+  // 헤드라인 (2줄까지 자동 줄바꿈) — URL strip 위로 끌어올림
   ctx.fillStyle = '#ffffff';
   ctx.font = '800 58px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
   ctx.textBaseline = 'alphabetic';
   const maxW = W - 96;
   const lines = wrapLines(ctx, opts.headline, maxW, 2);
-  let y = H - 180;
+  // 서브라인 기준점: contentBottom - 24, 그 위로 헤드라인
+  const sublineY = contentBottom - 24;
+  let headY = sublineY - 60 - (lines.length - 1) * 66;
   for (const line of lines) {
-    ctx.fillText(line, 48, y);
-    y += 66;
+    ctx.fillText(line, 48, headY);
+    headY += 66;
   }
 
   // 서브라인
   ctx.font = '500 28px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText(opts.subline, 48, H - 60);
+  ctx.fillText(opts.subline, 48, sublineY);
+
+  // URL strip (bottom) — 다크 필드 + 핫핑크 hint + 모노스페이스 URL
+  if (opts.displayUrl && urlStripH > 0) {
+    const stripY = contentBottom;
+    ctx.fillStyle = 'rgba(5,5,9,0.96)';
+    ctx.fillRect(0, stripY, W, urlStripH);
+    // 상단 hairline (핫핑크 accent)
+    ctx.fillStyle = 'rgba(236,72,153,0.9)';
+    ctx.fillRect(0, stripY, W, 2);
+
+    // "탭해서 열기 →" hint
+    ctx.fillStyle = 'rgba(236,72,153,0.95)';
+    ctx.font = '700 18px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.fillText('탭해서 열기 →', 48, stripY + 14);
+
+    // URL (monospace) — 길면 말줄임
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 22px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+    let urlText = opts.displayUrl;
+    while (urlText.length > 0 && ctx.measureText(urlText).width > W - 96) {
+      urlText = urlText.slice(0, -2) + '…';
+    }
+    ctx.fillText(urlText, 48, stripY + 44);
+  }
 
   return new Promise<Blob | null>((resolve) => {
     try {

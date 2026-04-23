@@ -202,6 +202,32 @@ export function buildInviteShortCaption(opts: {
 }
 
 /**
+ * 카드에 **눈으로 보이게** 박아넣을 짧은 display URL.
+ * 카톡/라인이 메타데이터(url/text)를 삭제해도 수신자가 주소를 타이핑/복사할 수 있게.
+ * `{host}/challenge/{slug}?c=<short>` 형태. base64 payload 는 길면 말줄임.
+ *
+ * FIX-INVITE-KAKAO-PNG (2026-04-23): 메신저가 URL 을 드롭해도 카드에 URL 이 "그려져"
+ *   있으면 수신자가 읽어서 접속 가능.
+ */
+export function buildDisplayUrl(fullUrl: string, maxLen = 54): string {
+  try {
+    const u = new URL(fullUrl);
+    const host = u.host.replace(/^www\./, '');
+    const path = u.pathname;          // /challenge/<slug>
+    const q = u.search;               // ?c=...
+    const base = `${host}${path}`;
+    if ((base + q).length <= maxLen) return base + q;
+    const remain = Math.max(0, maxLen - base.length - 4); // "?c=…"
+    const cMatch = q.match(/[?&]c=([^&]+)/);
+    const cVal = cMatch ? cMatch[1] : '';
+    const shortC = cVal.length > remain ? cVal.slice(0, remain) + '…' : cVal;
+    return shortC ? `${base}?c=${shortC}` : base;
+  } catch {
+    return fullUrl.length > maxLen ? fullUrl.slice(0, maxLen - 1) + '…' : fullUrl;
+  }
+}
+
+/**
  * 답장 캡션 — 수신자가 완료 후 초대자에게 보낼 메시지.
  */
 export function buildReplyCaption(opts: {
