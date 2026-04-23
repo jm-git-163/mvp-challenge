@@ -274,13 +274,49 @@ export function useJudgement(): {
           // FIX-SCRIPT-POOL-PROD (2026-04-23 v2): 서브풀 우선 매칭 — news 템플릿이라도
           //   인사 미션에 마무리 멘트("시청 감사합니다") 같은 엉뚱한 문장이 뜨지 않도록
           //   원문 read_text 가 속하는 서브풀을 먼저 찾는다. 없으면 장르/테마 포괄 풀.
+          // FIX-TONE-OVERRIDE (2026-04-23 v3): prod Supabase 에는 read_text 가 단일 캐주얼
+          //   문자열("안녕 친구들!" 등)로 저장된 경우가 있음 → 키워드가 없어 pickSubPoolForText
+          //   가 null, 또 기존 폴백은 raw 를 pool 에 prepend 해 캐주얼 문장이 그대로 노출.
+          //   genre/theme 이 news/kids/fairy_tale/english/motivation 인 경우엔 raw 를 **버리고**
+          //   톤 맞는 풀에서만 로테이션. 또한 mission.seq 로 서브세그먼트 추정:
+          //   seq 1 → greeting/intro, 마지막 → closing/end, 중간 → report/middle.
           let pool: string[] | null = Array.isArray(rt) ? rt : null;
           if (!pool && typeof rt === 'string') {
-            const sub = pickSubPoolForText(rt);
-            if (sub && sub.length > 1) {
-              pool = sub;
-            } else {
-              const key = (template?.theme_id || template?.genre || '').toLowerCase();
+            const genreKey = (template?.genre || '').toLowerCase();
+            const themeKey = (template?.theme_id || '').toLowerCase();
+            const slugHit  = (template?.id || '').toLowerCase();
+            const isNews   = genreKey === 'news' || themeKey === 'news' || slugHit.includes('news-anchor');
+            const isKids   = genreKey === 'kids' || themeKey === 'fairy_tale' || themeKey === 'kids' || slugHit.includes('storybook');
+            const isEng    = genreKey === 'english' || themeKey === 'english' || slugHit.includes('english-speaking');
+            const isMotiv  = themeKey === 'motivation' || slugHit.includes('motivation-speech');
+
+            // 1) 강한 톤 오버라이드: 원문이 톤에 안 맞을 확률이 높음 → 원문 버림.
+            if (isNews || isKids || isEng || isMotiv) {
+              const totalMissions = template?.missions?.filter(m => m.type === 'voice_read').length ?? 0;
+              const mySeq = mission?.seq ?? 0;
+              const isFirst = mySeq <= 1;
+              const isLast  = totalMissions > 0 && mySeq >= totalMissions;
+              let subKey = '';
+              if (isNews) {
+                subKey = isFirst ? 'news_greeting' : isLast ? 'news_closing' : 'news_report';
+              } else if (isKids) {
+                subKey = isFirst ? 'storybook_intro' : isLast ? 'storybook_end' : 'storybook_middle';
+              } else if (isEng) {
+                subKey = 'english';
+              } else if (isMotiv) {
+                subKey = 'motivation';
+              }
+              const forced = SCRIPT_POOLS_BY_THEME[subKey];
+              if (forced && forced.length > 0) pool = forced;
+            }
+            // 2) 원문 키워드로 서브풀 매칭 (약한 톤 — food/travel/unboxing 등).
+            if (!pool) {
+              const sub = pickSubPoolForText(rt);
+              if (sub && sub.length > 1) pool = sub;
+            }
+            // 3) 최후 폴백 — theme/genre 전체 풀. 원문 포함(약한 톤 장르).
+            if (!pool) {
+              const key = themeKey || genreKey;
               const candidate = SCRIPT_POOLS_BY_THEME[key];
               if (candidate && candidate.length > 0) {
                 pool = candidate.includes(rt) ? candidate : [rt, ...candidate];
