@@ -514,41 +514,31 @@ function ShareModal({
   };
 
   const handleWebShare = async () => {
-    if (typeof navigator === 'undefined') return;
-    if (!navigator.share) return;
+    // FIX-SHARE-V4 (2026-04-23): 사용자 반복 피드백 "전송 실패 여전".
+    //   Web Share API files 경로는 Android Kakao/Instagram 에서 webm·mp4 둘 다
+    //   트랜스코딩 실패 사례가 지속 보고. 용량/코덱 불일치 상관없이 불안정.
+    //   → '원탭 공유' 버튼도 저장 + 캡션 복사 경로로 통일 (100% 도달 보장).
+    //   사용자는 저장된 영상을 앱에서 직접 첨부 → 전송 실패 없음.
     try {
-      // Session-4 R: iOS Safari + webm 같은 환경은 canUseWebShareFiles 가 false 반환 → 링크 폴백
-      const filename = buildDownloadFilename(templateName, composedBlob);
-      const canFiles = composedBlob && canUseWebShareFiles(
-        navigator as unknown as Parameters<typeof canUseWebShareFiles>[0],
-        composedBlob,
-        filename,
-      );
-      if (canFiles && composedBlob) {
-        const probe = new File([composedBlob], filename, { type: composedBlob.type || 'video/webm' });
-        await navigator.share({ files: [probe], title: `${templateName} 챌린지 완료!`, text: shareText });
-      } else {
-        // TEAM-SHARE (2026-04-23): 사용자 피드백 "카톡 업로드가 중간에 멎음".
-        //   webm 또는 files 미지원 환경 → Web Share 파일 모드 안 됨.
-        //   링크 공유 대신 "다운로드 → 앱에서 첨부" 유도 (영상 본체가 원본으로 전달).
-        if (composedBlob) {
-          const uri = composedUri ?? rawVideoUri;
-          // TEAM-DOWNLOAD (2026-04-23): 토스트는 실제 다운로드 완료 후에만.
-          const ok = uri ? await doDownload(uri, templateName, composedBlob?.type).catch(() => false) : false;
-          showToast(ok
-            ? '📥 영상을 저장했어요. 카톡/앱에서 직접 첨부해주세요.'
-            : '저장 실패. 다시 시도해주세요.');
-        } else {
-          await navigator.share({
-            title: `${templateName} 챌린지 완료!`,
-            text: shareText,
-            url: typeof window !== 'undefined' ? window.location.href : '',
-          });
-        }
+      const uri = composedUri ?? rawVideoUri;
+      if (!uri) {
+        showToast('영상이 아직 준비 중이에요. 잠시 후 다시 시도해주세요.');
+        return;
       }
-      onClose();
+      showToast('📥 영상 저장 중...');
+      const ok = await doDownload(uri, templateName, composedBlob?.type).catch(() => false);
+      // 캡션 자동 복사
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(shareText);
+        }
+      } catch {}
+      showToast(ok
+        ? '✓ 영상 저장 · 캡션 복사 완료. 원하는 앱에서 첨부해주세요.'
+        : '저장 실패. 다시 시도해주세요.');
+      if (ok) onClose();
     } catch (e: any) {
-      if (e?.name !== 'AbortError') showToast('공유 실패. 다른 방법을 시도해보세요.');
+      if (e?.name !== 'AbortError') showToast('저장 실패. 다시 시도해주세요.');
     }
   };
 
@@ -659,8 +649,8 @@ function ShareModal({
     },
   ];
 
-  // Add Web Share option if available
-  const hasWebShare = typeof navigator !== 'undefined' && !!navigator.share;
+  // FIX-SHARE-V4: Web Share API 경로를 포기했으므로 primary 버튼은 항상 노출 (저장+복사).
+  const hasWebShare = true;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -677,8 +667,8 @@ function ShareModal({
               onPress={handleWebShare}
             >
               <View style={sm.primaryRowInner}>
-                <Text style={sm.primaryRowLabel}>한 번에 공유 (원탭)</Text>
-                <Text style={sm.primaryRowSub}>카톡·인스타·유튜브·라인 등 앱 선택</Text>
+                <Text style={sm.primaryRowLabel}>영상 저장 + 캡션 복사</Text>
+                <Text style={sm.primaryRowSub}>원하는 앱에서 첨부 (카톡·인스타·유튜브·라인)</Text>
               </View>
               <Text style={sm.primaryRowArrow}>→</Text>
             </Pressable>

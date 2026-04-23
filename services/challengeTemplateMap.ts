@@ -68,12 +68,52 @@ export const LAYERED_TEMPLATES: Record<string, Template> = {
  * 챌린지 slug / 장르 키워드 → layered Template.
  * 매칭 실패 시 `null` (호출자가 legacy 경로로 폴백).
  */
+/**
+ * FIX-TEXT-CLUTTER (2026-04-23): 사용자 피드백 "템플릿에 텍스트가 마구 겹치고
+ *   챌린지 자막과 무관한 문구가 뜬다". 문제 레이어 타입(news_ticker, kinetic_text,
+ *   hashtag_strip — 하드코딩 해시태그 다수 포함)을 런타임에서 전부 제거해
+ *   일반 텍스트(mission_prompt, karaoke_caption) 만 남긴다.
+ */
+function stripClutterLayers(t: Template): Template {
+  const layers = (t as any).layers;
+  if (!Array.isArray(layers)) return t;
+  const KILL_TYPES = new Set(['news_ticker', 'kinetic_text']);
+  const KILL_IDS = new Set(['hashtag_strip']);
+  // FIX-EFFECT-INTENSITY (2026-04-23): 사용자 피드백 "효과가 너무 심해 피사체가 안 보임".
+  //   배경·파티클·그레인·비트플래시·크로매틱 등 피사체 가독성을 해치는 오버레이 레이어의
+  //   opacity 를 강제 캡 → 카메라 피드가 선명히 드러나도록.
+  const OPACITY_CAPS: Record<string, number> = {
+    particle_ambient: 0.30,
+    particle_burst:   0.35,
+    beat_flash:       0.25,
+    chromatic_pulse:  0.20,
+    lens_flare:       0.30,
+    noise_pattern:    0.06,
+    animated_grid:    0.22,
+    gradient_mesh:    0.55,
+    image_bg:         0.60,
+    scanlines:        0.15,
+    vignette:         0.40,
+  };
+  const cleaned = layers
+    .filter((L: any) => !(L && (KILL_TYPES.has(L.type) || KILL_IDS.has(L.id))))
+    .map((L: any) => {
+      if (!L || typeof L !== 'object') return L;
+      const cap = OPACITY_CAPS[L.type];
+      if (typeof cap === 'number' && typeof L.opacity === 'number' && L.opacity > cap) {
+        return { ...L, opacity: cap };
+      }
+      return L;
+    });
+  return { ...(t as any), layers: cleaned } as Template;
+}
+
 export function resolveLayeredTemplate(key: string | null | undefined): Template | null {
   if (!key) return null;
   const k = key.toLowerCase().trim();
 
   // 1) 직접 id / slug 매칭
-  if (LAYERED_TEMPLATES[k]) return LAYERED_TEMPLATES[k];
+  if (LAYERED_TEMPLATES[k]) return stripClutterLayers(LAYERED_TEMPLATES[k]);
 
   // 2) 장르·별칭
   const aliases: Record<string, string> = {
@@ -99,7 +139,7 @@ export function resolveLayeredTemplate(key: string | null | undefined): Template
     'vlog':         'daily-vlog',
   };
   const aliased = aliases[k];
-  if (aliased && LAYERED_TEMPLATES[aliased]) return LAYERED_TEMPLATES[aliased];
+  if (aliased && LAYERED_TEMPLATES[aliased]) return stripClutterLayers(LAYERED_TEMPLATES[aliased]);
 
   return null;
 }

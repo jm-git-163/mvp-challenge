@@ -553,7 +553,9 @@ const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
         if (tmpl) drawHeader(ctx, tmpl, elap, isRec);
 
         // 4. Subtitle
-        if (tmpl) {
+        // FIX-SUBTITLE-DUP (2026-04-23): voice_read 미션 중엔 상단 텔레프롬프터 외에
+        //   하단 캔버스 자막이 이중으로 그려져 사용자 혼선. 해당 타입일 때는 스킵.
+        if (tmpl && mission?.type !== 'voice_read') {
           const timeline: Array<{ start_ms: number; end_ms: number; text: string; style?: string }> =
             tmpl.subtitle_timeline ?? [];
           const sub = timeline.find(

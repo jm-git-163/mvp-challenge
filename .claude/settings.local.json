@@ -166,7 +166,15 @@
       "Bash(curl -s \"https://pkkhsbjryedpxolitgyo.supabase.co/rest/v1/templates?id=eq.021ccc86-7d9f-41c0-88bd-970406bebd2e&select=missions\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBra2hzYmpyeWVkcHhvbGl0Z3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NDgzNjgsImV4cCI6MjA5MTIyNDM2OH0.rFP8A3Cs3-Tib2BJNnOHCdAZKrU5sWX_nhmUh6NUlK4\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); ms=d[0]['missions']; [print\\(m.get\\('type'\\), repr\\(m.get\\('read_text'\\)\\)[:120]\\) for m in ms]\")",
       "Bash(curl -s \"https://pkkhsbjryedpxolitgyo.supabase.co/rest/v1/templates?genre=eq.kids&select=id,name,missions&limit=2\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBra2hzYmpyeWVkcHhvbGl0Z3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NDgzNjgsImV4cCI6MjA5MTIyNDM2OH0.rFP8A3Cs3-Tib2BJNnOHCdAZKrU5sWX_nhmUh6NUlK4\")",
-      "Bash(python -c 'import sys,json; d=json.load\\(sys.stdin\\) *)"
+      "Bash(python -c 'import sys,json; d=json.load\\(sys.stdin\\) *)",
+      "Bash(curl -s -o /dev/null -w \"gift=%{http_code}\\\\n\" \"https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(curl -s -o /dev/null -w \"dance=%{http_code}\\\\n\" \"https://images.unsplash.com/photo-1535525153412-5a092d46bbf3?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' 'https://images.unsplash.com/photo-__TRACKED_VAR__?auto=format&fit=crop&w=640&q=75')",
+      "Bash(curl -s -o /dev/null -w \"news=%{http_code} \" \"https://images.unsplash.com/photo-1486308510493-aa64833637bc?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(curl -s -o /dev/null -w \"eng=%{http_code} \" \"https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(curl -s -o /dev/null -w \"travel=%{http_code} \" \"https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(curl -s -o /dev/null -w \"food=%{http_code} \" \"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=640&q=75\")",
+      "Bash(curl -s -o /dev/null -w \"speech=%{http_code} \" \"https://images.unsplash.com/photo-1551817958-d9d86fb29431?auto=format&fit=crop&w=640&q=75\")"
     ]
   }
 }

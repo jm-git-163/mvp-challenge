@@ -2082,7 +2082,9 @@ export default function RecordScreen() {
                 </Animated.View>
               )}
 
-              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
+              {/* FIX-SQUAT-HUD (2026-04-23): 사용자 피드백 "카운트 0/10 표시가 올라가지도 않고 혼란".
+                  카운트 HUD 를 숨김. 점수는 결과 페이지에서 집계 후 표시. */}
+              {false && isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
                 <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} mode={squatMode} />
               )}
 
