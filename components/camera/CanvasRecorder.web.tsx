@@ -547,7 +547,9 @@ const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
         drawCamera(ctx, video, face);
 
         // 2. Genre effect (border glow / news bar / fitness bar)
-        if (tmpl) drawGenreEffect(ctx, tmpl.genre ?? '', elap);
+        // FIX-VOICE-READ-BOTTOM (2026-04-23): news 장르 'LIVE NEWS' 하단 바가
+        //   voice_read 중 대본 영역과 겹침 → voice_read 미션엔 장르 효과 스킵.
+        if (tmpl && mission?.type !== 'voice_read') drawGenreEffect(ctx, tmpl.genre ?? '', elap);
 
         // 3. Header bar
         if (tmpl) drawHeader(ctx, tmpl, elap, isRec);
@@ -567,7 +569,10 @@ const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
         }
 
         // 5. Mission card (only while recording)
-        if (isRec && mission) {
+        // FIX-VOICE-READ-BOTTOM (2026-04-23): voice_read 미션 카드가 read_text 를
+        //   하단(y=900)에 다시 그려 '하단 자막'처럼 보임 → 상단 텔레프롬프터와 이중화.
+        //   voice_read 타입에서는 캔버스 미션 카드도 스킵.
+        if (isRec && mission && mission.type !== 'voice_read') {
           drawMissionCard(ctx, mission, score);
         }
 

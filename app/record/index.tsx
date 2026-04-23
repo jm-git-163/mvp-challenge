@@ -1077,7 +1077,8 @@ function TemplateOverlay({ template, elapsed, isRecording, suppressSubtitle }: {
 
       {(genre==='kpop'||genre==='hiphop') && hasSpotlight && <KpopSpotlights accentColor={gs.accentColor} />}
       {hasStarRain && <StarRainLayer color={starColor} />}
-      {hasTicker   && <NewsTickerLayer accentColor={gs.accentColor} tickerText={tickerText} />}
+      {/* FIX: voice_read 중엔 뉴스 티커/로어서드(하단 자막 바)가 대본 위에 겹쳐 보이므로 전체 레이어 억제 */}
+      {hasTicker   && !suppressSubtitle && <NewsTickerLayer accentColor={gs.accentColor} tickerText={tickerText} />}
       {genre==='fitness' && <FitnessHUDLayer accentColor={gs.accentColor} progress={progress} elapsed={elapsed} />}
 
       <View style={[tov.topBar, {
