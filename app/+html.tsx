@@ -88,11 +88,18 @@ html, body, #root {
    <html class="motiq-dark"> 가 붙으면 네온 radial 제거하고 순수 딥 블랙으로.
    home 에 토글 버튼, localStorage('motiq_theme') 로 세션 영속. */
 html.motiq-dark, html.motiq-dark body, html.motiq-dark #root {
-  background-color: #050509;
+  background-color: #050509 !important;
   background-image:
     radial-gradient(50% 40% at 15% 12%, rgba(255,61,127,0.08) 0%, rgba(255,61,127,0) 70%),
     radial-gradient(40% 35% at 88% 22%, rgba(0,229,255,0.06) 0%, rgba(0,229,255,0) 72%),
-    linear-gradient(180deg, #07070C 0%, #050509 100%);
+    linear-gradient(180deg, #07070C 0%, #050509 100%) !important;
+}
+/* TEAM-UX (2026-04-23): React Native Web 의 expo-router Tabs sceneContainer 가
+   인라인 스타일로 흰/밝은 배경을 삽입하는 경우가 있어, 다크모드에서 html 배경을
+   가림. 클래스 하위의 앱 루트 컨테이너도 강제로 투명 처리. */
+html.motiq-dark #root > div,
+html.motiq-dark #root > div > div {
+  background-color: transparent !important;
 }
 body {
   margin: 0;
