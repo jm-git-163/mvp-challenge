@@ -19,7 +19,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
-import { prepareVideoFile, shareVideo, shareInvite, shareReply, type ShareResult } from '../../utils/share';
+import {
+  prepareVideoFile, shareVideo, shareInvite, shareReply, sharePlatform,
+  type ShareResult, type TargetPlatform,
+} from '../../utils/share';
 
 // ─── Payload types ─────────────────────────────────────────────────────
 
@@ -172,6 +175,26 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
     }
   }, [payload, onClose]);
 
+  // ── 3.5) Platform picker — video mode only ──
+  const handlePlatform = useCallback((platform: TargetPlatform) => {
+    if (payload.mode !== 'video') return;
+    const f = fileRef.current;
+    if (!f) { setMachine({ phase: 'failed', message: '영상이 준비되지 않았어요.' }); return; }
+    setMachine({ phase: 'sharing' });
+    sharePlatform({ file: f, caption: payload.caption, platform })
+      .then((res) => {
+        if (res.kind === 'fallback' || res.kind === 'web-share' || res.kind === 'web-share-text') {
+          setMachine({ phase: 'success', message: res.message });
+          setTimeout(onClose, 2400);
+        } else {
+          setMachine({ phase: 'failed', message: res.message });
+        }
+      })
+      .catch((e: any) => {
+        setMachine({ phase: 'failed', message: `${e?.message || '공유 실패'}` });
+      });
+  }, [payload, onClose]);
+
   // ── 4) Copy link only (invite-specific) ──
   // Secondary already covers this; we don't add a third button.
 
@@ -245,6 +268,35 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
           >
             <Text style={st.secondaryBtnText}>{secondaryLabel}</Text>
           </Pressable>
+
+          {payload.mode === 'video' ? (
+            <View style={st.platformSection}>
+              <Text style={st.platformHeader}>앱으로 바로 공유 · 업로드</Text>
+              <View style={st.platformGrid}>
+                {[
+                  { key: 'kakao' as const, label: '카카오톡', emoji: '💬', bg: '#FEE500', fg: '#191919' },
+                  { key: 'instagram-story' as const, label: '인스타\n스토리', emoji: '📷', bg: '#E1306C', fg: '#fff' },
+                  { key: 'instagram-feed' as const, label: '인스타\n피드', emoji: '🖼️', bg: '#833AB4', fg: '#fff' },
+                  { key: 'tiktok' as const, label: '틱톡', emoji: '🎵', bg: '#000000', fg: '#fff' },
+                  { key: 'youtube' as const, label: '유튜브\n쇼츠', emoji: '▶️', bg: '#FF0000', fg: '#fff' },
+                ].map((p) => (
+                  <Pressable
+                    key={p.key}
+                    style={[st.platformBtn, { backgroundColor: p.bg }, busy && { opacity: 0.45 }]}
+                    disabled={busy || !canTap}
+                    onPress={() => handlePlatform(p.key)}
+                  >
+                    <Text style={st.platformEmoji}>{p.emoji}</Text>
+                    <Text style={[st.platformLabel, { color: p.fg }]}>{p.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={st.platformHint}>
+                각 앱을 누르면 영상이 기기에 저장되고 해당 앱이 열려요.{'\n'}
+                앱에서 "갤러리" 또는 "최근 영상"을 열어 방금 저장된 영상을 선택해주세요.
+              </Text>
+            </View>
+          ) : null}
 
           {statusMessage ? (
             <View style={[st.statusPill, st[`status_${statusTone}` as const]]}>
@@ -343,4 +395,54 @@ const st = StyleSheet.create({
 
   cancelBtn: { marginTop: 4, paddingVertical: 12, alignItems: 'center' },
   cancelText: { color: '#71717A', fontSize: 14, fontFamily: SAN },
+
+  platformSection: {
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
+    gap: 8,
+  },
+  platformHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#52525B',
+    fontFamily: SAN,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  platformGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  platformBtn: {
+    flexBasis: '18%',
+    flexGrow: 1,
+    minWidth: 64,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    // @ts-ignore web
+    cursor: 'pointer',
+  },
+  platformEmoji: { fontSize: 20, lineHeight: 22 },
+  platformLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: SAN,
+    textAlign: 'center',
+    lineHeight: 13,
+  },
+  platformHint: {
+    fontSize: 11,
+    color: '#71717A',
+    fontFamily: SAN,
+    lineHeight: 15,
+    marginTop: 2,
+  },
 });

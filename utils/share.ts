@@ -374,6 +374,124 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
   };
 }
 
+// ─── sharePlatform — 특정 앱(카톡/인스타/틱톡/유튜브)으로 직행 ─────────
+//
+// 사용자 요청: "인스타, 유튜브, 틱톡 업로드 버튼도 넣어줘".
+// Web 에서 외부 앱에 video 를 직접 첨부하는 표준 API 는 없다. 현실적인 최선:
+//   1) 파일을 기기 저장
+//   2) 캡션을 클립보드에 복사
+//   3) 타겟 앱 딥링크 오픈 (Android intent URI / iOS custom scheme)
+//   4) 사용자가 해당 앱의 "최근 영상"/"갤러리" 에서 방금 저장된 영상 선택
+//
+// 어떤 플랫폼도 "업로드 화면 + 파일 자동 첨부" 까지는 불가. 토스트로 명확히 안내.
+
+export type TargetPlatform = 'kakao' | 'instagram-story' | 'instagram-feed' | 'tiktok' | 'youtube';
+
+function openSchemeHref(href: string): void {
+  try { (window as any).location.href = href; } catch {}
+}
+
+function openDeepLinkFor(platform: TargetPlatform): void {
+  if (typeof window === 'undefined') return;
+  const ua = navigator.userAgent || '';
+  const android = /Android/i.test(ua);
+  const ios = /iPhone|iPad|iPod/i.test(ua);
+
+  type LinkSet = { androidIntent?: string; iosScheme?: string; https: string };
+  const LINKS: Record<TargetPlatform, LinkSet> = {
+    'kakao': {
+      androidIntent: 'intent://#Intent;scheme=kakaotalk;package=com.kakao.talk;S.browser_fallback_url=https%3A%2F%2Fm.kakao.com;end',
+      iosScheme: 'kakaotalk://',
+      https: 'https://m.kakao.com',
+    },
+    'instagram-story': {
+      androidIntent: 'intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com%2F;end',
+      iosScheme: 'instagram://story-camera',
+      https: 'https://www.instagram.com/',
+    },
+    'instagram-feed': {
+      androidIntent: 'intent://library#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com%2F;end',
+      iosScheme: 'instagram://library',
+      https: 'https://www.instagram.com/',
+    },
+    'tiktok': {
+      androidIntent: 'intent://upload#Intent;scheme=snssdk1233;package=com.zhiliaoapp.musically;S.browser_fallback_url=https%3A%2F%2Fwww.tiktok.com%2Fupload;end',
+      iosScheme: 'snssdk1233://',
+      https: 'https://www.tiktok.com/upload',
+    },
+    'youtube': {
+      androidIntent: 'intent://upload#Intent;scheme=vnd.youtube;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fstudio.youtube.com%2F;end',
+      iosScheme: 'vnd.youtube://upload',
+      https: 'https://studio.youtube.com/',
+    },
+  };
+  const link = LINKS[platform];
+
+  if (android && link.androidIntent) { openSchemeHref(link.androidIntent); return; }
+  if (ios && link.iosScheme) {
+    openSchemeHref(link.iosScheme);
+    setTimeout(() => {
+      if (!document.hidden) {
+        try {
+          const a = document.createElement('a');
+          a.href = link.https; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } catch {}
+      }
+    }, 1500);
+    return;
+  }
+  // Desktop: open web fallback in new tab.
+  try {
+    const a = document.createElement('a');
+    a.href = link.https; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch {}
+}
+
+const PLATFORM_TOAST: Record<TargetPlatform, string> = {
+  'kakao': '영상 저장됨. 카카오톡이 열리면 채팅창 → + 버튼 → 최근 영상에서 선택해주세요.',
+  'instagram-story': '영상 저장됨. 인스타그램 스토리에서 갤러리를 열고 방금 저장된 영상을 선택하세요.',
+  'instagram-feed': '영상 저장됨. 인스타그램에서 + 버튼 → 갤러리로 업로드하세요.',
+  'tiktok': '영상 저장됨. 틱톡 앱에서 + 버튼 → 갤러리로 업로드하세요.',
+  'youtube': '영상 저장됨. 유튜브 스튜디오가 열리면 방금 저장된 영상을 업로드하세요.',
+};
+
+export async function sharePlatform(opts: {
+  file: File;
+  caption: string;
+  platform: TargetPlatform;
+}): Promise<ShareResult> {
+  const { file, caption, platform } = opts;
+  log('platform.start', { platform, size: file?.size });
+
+  if (!file || file.size < 10 * 1024) {
+    return { kind: 'unsupported', message: '영상 파일이 준비되지 않았어요.' };
+  }
+
+  const downloaded = saveBlobToDevice(file);
+  const captionCopied = caption ? await copyToClipboard(caption) : false;
+
+  if (!downloaded) {
+    return {
+      kind: 'error',
+      message: '영상 저장에 실패했어요. 브라우저 다운로드 권한을 확인해주세요.',
+      downloaded, captionCopied,
+    };
+  }
+
+  // Deep link must be called in the same task as the tap for iOS.
+  // saveBlobToDevice is synchronous, copyToClipboard we already awaited,
+  // so this still runs from inside the user-gesture callback chain.
+  openDeepLinkFor(platform);
+
+  return {
+    kind: 'fallback',
+    message: PLATFORM_TOAST[platform],
+    downloaded, captionCopied,
+  };
+}
+
 // ─── shareReply — convenience wrapper for "답장 보내기" on result page ──
 
 export async function shareReply(opts: {
