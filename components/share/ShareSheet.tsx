@@ -186,11 +186,20 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
     : `${payload.templateName}${typeof payload.score === 'number' ? ` · ${payload.score}점` : ''}`;
 
   const primaryLabel =
-    payload.mode === 'video' ? '영상 공유하기'
+    payload.mode === 'video' ? '영상 저장 후 메신저로 보내기'
     : payload.mode === 'reply' ? '답장 공유하기'
     : '도전장 보내기';
   const secondaryLabel =
     payload.mode === 'invite' ? '링크만 복사하기' : '기기에 저장만 하기';
+
+  // FIX-KAKAO (2026-04-23): 모드별 안내 문구. primary 버튼 위에 한 줄로 표시해
+  //   사용자가 어떻게 동작할지 미리 알게 한다.
+  const helpText =
+    payload.mode === 'invite'
+      ? '버튼을 누르면 카카오톡에서 썸네일 카드가 자동으로 떠요'
+      : payload.mode === 'video'
+        ? '영상을 기기에 저장한 뒤 메신저에서 직접 첨부해 주세요'
+        : null;
 
   const canTap = machine.phase === 'ready';
   const busy = machine.phase === 'preparing' || machine.phase === 'sharing';
@@ -216,6 +225,8 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
 
           <Text style={st.title}>{title}</Text>
           <Text style={st.subtitle}>{subtitle}</Text>
+
+          {helpText ? <Text style={st.helpText}>{helpText}</Text> : null}
 
           <Pressable
             style={[st.primaryBtn, !canTap && st.primaryBtnDisabled]}
@@ -282,6 +293,17 @@ const st = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: '700', color: '#0A0A0A', fontFamily: SAN, letterSpacing: -0.4 },
   subtitle: { fontSize: 13, color: '#71717A', marginBottom: 8, fontFamily: SAN },
+  helpText: {
+    fontSize: 12,
+    color: '#52525B',
+    backgroundColor: '#F4F4F5',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 4,
+    fontFamily: SAN,
+    lineHeight: 17,
+  },
 
   primaryBtn: {
     backgroundColor: '#0A0A0A',

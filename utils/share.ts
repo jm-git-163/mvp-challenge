@@ -21,11 +21,10 @@ import {
   buildInviteUrl,
   buildInviteShareCaption,
   buildInviteShortCaption,
-  buildDisplayUrl,
 } from './inviteLinks';
 import {
-  generateInviteShareCard,
-  canShareInviteCard,
+  // generateInviteShareCard / canShareInviteCard — invite 경로에서 더 이상 사용하지 않음.
+  //   (FIX-KAKAO-INVITE 2026-04-23: file 을 넣으면 메신저가 url 을 드롭하는 문제)
   isInAppBrowserWithBrokenShare,
 } from './inviteShareCard';
 import { blobToShareFile } from './shareVideo';
@@ -217,10 +216,14 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
     return { kind: 'unsupported', message: '영상 파일이 손상된 것 같아요. 다시 촬영해주세요.' };
   }
 
-  // Path A: Web Share with files.
-  if (env.canShareFiles(file)) {
+  // Path A: Web Share with files — iOS ONLY.
+  // FIX-KAKAO-VIDEO (2026-04-23): Android Chrome + KakaoTalk 에 video file intent 를
+  //   넘기면 Kakao 가 video MIME 을 인식 못하고 **Play Store 다운로드 페이지**로
+  //   폴백한다 (사용자 Kakao 는 이미 설치돼 있음에도). iOS 는 iMessage/AirDrop 와
+  //   정상 동작하므로 iOS 에서만 file share 시도, Android 는 무조건 download-first.
+  if (env.ios && env.canShareFiles(file)) {
     try {
-      log('attempt.websrc.files', { name: file.name });
+      log('attempt.websrc.files', { name: file.name, platform: 'ios' });
       await (navigator as any).share({
         files: [file],
         text: caption,
@@ -243,17 +246,10 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
   const captionCopied = caption ? await copyToClipboard(caption) : false;
   log('attempt.fallback', { downloaded, captionCopied });
 
-  // Best-effort text-only Web Share (no files) — on desktop this is a no-op
-  // if browser has no share API, on iOS it often opens the share sheet
-  // without attachment which is still useful.
-  if (env.canShareText && downloaded) {
-    try {
-      // Fire-and-forget. Do NOT await — user-gesture may already be spent.
-      (navigator as any)
-        .share({ text: caption, title: title || file.name })
-        .catch(() => {});
-    } catch {}
-  }
+  // NOTE: 이전 버전에서 fallback 다음에 text-only navigator.share 를 fire-and-forget
+  //   으로 호출했으나, Android Chrome 에서 이게 또 KakaoTalk 을 열고 Play Store 로
+  //   폴백되는 문제가 있어 제거. 사용자에게 토스트로 "저장된 영상을 메신저에서 직접
+  //   첨부" 를 안내하는 쪽이 훨씬 확실함.
 
   if (!downloaded && !captionCopied) {
     return {
@@ -271,10 +267,12 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
   }
 
   const msg = env.inAppBrowser
-    ? '영상이 저장됐어요. 카톡 채팅창에서 첨부해주세요.'
-    : captionCopied
-      ? '영상 저장 · 캡션 복사 완료. 원하는 앱에서 첨부해주세요.'
-      : '영상 저장 완료. 원하는 앱에서 첨부해주세요.';
+    ? '영상이 저장됐어요. 카톡 채팅창 → + 버튼 → 최근 영상에서 선택해주세요.'
+    : env.android
+      ? '영상 저장됨. 카톡 채팅창 → + 버튼 → 최근 영상에서 선택해주세요.'
+      : captionCopied
+        ? '영상 저장 · 캡션 복사 완료. 메신저 앱에서 저장된 영상을 직접 첨부해주세요.'
+        : '영상 저장 완료. 메신저 앱에서 저장된 영상을 직접 첨부해주세요.';
 
   return { kind: 'fallback', message: msg, downloaded, captionCopied };
 }
@@ -305,60 +303,22 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
   const captionCopied = await copyToClipboard(caption);
   log('invite.clipboard', captionCopied);
 
-  // 3) Path A — PNG card share (preferred, only when files are supported).
-  if (canShareInviteCard()) {
-    try {
-      log('invite.card.generate.start', { thumb: thumbnailUrl });
-      const png = await generateInviteShareCard({
-        thumbnailUrl,
-        headline: `${fromName}이(가) 도전장을 보냈어요`,
-        subline: typeof score === 'number' && score > 0
-          ? `${templateName} · ${score}점`
-          : templateName,
-        displayUrl: buildDisplayUrl(url),
-      });
-      if (png) {
-        const file = new File([png], 'invite.png', { type: 'image/png' });
-        if ((navigator as any).canShare?.({ files: [file] })) {
-          log('invite.card.share.attempt');
-          await (navigator as any).share({
-            title: `${templateName} 도전장`,
-            text: `${shortCaption}\n\n${url}`,
-            url,
-            files: [file],
-          });
-          log('result.web-share', 'card');
-          return {
-            kind: 'web-share',
-            message: '도전장을 보냈어요!',
-            captionCopied, cardShared: true,
-          };
-        }
-      }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') {
-        log('result.cancelled', 'invite-abort');
-        // User cancelled — clipboard still holds the caption, that's a win.
-        return {
-          kind: 'cancelled',
-          message: captionCopied
-            ? '공유는 취소됐지만 링크가 복사됐어요.'
-            : '공유가 취소됐어요.',
-          captionCopied,
-        };
-      }
-      log('invite.card.share.fail', e);
-      // fall through to text-only path
-    }
-  }
-
-  // 4) Path B — text-only Web Share (no file). Skip in in-app browsers.
+  // 3) URL-only Web Share.
+  // FIX-KAKAO-INVITE (2026-04-23): 이전에는 PNG 카드를 `files` 로 넘겼는데,
+  //   카카오톡/라인 등 메신저가 **file 이 있으면 text/url 을 드롭**해버려서
+  //   수신자가 링크를 못 받는 문제가 있었다. 지금은 `/share/challenge/<slug>`
+  //   경로에 Edge Function OG meta (commit 83005bb) 가 있어서 **URL 만 보내도**
+  //   카카오톡이 자동으로 리치 썸네일 카드를 렌더한다. 따라서 file 을 일절 넘기지 않고
+  //   URL 만 공유하는 것이 안전하고 UX 가 더 좋다.
+  //   PNG 카드/clipboard 는 in-app browser 나 Web Share 미지원 환경의 fallback 전용.
   if (env.canShareText) {
     try {
-      log('invite.text.share.attempt');
+      log('invite.url.share.attempt', { url });
       await (navigator as any).share({
         title: `${templateName} 도전장`,
-        text: caption,
+        // url 을 text 안에도 inline — 일부 메신저(구버전 라인 등)는 url 필드를
+        // 드롭해도 text 는 유지하므로 안전망.
+        text: `${shortCaption}\n\n${url}`,
         url,
       });
       log('result.web-share-text');
@@ -377,7 +337,8 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
           captionCopied,
         };
       }
-      log('invite.text.share.fail', e);
+      log('invite.url.share.fail', e);
+      // fall through to clipboard path
     }
   }
 
