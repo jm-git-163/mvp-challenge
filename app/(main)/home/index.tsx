@@ -21,6 +21,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
+import { useInviteStore } from '../../../store/inviteStore';
+import { buildInviteUrl, buildInviteShareCaption } from '../../../utils/inviteLinks';
 import type { Template } from '../../../types/template';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
@@ -80,9 +82,10 @@ interface CardProps {
   item: Template;
   width: number;
   onPress: (t: Template) => void;
+  onInvite: (t: Template) => void;
 }
 
-function ChallengeCard({ item: t, width, onPress }: CardProps) {
+function ChallengeCard({ item: t, width, onPress, onInvite }: CardProps) {
   const [hovered, setHovered] = useState(false);
   const genreLabel = GENRE_LABEL_MAP[t.genre] ?? t.genre;
   const diffLabel  = DIFF_LABELS[t.difficulty] ?? '';
@@ -97,6 +100,8 @@ function ChallengeCard({ item: t, width, onPress }: CardProps) {
   return (
     <Pressable
       onPress={() => onPress(t)}
+      onLongPress={() => onInvite(t)}
+      delayLongPress={420}
       // @ts-ignore web
       onHoverIn={() => setHovered(true)}
       // @ts-ignore web
@@ -140,6 +145,12 @@ function ChallengeCard({ item: t, width, onPress }: CardProps) {
             </>
           ) : null}
         </View>
+        <Pressable
+          onPress={(e) => { e.stopPropagation?.(); onInvite(t); }}
+          style={card.inviteChip}
+        >
+          <Text style={card.inviteChipText}>🥊 친구에게 도전장 보내기</Text>
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -254,6 +265,22 @@ const card = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: GZ.pink,
   },
+  inviteChip: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(236,72,153,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(236,72,153,0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  inviteChipText: {
+    color: GZ.pink,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
 });
 
 // ─── Genre filter (underline style) ───────────────────────────────────────────
@@ -346,6 +373,8 @@ export default function HomeScreen() {
   }, []);
 
   const startSession = useSessionStore(s => s.startSession);
+  const mySenderName = useInviteStore(s => s.mySenderName);
+  const [inviteToast, setInviteToast] = useState('');
 
   const { templates, loading, error, refetch } = useTemplates(
     selectedGenre !== 'all' ? { genre: selectedGenre as Template['genre'] } : undefined,
@@ -394,11 +423,42 @@ export default function HomeScreen() {
     [startSession, router],
   );
 
+  const handleInvite = useCallback(async (t: Template) => {
+    try {
+      const slug = (t as any).slug ?? t.id;
+      const url = buildInviteUrl(slug, mySenderName);
+      const caption = buildInviteShareCaption({
+        templateName: t.name,
+        fromName: mySenderName,
+        inviteUrl: url,
+      });
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(caption);
+        }
+      } catch {}
+      let shared = false;
+      try {
+        if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+          await (navigator as any).share({ title: `${t.name} 도전장`, text: caption, url });
+          shared = true;
+        }
+      } catch (e: any) { /* AbortError 무시 */ }
+      setInviteToast(shared
+        ? '✓ 도전장 전송 완료'
+        : '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요');
+      setTimeout(() => setInviteToast(''), 2800);
+    } catch (e) {
+      setInviteToast('도전장 생성 실패');
+      setTimeout(() => setInviteToast(''), 2200);
+    }
+  }, [mySenderName]);
+
   const renderCard = useCallback(
     ({ item }: { item: Template }) => (
-      <ChallengeCard item={item} width={cardW} onPress={handleSelect} />
+      <ChallengeCard item={item} width={cardW} onPress={handleSelect} onInvite={handleInvite} />
     ),
-    [cardW, handleSelect],
+    [cardW, handleSelect, handleInvite],
   );
 
   const keyExtractor = useCallback((t: Template) => t.id, []);
@@ -486,6 +546,11 @@ export default function HomeScreen() {
           </Pressable>
         }
       />
+      {inviteToast ? (
+        <View style={s.inviteToast} pointerEvents="none">
+          <Text style={s.inviteToastText}>{inviteToast}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -496,6 +561,26 @@ const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: T.bg,
+  },
+  inviteToast: {
+    position: 'absolute',
+    bottom: 36,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(10,10,10,0.9)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignSelf: 'center',
+    maxWidth: 520,
+    // @ts-ignore web
+    boxShadow: '0 8px 22px rgba(0,0,0,0.4)',
+  },
+  inviteToastText: {
+    color: '#fff',
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   footerLink: {
     alignSelf: 'center',

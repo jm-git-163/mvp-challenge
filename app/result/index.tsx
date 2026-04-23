@@ -22,6 +22,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionStore } from '../../store/sessionStore';
 import { useUserStore }    from '../../store/userStore';
+import { useInviteStore }  from '../../store/inviteStore';
+import {
+  buildInviteUrl, buildInviteShareCaption, buildReplyCaption,
+} from '../../utils/inviteLinks';
 import {
   createSession, upsertUserProfile, fetchUserProfile,
 } from '../../services/supabase';
@@ -945,6 +949,11 @@ export default function ResultScreen() {
   const fullResetForRetake = useSessionStore(s => s.fullResetForRetake);
   const { userId }     = useUserStore();
 
+  // 초대-답장 시스템 상태 (클라이언트 전용, 서버 호출 없음)
+  const inviteContext   = useInviteStore(s => s.inviteContext);
+  const mySenderName    = useInviteStore(s => s.mySenderName);
+  const clearInvite     = useInviteStore(s => s.clearInvite);
+
   // Composed video state
   const [composedUri,  setComposedUri]  = useState<string | null>(null);
   const [composedBlob, setComposedBlob] = useState<Blob | null>(null);
@@ -1197,6 +1206,101 @@ export default function ResultScreen() {
     if (activeTemplate) startSession(activeTemplate);
     router.replace('/record');
   }, [activeTemplate, startSession, fullResetForRetake, composedUri, router]);
+
+  // ── 초대-답장 핸들러 ─────────────────────────────────────────
+  const [inviteToast, setInviteToast] = useState<string>('');
+
+  const templateSlug = useMemo(() => {
+    return (activeTemplate as any)?.slug ?? activeTemplate?.id ?? 'squat-master';
+  }, [activeTemplate]);
+
+  /** "친구에게 챌린지 도전장 보내기" — 내가 친구에게 보내는 flow. */
+  const handleSendInvite = useCallback(async () => {
+    if (!activeTemplate) return;
+    try {
+      const url = buildInviteUrl(templateSlug, mySenderName, {
+        score: scoreNum,
+      });
+      const caption = buildInviteShareCaption({
+        templateName: activeTemplate.name,
+        fromName: mySenderName,
+        score: scoreNum,
+        inviteUrl: url,
+      });
+      // 1) 링크+캡션 클립보드 복사 (항상 성공)
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(caption);
+        }
+      } catch {}
+      // 2) 네이티브 share sheet (Web Share API, text only → 모든 플랫폼 호환)
+      let shared = false;
+      try {
+        if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+          await (navigator as any).share({
+            title: `${activeTemplate.name} 도전장`,
+            text: caption,
+            url,
+          });
+          shared = true;
+        }
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          // noop — 폴백 토스트 메시지만
+        }
+      }
+      setInviteToast(shared
+        ? '✓ 도전장 전송 완료'
+        : '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요');
+      setTimeout(() => setInviteToast(''), 2600);
+    } catch (e) {
+      setInviteToast('도전장 생성 실패 — 다시 시도해주세요');
+      setTimeout(() => setInviteToast(''), 2600);
+    }
+  }, [activeTemplate, templateSlug, mySenderName, scoreNum]);
+
+  /** "답장 보내기" — 친구가 보낸 도전장을 완료하고 다시 친구에게 영상+캡션 전송. */
+  const handleReplyBack = useCallback(async () => {
+    if (!inviteContext || !activeTemplate) return;
+    const caption = buildReplyCaption({
+      toName: inviteContext.fromName,
+      templateName: activeTemplate.name,
+      score: scoreNum,
+      originalInviteUrl: inviteContext.originalInviteUrl,
+    });
+    // 1) 영상 저장
+    let savedOk = false;
+    try {
+      const uri = composedUri ?? rawVideoUri;
+      if (uri) {
+        savedOk = await doDownload(uri, activeTemplate.name, composedBlob?.type).catch(() => false);
+      }
+    } catch {}
+    // 2) 캡션 복사
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(caption);
+      }
+    } catch {}
+    // 3) 네이티브 share sheet 또는 카톡 딥링크
+    try {
+      if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+        await (navigator as any).share({
+          title: `@${inviteContext.fromName} 답장`,
+          text: caption,
+        });
+      } else if (typeof window !== 'undefined') {
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+        if (/Android|iPhone|iPad|iPod/i.test(ua)) {
+          try { window.location.href = 'kakaotalk://'; } catch {}
+        }
+      }
+    } catch (e: any) { /* AbortError 는 무시 */ }
+    setInviteToast(savedOk
+      ? `✓ 영상 저장 + 캡션 복사됨 — ${inviteContext.fromName}님에게 보내주세요`
+      : `✓ 캡션 복사됨 — ${inviteContext.fromName}님에게 직접 전송해주세요`);
+    setTimeout(() => setInviteToast(''), 3200);
+  }, [inviteContext, activeTemplate, scoreNum, composedUri, rawVideoUri, composedBlob]);
 
   const hPad = Math.min(20, (width - 360) / 2 + 16);
 
@@ -1470,6 +1574,50 @@ export default function ResultScreen() {
               <Text style={st.shareText}>📤 SNS 공유</Text>
             </TouchableOpacity>
           </View>
+
+          {/* ── 친구 초대 / 답장 ─────────────────────────────────────── */}
+          <View style={st.inviteBlock}>
+            {inviteContext ? (
+              <>
+                <Text style={st.inviteHint}>
+                  🥊 {inviteContext.fromName}님이 보낸 도전장을 완료했어요
+                </Text>
+                <TouchableOpacity
+                  style={st.replyBtn}
+                  onPress={handleReplyBack}
+                  activeOpacity={0.85}
+                >
+                  <Text style={st.replyBtnText}>
+                    💌 답장 보내기 ({inviteContext.fromName}님에게)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={st.inviteBtn}
+                  onPress={() => { clearInvite(); handleSendInvite(); }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={st.inviteBtnText}>
+                    🥊 다른 친구에게도 도전장 보내기
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity
+                style={st.inviteBtn}
+                onPress={handleSendInvite}
+                activeOpacity={0.85}
+              >
+                <Text style={st.inviteBtnText}>
+                  🥊 친구에게 챌린지 도전장 보내기
+                </Text>
+              </TouchableOpacity>
+            )}
+            {inviteToast ? (
+              <View style={st.inviteToast}>
+                <Text style={st.inviteToastText}>{inviteToast}</Text>
+              </View>
+            ) : null}
+          </View>
         </Animated.View>
 
         {/* ── SAVE SESSION ──────────────────────────────── */}
@@ -1666,6 +1814,65 @@ const st = StyleSheet.create({
   errorText:    { color: '#fca5a5', fontSize: 13, textAlign: 'center' },
   retryBtn:     { backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10 },
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  // Invite block (친구 초대 / 답장)
+  inviteBlock: {
+    marginTop: 12,
+    gap: 8,
+  },
+  inviteHint: {
+    color: '#ec4899',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  inviteBtn: {
+    backgroundColor: 'rgba(236,72,153,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(236,72,153,0.55)',
+    borderRadius: 999,
+    paddingVertical: 14,
+    alignItems: 'center',
+    minHeight: 50,
+    justifyContent: 'center',
+  },
+  inviteBtnText: {
+    color: '#ec4899',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  replyBtn: {
+    // @ts-ignore web gradient
+    backgroundImage: 'linear-gradient(135deg,#ec4899 0%,#7c3aed 100%)',
+    backgroundColor: '#ec4899',
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: 'center',
+    minHeight: 56,
+    justifyContent: 'center',
+    // @ts-ignore web
+    boxShadow: '0 8px 22px rgba(236,72,153,0.4), inset 0 1px 0 rgba(255,255,255,0.22)',
+  },
+  replyBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  inviteToast: {
+    marginTop: 4,
+    backgroundColor: 'rgba(10,10,10,0.85)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  inviteToastText: {
+    color: '#fff',
+    fontSize: 13,
+    textAlign: 'center',
+  },
 
   // Action row
   actionRow: { flexDirection: 'row', gap: 10 },
