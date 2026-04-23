@@ -195,11 +195,31 @@ function roundRect(
 }
 
 /**
+ * FIX-INVITE-KAKAO (2026-04-23): 카카오톡/라인/인스타 in-app 브라우저는 `navigator.share`
+ *   가 존재해도 다이얼로그를 호출하는 순간 URL 을 가로채거나 조용히 AbortError 를 던져
+ *   공유가 실패한다. UA 기반으로 감지해 클립보드+다운로드 폴백으로 강제 전환.
+ */
+export function isInAppBrowserWithBrokenShare(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = (navigator.userAgent || '').toLowerCase();
+  return (
+    ua.includes('kakaotalk')
+    || ua.includes('naver(inapp')
+    || ua.includes('fb_iab')
+    || ua.includes('fbav')
+    || ua.includes('instagram')
+    || ua.includes('line/')
+  );
+}
+
+/**
  * Web Share API 가 파일 포함 공유를 지원하는지 사전 체크.
  * 호출자는 이 결과에 따라 카드 생성 여부를 결정한다.
  */
 export function canShareInviteCard(): boolean {
   if (typeof navigator === 'undefined') return false;
+  // in-app 브라우저는 share API 가 있어도 동작하지 않음 → 사전 차단.
+  if (isInAppBrowserWithBrokenShare()) return false;
   const nav = navigator as any;
   if (typeof nav.share !== 'function') return false;
   if (typeof nav.canShare !== 'function') return false;

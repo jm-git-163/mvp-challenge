@@ -26,7 +26,7 @@ import { useInviteStore }  from '../../store/inviteStore';
 import {
   buildInviteUrl, buildInviteShareCaption, buildInviteShortCaption, buildReplyCaption,
 } from '../../utils/inviteLinks';
-import { generateInviteShareCard, canShareInviteCard } from '../../utils/inviteShareCard';
+import { generateInviteShareCard, canShareInviteCard, isInAppBrowserWithBrokenShare } from '../../utils/inviteShareCard';
 import { pickOfficialSlug } from '../../utils/officialSlug';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../services/supabaseThumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../services/templateThumbnails';
@@ -1267,8 +1267,8 @@ export default function ResultScreen() {
         }
       }
 
-      // 2b) 폴백: 텍스트 only Web Share
-      if (!shared) {
+      // 2b) 폴백: 텍스트 only Web Share — in-app 브라우저(카카오톡 등)는 건너뛴다.
+      if (!shared && !isInAppBrowserWithBrokenShare()) {
         try {
           if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
             await (navigator as any).share({

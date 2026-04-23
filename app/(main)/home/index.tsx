@@ -27,7 +27,7 @@ import {
   buildInviteShareCaption,
   buildInviteShortCaption,
 } from '../../../utils/inviteLinks';
-import { generateInviteShareCard, canShareInviteCard } from '../../../utils/inviteShareCard';
+import { generateInviteShareCard, canShareInviteCard, isInAppBrowserWithBrokenShare } from '../../../utils/inviteShareCard';
 import { pickOfficialSlug } from '../../../utils/officialSlug';
 import type { Template } from '../../../types/template';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
@@ -489,8 +489,8 @@ export default function HomeScreen() {
         }
       }
 
-      // 파일 공유 실패 시 텍스트 only 폴백.
-      if (!shared) {
+      // 파일 공유 실패 시 텍스트 only 폴백 — in-app 브라우저(카톡 등)는 건너뛴다.
+      if (!shared && !isInAppBrowserWithBrokenShare()) {
         try {
           if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
             await (navigator as any).share({ title: `${t.name} 도전장`, text: caption, url });

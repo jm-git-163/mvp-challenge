@@ -22,6 +22,7 @@ import { preloadWhisper } from '../../utils/whisperRecognizer';
 import { checkSpeechCapability } from '../../utils/speechUtils';
 import { useRecording }              from '../../hooks/useRecording';
 import { useSessionStore }           from '../../store/sessionStore';
+import { useInviteStore }            from '../../store/inviteStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
 import { getBgmPlayer, getBgmTrackUrl } from '../../utils/bgmLibrary';
 // prewarmMic 제거 — 별도 오디오 getUserMedia가 마이크 팝업 유발
@@ -741,12 +742,15 @@ function MissionCard({ mission, progress, tag, voiceTranscript, anim, maxW }: {
            타입 안정성 위해 배열 → 첫 엔트리 폴백 문자열. */}
       <Text style={mc.mainText}>
         {mission.type === 'voice_read' && mission.read_text
-          ? (Array.isArray(mission.read_text) ? (mission.read_text[0] ?? '') : mission.read_text)
+          ? (Array.isArray(mission.read_text)
+              ? (typeof mission.read_text[0] === 'string' ? mission.read_text[0] : (mission.read_text[0]?.text ?? ''))
+              : mission.read_text)
           : mission.guide_text ?? ''}
       </Text>
 
       {mission.type === 'voice_read' && (() => {
-        const readText = Array.isArray(mission.read_text) ? (mission.read_text[0] ?? '') : (mission.read_text ?? '');
+        const first = Array.isArray(mission.read_text) ? mission.read_text[0] : mission.read_text;
+        const readText = typeof first === 'string' ? first : (first?.text ?? '');
         return (
           <View style={[mc.voiceBox, voiceTranscript ? mc.voiceBoxActive : mc.voiceBoxEmpty]}>
             <Text style={mc.voiceLabel}>🎤 내가 말한 것:</Text>
@@ -1295,7 +1299,10 @@ const sq = StyleSheet.create({
 
 // ─── VoiceTranscriptOverlay ───────────────────────────────────────────────────
 
-function VoiceTranscriptOverlay({ transcript, readText }: { transcript:string; readText?:string }) {
+// FIX-SCRIPT-I18N (2026-04-23 v4): English 챌린지에서 원문(영어) 아래 한글 번역을 함께 보여주기
+//   위해 translation prop 추가. 값이 있으면 scriptBox 내부에 작은 회색 글씨로 2단 표시.
+//   다른 언어(한국어 챌린지)에서는 translation = '' / undefined → 기존 UI 그대로.
+function VoiceTranscriptOverlay({ transcript, readText, translation }: { transcript:string; readText?:string; translation?:string }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: transcript ? 1 : 0.6, duration:250, useNativeDriver:true }).start();
@@ -1322,6 +1329,9 @@ function VoiceTranscriptOverlay({ transcript, readText }: { transcript:string; r
         <View style={vtv.scriptBox}>
           <Text style={vtv.scriptLabel}>📜 따라 읽을 문장</Text>
           <Text style={vtv.scriptText}>{readText}</Text>
+          {!!translation && (
+            <Text style={vtv.scriptTranslation} numberOfLines={3}>{translation}</Text>
+          )}
         </View>
       )}
       <View style={[vtv.transcriptBox, transcript ? vtv.transcriptActive : vtv.transcriptEmpty]}>
@@ -1351,6 +1361,8 @@ const vtv = StyleSheet.create({
   scriptText:      { color:'#E0D4FF', fontSize:22, fontWeight:'900', textAlign:'center', lineHeight:30,
     // @ts-ignore web
     textShadow:'0 0 14px rgba(167,139,250,0.7), 0 2px 6px rgba(0,0,0,0.8)' },
+  // FIX-SCRIPT-I18N (2026-04-23 v4): English 원문 아래 한글 번역. 작고 옅은 회색.
+  scriptTranslation: { color:'rgba(203,213,225,0.82)', fontSize:13, fontWeight:'500', textAlign:'center', lineHeight:18, marginTop:2 },
   transcriptBox:   { width:'100%', borderRadius:16, paddingVertical:14, paddingHorizontal:18, borderWidth:2, alignItems:'center', gap:6,
     // @ts-ignore web
     backdropFilter:'blur(14px)' },
@@ -1375,6 +1387,9 @@ export default function RecordScreen() {
 
   const activeTemplate = useSessionStore(s => s.activeTemplate);
   const sessionKey     = useSessionStore(s => s.sessionKey);
+  // FIX-INVITE-BADGE (2026-04-23): 친구 도전장을 받아 들어온 경우 촬영 중 상단에
+  //   "OOO에게 답장 보내기" 배지 표시 → 답장 문맥 상기.
+  const inviteContext  = useInviteStore(s => s.inviteContext);
   // FIX-K (2026-04-21): 모바일 UX 에서 유저가 자기 자세를 실시간으로 확인해야
   //   스쿼트·표정·포즈 미션을 수행할 수 있다. 템플릿이 'normal' 로 기본 후면
   //   카메라를 지정해도, 셀피로 돌리면 내 모습이 안 보여 미션 자체가 불가능.
@@ -1395,7 +1410,7 @@ export default function RecordScreen() {
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, squatMode, resetVoice,
           latestJudgement, lastSquatCountAt, micPermissionDeniedAt,
-          injectSquatBaseline, resolvedReadText } = useJudgement();
+          injectSquatBaseline, resolvedReadText, resolvedReadTranslation } = useJudgement();
   const { state, countdown, elapsed, videoUri, start, stop, reset:resetRecording } = useRecording();
 
   const [showIntro,  setShowIntro]  = useState(false);
@@ -1935,6 +1950,27 @@ export default function RecordScreen() {
             </View>
           );
         })()}
+        {inviteContext ? (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 8,
+              alignSelf: 'center',
+              zIndex: 9997,
+              backgroundColor: 'rgba(236,72,153,0.92)',
+              paddingHorizontal: 14,
+              paddingVertical: 6,
+              borderRadius: 999,
+              // @ts-ignore web
+              boxShadow: '0 4px 14px rgba(236,72,153,0.35)',
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>
+              💌 {inviteContext.fromName}님에게 답장 보내는 중
+            </Text>
+          </View>
+        ) : null}
         <View style={r.camWrap}>
           {/* VirtualBackgroundFrame removed — canvas handles all background compositing on web */}
             <RecordingCamera
@@ -2377,7 +2413,14 @@ export default function RecordScreen() {
               {isRecording && !showIntro && currentMission?.type==='voice_read' && (
                 // FIX-SCRIPT-POOL (2026-04-23): 배열 풀 → useJudgement 가 뽑은 resolvedReadText
                 //   사용. 프롬프터가 이번 세션에 선택된 한 문장만 보여줌.
-                <VoiceTranscriptOverlay transcript={voiceTranscript} readText={resolvedReadText || (Array.isArray(currentMission.read_text) ? currentMission.read_text[0] : currentMission.read_text)} />
+                <VoiceTranscriptOverlay
+                  transcript={voiceTranscript}
+                  readText={resolvedReadText || (() => {
+                    const first = Array.isArray(currentMission.read_text) ? currentMission.read_text[0] : currentMission.read_text;
+                    return typeof first === 'string' ? first : (first?.text ?? '');
+                  })()}
+                  translation={resolvedReadTranslation}
+                />
               )}
 
               {isIdle && (
