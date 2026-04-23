@@ -86,8 +86,11 @@ describe('parseInviteUrl (v2)', () => {
     expect(parseInviteUrl('https://motiq.app/challenge/..%2Fevil?c=eyJmIjoiYSJ9')).toBeNull();
   });
 
-  it('슬러그만 있고 쿼리 없으면 null', () => {
-    expect(parseInviteUrl('https://motiq.app/challenge/squat-master')).toBeNull();
+  it('슬러그만 있고 쿼리 없으면 익명 도전장 ctx (FIX-INVITE-E2E-V2)', () => {
+    // 메신저가 query string 을 드롭하는 엣지케이스에서도 챌린지는 열려야 한다.
+    const ctx = parseInviteUrl('https://motiq.app/challenge/squat-master');
+    expect(ctx?.slug).toBe('squat-master');
+    expect(ctx?.fromName).toBe('친구');
   });
 
   it('/share/challenge/ prefix 경로도 파싱 (OG 크롤러용 URL)', () => {
@@ -127,8 +130,10 @@ describe('parseInviteUrl (v1 legacy backward compat)', () => {
     expect(ctx?.score).toBeUndefined();
   });
 
-  it('레거시 from 누락 → null', () => {
-    expect(parseInviteUrl('https://motiq.app/challenge/squat-master?score=10')).toBeNull();
+  it('레거시 from 누락 → 익명 ctx (FIX-INVITE-E2E-V2)', () => {
+    const ctx = parseInviteUrl('https://motiq.app/challenge/squat-master?score=10');
+    expect(ctx?.slug).toBe('squat-master');
+    expect(ctx?.fromName).toBe('친구');
   });
 });
 

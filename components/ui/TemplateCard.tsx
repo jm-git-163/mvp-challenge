@@ -63,7 +63,8 @@ interface Props {
 
 export function TemplateCard({ template, onPress }: Props) {
   const [pressed, setPressed] = useState(false);
-  const missionTypes = [...new Set(template.missions.map((m) => m.type))];
+  // FIX-INVITE-E2E-V2 (2026-04-23): layered 템플릿 등 missions 누락 방어.
+  const missionTypes = [...new Set((Array.isArray(template.missions) ? template.missions : []).map((m) => m.type))];
   const pixabayThumb = TEMPLATE_THUMBNAILS[template.id]?.url;
   const thumbUri = pixabayThumb || template.thumbnail_url;
   const genreColor = GENRE_COLOR[template.genre] ?? GZ.pink;

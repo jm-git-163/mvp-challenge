@@ -1931,7 +1931,7 @@ export default function RecordScreen() {
             TEAM-UX (2026-04-23): 게임 몰입 저해 — debugOn 게이트. 평시엔 숨김.
             실제 오작동(err / results=0 장기) 안내는 VoiceTranscriptOverlay 내
             srStalled 경로로 유저에게 자연스럽게 전달됨. */}
-        {debugOn && state === 'recording' && activeTemplate?.missions.some(m => m.type === 'voice_read') && (() => {
+        {debugOn && state === 'recording' && Array.isArray(activeTemplate?.missions) && activeTemplate!.missions.some(m => m.type === 'voice_read') && (() => {
           let srDiag: any = null;
           try { srDiag = getGlobalSpeechRecognizer().getDiagnostic(); } catch {}
           const ok = srDiag?.listening && !srDiag?.error;
@@ -2023,7 +2023,7 @@ export default function RecordScreen() {
                 <View style={r.statusBadgeRow} pointerEvents="none">
                   {/* 포즈 미션이 필요한 장르에서만 표시 */}
                   {(activeTemplate?.genre === 'fitness' ||
-                    activeTemplate?.missions.some(m => m.type === 'gesture' || m.type === 'timing' || m.type === 'expression')) && (
+                    Array.isArray(activeTemplate?.missions) && activeTemplate!.missions.some(m => m.type === 'gesture' || m.type === 'timing' || m.type === 'expression')) && (
                     <View style={[r.statusChip,
                       poseStatus === 'ready-real' && isRealPose ? r.statusChipOk :
                       poseStatus === 'ready-mock' ? r.statusChipWarn :
@@ -2039,7 +2039,7 @@ export default function RecordScreen() {
                     </View>
                   )}
                   {/* 음성 미션이 있으면 표시 */}
-                  {activeTemplate?.missions.some(m => m.type === 'voice_read') && (
+                  {Array.isArray(activeTemplate?.missions) && activeTemplate!.missions.some(m => m.type === 'voice_read') && (
                     <View style={[r.statusChip, voiceTranscript ? r.statusChipOk : r.statusChipWarn]}>
                       <Text style={r.statusChipText}>
                         {voiceTranscript ? '🟢 음성 인식 중' : '🎤 말해주세요'}
@@ -2426,7 +2426,7 @@ export default function RecordScreen() {
                 <View style={[r.infoOverlay, { maxWidth:maxW }]}>
                   <Text style={r.infoEmoji}>{activeTemplate.theme_emoji}</Text>
                   <Text style={r.infoTitle}>{activeTemplate.name}</Text>
-                  <Text style={r.infoMeta}>{activeTemplate.duration_sec}초 · {activeTemplate.missions.length}개 미션</Text>
+                  <Text style={r.infoMeta}>{activeTemplate.duration_sec ?? (activeTemplate as any).duration ?? 0}초 · {Array.isArray(activeTemplate.missions) ? activeTemplate.missions.length : 0}개 미션</Text>
                   {activeTemplate.scene ? <Text style={r.infoScene} numberOfLines={3}>{activeTemplate.scene}</Text> : null}
                   {activeTemplate.intro && (
                     <View style={r.introBadge}><Text style={r.introBadgeText}>✨ 드라마틱 인트로 포함</Text></View>

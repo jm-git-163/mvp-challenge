@@ -247,14 +247,12 @@ function roundRect(
 export function isInAppBrowserWithBrokenShare(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = (navigator.userAgent || '').toLowerCase();
-  return (
-    ua.includes('kakaotalk')
-    || ua.includes('naver(inapp')
-    || ua.includes('fb_iab')
-    || ua.includes('fbav')
-    || ua.includes('instagram')
-    || ua.includes('line/')
-  );
+  // FIX-INVITE-E2E-V2 (2026-04-23): 이전엔 line/fb_iab/instagram 까지 전부 차단해
+  //   일반 모바일 Safari/Chrome 에 가까운 환경(예: line/ Android Chrome 변형)에서도
+  //   navigator.share 를 시도조차 안 했다 → "공유창이 안 뜨고 클립보드만 복사" 버그.
+  //   확실히 깨진다고 검증된 KAKAOTALK 만 hard-block. 나머지는 navigator.share 를
+  //   먼저 시도하고 실패 시 폴백 (utils/share.ts 의 catch 가 처리).
+  return ua.includes('kakaotalk');
 }
 
 /**

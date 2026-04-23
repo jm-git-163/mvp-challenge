@@ -62,19 +62,48 @@ export default function ChallengeInviteScreen() {
   const { templates, loading } = useTemplates();
   const template: Template | null = useMemo(() => {
     if (!ctx) return null;
-    // 1) layered 템플릿(공식 slug) 우선 — 항상 매칭 보장, resolveLayeredTemplate 가
-    //    genre alias 도 포함하므로 'kpop' 같은 축약도 처리된다.
-    const layered = resolveLayeredTemplate(ctx.slug);
+    // FIX-INVITE-E2E-V2 (2026-04-23): **DB 템플릿(missions/genre/duration_sec 보유) 우선**.
+    //   이전엔 layered 템플릿(레이어 합성 전용 스키마, missions 필드 없음)을 먼저 반환해
+    //   accept → record 페이지에서 `activeTemplate.missions.length` 가
+    //   "Cannot read properties of undefined (reading 'length')" 로 터졌다.
+    //   record/result 등 React UI 는 production template 스키마(types/template.ts)를
+    //   가정하므로 반드시 DB 쪽 객체를 우선 사용.
+    const slugLc = (ctx.slug || '').toLowerCase();
+
+    // 슬러그 → DB id 변환 후보 (UUID 매핑 + legacy 접두 매핑).
+    const SLUG_TO_DB_PREFIX: Record<string, string> = {
+      'daily-vlog':         'daily-vlog',
+      'news-anchor':        'news-anchor',
+      'english-speaking':   'english-lesson',
+      'storybook-reading':  'fairy-tale',
+      'travel-checkin':     'travel-cert',
+      'unboxing-promo':     'product-unbox',
+      'kpop-dance':         'kpop-idol',
+      'food-review':        'food-',
+      'motivation-speech':  'motivation-',
+      'social-viral':       'social-',
+      'squat-master':       'fitness-squat',
+    };
+    const dbPrefix = SLUG_TO_DB_PREFIX[slugLc] ?? slugLc;
+
+    const dbHit = templates.find(t => {
+      const id = String((t as any).id ?? '').toLowerCase();
+      const slug = String((t as any).slug ?? '').toLowerCase();
+      const themeId = String((t as any).theme_id ?? '').toLowerCase();
+      const genre = String((t as any).genre ?? '').toLowerCase();
+      return id === slugLc
+        || slug === slugLc
+        || themeId === slugLc
+        || genre === slugLc
+        || id.startsWith(dbPrefix);
+    });
+    if (dbHit) return dbHit;
+
+    // DB 매칭 실패 시 layered 템플릿(시각 미리보기 용도) — accept 시 missions 누락 가능.
+    const layered = resolveLayeredTemplate(slugLc);
     if (layered) return (layered as any);
-    // 2) DB 템플릿에서 id/slug/theme_id/genre 매칭
-    const exact = templates.find(t =>
-      t.id === ctx.slug
-      || (t as any).slug === ctx.slug
-      || (t as any).theme_id === ctx.slug
-      || (t as any).genre === ctx.slug
-    );
-    if (exact) return exact;
-    // 3) 마지막 폴백: 첫 번째 DB 템플릿이라도 보여줌 (에러 화면보다 낫다)
+
+    // 마지막 폴백: 첫 DB 템플릿.
     return templates[0] ?? null;
   }, [templates, ctx]);
 
@@ -93,7 +122,9 @@ export default function ChallengeInviteScreen() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!ctx) return;
-    const templateName = template?.name ?? ctx.slug;
+    const templateName = (template as any)?.name ?? (template as any)?.title ?? ctx.slug;
+    const tId = String((template as any)?.id ?? ctx.slug ?? '');
+    const tGenre = String((template as any)?.genre ?? 'daily');
     const title = `${ctx.fromName}이(가) ${templateName} 도전장을 보냈어요!`;
     const desc = ctx.message
       ? `"${ctx.message}" — 탭해서 함께 도전하세요`
@@ -101,11 +132,11 @@ export default function ChallengeInviteScreen() {
           ? `${ctx.fromName}님의 점수 ${ctx.score}점. 탭해서 함께 도전하세요`
           : '탭해서 함께 도전하세요');
     const img =
-      SUPABASE_TEMPLATE_THUMBNAILS[template?.id ?? '']?.largeURL
-      || SUPABASE_TEMPLATE_THUMBNAILS[template?.id ?? '']?.url
-      || TEMPLATE_THUMBNAILS[template?.id ?? '']?.largeURL
-      || TEMPLATE_THUMBNAILS[template?.id ?? '']?.url
-      || (template ? getThumbnailUrl((template as any).genre, template.id, 1280) : '');
+      SUPABASE_TEMPLATE_THUMBNAILS[tId]?.largeURL
+      || SUPABASE_TEMPLATE_THUMBNAILS[tId]?.url
+      || TEMPLATE_THUMBNAILS[tId]?.largeURL
+      || TEMPLATE_THUMBNAILS[tId]?.url
+      || (tId ? getThumbnailUrl(tGenre, tId, 1280) : '');
 
     const setMeta = (selector: string, attr: 'content', value: string) => {
       let el = document.head.querySelector(selector) as HTMLMetaElement | null;
@@ -167,12 +198,18 @@ export default function ChallengeInviteScreen() {
     );
   }
 
-  const banner = buildInviteBannerText(ctx, template.name);
+  // FIX-INVITE-E2E-V2 (2026-04-23): layered template 은 `title` 만 있고 `name`/`genre`/`id`
+  //   가 다를 수 있어 모든 접근에 폴백 가드. getThumbnailUrl 은 내부적으로 id.length 를
+  //   계산하므로 빈 문자열 폴백 필수 — 이전엔 undefined 가 들어가 "reading length" 발생.
+  const tplName = (template as any).name || (template as any).title || ctx.slug;
+  const tplId = String((template as any).id ?? ctx.slug ?? 'challenge');
+  const tplGenre = String((template as any).genre ?? 'daily');
+  const banner = buildInviteBannerText(ctx, tplName);
   const thumbUri =
-    SUPABASE_TEMPLATE_THUMBNAILS[template.id]?.url
-    || TEMPLATE_THUMBNAILS[template.id]?.url
+    SUPABASE_TEMPLATE_THUMBNAILS[tplId]?.url
+    || TEMPLATE_THUMBNAILS[tplId]?.url
     || (template as any).thumbnail_url
-    || getThumbnailUrl(template.genre, template.id, 960);
+    || getThumbnailUrl(tplGenre, tplId, 960);
 
   const accept = async () => {
     if (accepting) return;
@@ -204,9 +241,9 @@ export default function ChallengeInviteScreen() {
         <View style={s.previewCard}>
           <Image source={{ uri: thumbUri }} style={s.thumb} />
           <View style={s.previewBody}>
-            <Text style={s.previewTitle}>{template.name}</Text>
-            {template.description ? (
-              <Text style={s.previewDesc} numberOfLines={3}>{template.description}</Text>
+            <Text style={s.previewTitle}>{tplName}</Text>
+            {(template as any).description ? (
+              <Text style={s.previewDesc} numberOfLines={3}>{(template as any).description}</Text>
             ) : null}
           </View>
         </View>

@@ -72,20 +72,26 @@ const POOL: Record<Genre, string[]> = {
 };
 
 // Simple deterministic hash → same template always gets same thumb
-function hashPick(id: string, poolSize: number): number {
+// FIX-INVITE-E2E-V2 (2026-04-23): id 가 undefined/null 이어도 터지지 않게 방어.
+//   초대 경로에서 layered template(`title` 필드만, id 없을 수 있음)이 넘어올 때
+//   `id.length` 에서 TypeError 로 ErrorBoundary 가 "예상치 못한 오류 · reading length"
+//   로 노출되던 문제.
+function hashPick(id: string | undefined | null, poolSize: number): number {
+  const safeId = String(id ?? '');
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % poolSize;
+  for (let i = 0; i < safeId.length; i++) h = (h * 31 + safeId.charCodeAt(i)) >>> 0;
+  return h % Math.max(1, poolSize);
 }
 
 export function getThumbnailUrl(
-  genre: string,
-  templateId: string,
+  genre: string | undefined | null,
+  templateId: string | undefined | null,
   width = 640,
 ): string {
-  const g = (genre in POOL ? genre : 'daily') as Genre;
+  const safeGenre = String(genre ?? '');
+  const g = (safeGenre in POOL ? safeGenre : 'daily') as Genre;
   const pool = POOL[g];
-  const photoId = pool[hashPick(templateId, pool.length)];
+  const photoId = pool[hashPick(templateId, pool?.length ?? 1)];
   // Unsplash direct-image URL (no API key) — images.unsplash.com serves these
   // auto=format gives webp on supported browsers, q=75 balance quality/size
   return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=${width}&q=75`;

@@ -91,11 +91,14 @@ function ChallengeCard({ item: t, width, onPress, onInvite }: CardProps) {
   const genreLabel = GENRE_LABEL_MAP[t.genre] ?? t.genre;
   const diffLabel  = DIFF_LABELS[t.difficulty] ?? '';
   const missionSummary = useMemo(() => {
-    const types = [...new Set(t.missions.map(m => m.type))];
-    return types.map(ty => MISSION_LABEL[ty] ?? ty).join(' · ');
-  }, [t.missions]);
-  const mins = Math.floor(t.duration_sec / 60);
-  const secs = t.duration_sec % 60;
+    // FIX-INVITE-E2E-V2 (2026-04-23): layered 템플릿 등 missions 누락 케이스 방어.
+    const ms = Array.isArray((t as any).missions) ? (t as any).missions : [];
+    const types = [...new Set(ms.map((m: any) => m?.type).filter(Boolean))];
+    return types.map(ty => MISSION_LABEL[ty as string] ?? ty).join(' · ');
+  }, [t]);
+  const durSec = Number((t as any).duration_sec ?? (t as any).duration ?? 0) || 0;
+  const mins = Math.floor(durSec / 60);
+  const secs = durSec % 60;
   const timeLabel = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`;
 
   return (

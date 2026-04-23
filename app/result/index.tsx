@@ -685,7 +685,7 @@ export default function ResultScreen() {
     const caption = activeTemplate.sns_template.caption_template
       .replace('{template_name}', activeTemplate.name)
       .replace('{score}', String(scoreNum));
-    const hashtags = activeTemplate.sns_template.hashtags.map(h => '#' + h).join(' ');
+    const hashtags = (Array.isArray(activeTemplate.sns_template?.hashtags) ? activeTemplate.sns_template.hashtags : []).map(h => '#' + h).join(' ');
 
     return [
       `${grade} · ${scoreNum}점`,
@@ -1023,7 +1023,7 @@ export default function ResultScreen() {
             <View style={st.missionList}>
               {missionResults.map((mr, i) => {
                 // Try to get mission type from template
-                const mission = activeTemplate?.missions.find(m => m.seq === mr.seq);
+                const mission = Array.isArray(activeTemplate?.missions) ? activeTemplate!.missions.find(m => m.seq === mr.seq) : undefined;
                 return (
                   <MissionResultCard
                     key={mr.seq}

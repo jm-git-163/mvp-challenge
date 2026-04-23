@@ -129,8 +129,9 @@ export function parseInviteUrl(url: string): InviteContext | null {
     if (raw) {
       try {
         const obj = JSON.parse(raw);
-        const fromName = clampStr(String(obj.f ?? ''), MAX_NAME_LEN);
-        if (!fromName) return null;
+        // FIX-INVITE-E2E-V2 (2026-04-23): fromName 없어도 "친구" 폴백 — slug 만 유효하면
+        //   챌린지는 열리게.
+        const fromName = clampStr(String(obj.f ?? ''), MAX_NAME_LEN) || '친구';
         const ctx: InviteContext = { slug, fromName };
         if (obj.m) {
           const m = clampStr(String(obj.m), MAX_MSG_LEN);
@@ -149,7 +150,14 @@ export function parseInviteUrl(url: string): InviteContext | null {
   // v1 — 레거시 ?from=&msg=&score=
   const fromRaw = params.get('from') ?? '';
   const fromName = clampStr(fromRaw, MAX_NAME_LEN);
-  if (!fromName) return null;
+
+  // FIX-INVITE-E2E-V2 (2026-04-23): slug 가 유효한데 ?c / ?from 둘 다 없는 경우에도
+  //   "익명 도전장" 으로 ctx 생성. 이전엔 null 리턴 → "잘못된 도전장 링크" 화면.
+  //   카톡/라인 등 일부 메신저가 query string 을 통째로 드롭하거나, Vercel rewrite
+  //   가 c 파라미터를 잃는 엣지케이스에서도 챌린지는 열려야 한다.
+  if (!fromName) {
+    return { slug, fromName: '친구' };
+  }
 
   const ctx: InviteContext = { slug, fromName };
   const msg = params.get('msg');
