@@ -1184,7 +1184,9 @@ export default function ResultScreen() {
     try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
     try { reset(); } catch {}
     if (typeof window !== 'undefined' && window.location) {
-      window.location.href = '/?_b=' + Date.now();
+      // FIX-NAV v5: '/' → Redirect → '/(main)/home' 경로에서도 드물게 루프 보고.
+      // 직접 '/home' 으로 이동해 Index.tsx Redirect 를 건너뛴다.
+      window.location.href = '/home?_b=' + Date.now();
       return;
     }
     // Native (iOS/Android app) 폴백

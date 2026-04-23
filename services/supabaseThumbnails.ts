@@ -52,9 +52,9 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 0
   },
   "e2d9cc60-08c3-4200-86ba-3a7cdfa6ad54": {
-    "url": "https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=640&q=75&v=8",
-    "largeURL": "https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=1280&q=80",
-    "tags": "dance group, performance, kpop, choreography",
+    "url": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=640&q=75&v=9",
+    "largeURL": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=1280&q=80",
+    "tags": "concert stage, lights, crowd silhouette, kpop vibe",
     "user": "unsplash",
     "pixabayId": 0
   },
