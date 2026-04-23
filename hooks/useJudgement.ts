@@ -20,6 +20,7 @@ import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
 import { pickScriptWithHistory } from '../engine/missions/scriptPrompterMission';
+import { SCRIPT_POOLS_BY_THEME } from '../services/mockData';
 import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
@@ -270,15 +271,26 @@ export function useJudgement(): {
           const rt = mission.read_text;
           const tmplId = template?.id ?? 'unknown';
           const missionKey = `${tmplId}::${mission.seq}`;
-          if (Array.isArray(rt)) {
+          // FIX-SCRIPT-POOL-PROD (2026-04-23): Supabase DB read_text 는 단일 문자열이므로
+          //   theme_id/genre 로 풀을 찾아 배열 로테이션. 매칭 풀 없으면 원문 그대로.
+          let pool: string[] | null = Array.isArray(rt) ? rt : null;
+          if (!pool && typeof rt === 'string') {
+            const key = (template?.theme_id || template?.genre || '').toLowerCase();
+            const candidate = SCRIPT_POOLS_BY_THEME[key];
+            if (candidate && candidate.length > 0) {
+              // 원문 read_text 도 풀에 포함 (중복 제거)
+              pool = candidate.includes(rt) ? candidate : [rt, ...candidate];
+            }
+          }
+          if (pool && pool.length > 1) {
             if (resolvedMissionKeyRef.current !== missionKey) {
-              resolvedText = pickScriptWithHistory(rt, tmplId, String(mission.seq));
+              resolvedText = pickScriptWithHistory(pool, tmplId, String(mission.seq));
               resolvedMissionKeyRef.current = missionKey;
             } else {
-              resolvedText = resolvedReadTextRef.current || pickScriptWithHistory(rt, tmplId, String(mission.seq));
+              resolvedText = resolvedReadTextRef.current || pickScriptWithHistory(pool, tmplId, String(mission.seq));
             }
           } else {
-            resolvedText = rt;
+            resolvedText = Array.isArray(rt) ? (rt[0] ?? '') : String(rt);
             resolvedMissionKeyRef.current = missionKey;
           }
         } else {

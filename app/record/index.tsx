@@ -1000,7 +1000,7 @@ function StarRainLayer({ color }: { color: string }) {
 
 interface SubtitleEntry { start_ms:number; end_ms:number; text:string; style?:string; }
 
-function TemplateOverlay({ template, elapsed, isRecording }: { template: any; elapsed:number; isRecording:boolean }) {
+function TemplateOverlay({ template, elapsed, isRecording, suppressSubtitle }: { template: any; elapsed:number; isRecording:boolean; suppressSubtitle?:boolean }) {
   const subtitleAnim  = useRef(new Animated.Value(0)).current;
   const liveBlinkAnim = useRef(new Animated.Value(1)).current;
   const hashtagX      = useRef(new Animated.Value(0)).current;
@@ -1098,7 +1098,7 @@ function TemplateOverlay({ template, elapsed, isRecording }: { template: any; el
         </View>
       </View>
 
-      {currentSub && (
+      {currentSub && !suppressSubtitle && (
         <Animated.View style={[
           tov.subtitleWrap,
           isHighlight ? { backgroundColor:gs.accentColor+'dd', borderColor:'#fff4' }
@@ -2377,7 +2377,7 @@ export default function RecordScreen() {
 
               {isCountdown && <CountdownOverlay count={countdown} templateName={activeTemplate.name} emoji={activeTemplate.theme_emoji} />}
 
-              <TemplateOverlay template={activeTemplate} elapsed={elapsed} isRecording={isRecording && !showIntro} />
+              <TemplateOverlay template={activeTemplate} elapsed={elapsed} isRecording={isRecording && !showIntro} suppressSubtitle={currentMission?.type==='voice_read'} />
 
               {isRecording && !showIntro && (
                 <View style={r.timingBarWrap}><TimingBar template={activeTemplate} elapsedMs={elapsed} /></View>

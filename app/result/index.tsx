@@ -1140,16 +1140,20 @@ export default function ResultScreen() {
   }, [userId, activeTemplate, frameTags, rawVideoUri, composedUri, stats]);
 
   const goHome = useCallback(() => {
-    if (composedUri) URL.revokeObjectURL(composedUri);
-    try { reset(); } catch {}
-    // Focused Commit C-4: Edge 에서 router.back() 이력 이슈 회피.
-    // replace → 실패 시 window.location.href 하드 네비게이션으로 폴백.
+    // FIX-NAV (2026-04-23): expo-router v5+ 는 그룹 세그먼트 `(main)` 을 URL 에 노출하지 않음.
+    //   `/(main)/home` replace 는 Not Found → catch 로 떨어져 location.href 폴백이 발생하고
+    //   그 과정에서 "홈으로 이동 에러" 경험. 올바른 path 는 `/home`.
+    //   reset/revokeObjectURL 은 navigation 완료 후 수행해 unmount race 방지.
     try {
-      router.replace('/(main)/home');
+      router.replace('/home');
     } catch (e) {
       console.warn('[result] goHome router.replace failed, falling back to location.href', e);
-      if (typeof window !== 'undefined') window.location.href = '/?_b=' + Date.now();
+      if (typeof window !== 'undefined') window.location.href = '/home?_b=' + Date.now();
     }
+    setTimeout(() => {
+      try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
+      try { reset(); } catch {}
+    }, 0);
   }, [reset, composedUri, router]);
 
   const doRetake = useCallback(() => {

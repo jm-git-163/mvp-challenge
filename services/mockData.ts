@@ -246,6 +246,36 @@ const POOL_MOTIVATION: string[] = [
   '할 수 있다, 될 수 있다, 해낼 것이다!',
 ];
 
+/**
+ * FIX-SCRIPT-POOL-PROD (2026-04-23):
+ * Supabase DB 의 기존 템플릿은 `read_text` 가 단일 문자열로 저장되어 있어 로테이션이 불가능했음.
+ * genre/theme_id 로 적절한 풀을 찾아 fallback 으로 제공하는 맵.
+ * useJudgement.ts 에서 `read_text` 가 string 일 때 이 맵을 조회해 로테이션.
+ */
+export const SCRIPT_POOLS_BY_THEME: Record<string, string[]> = {
+  daily: POOL_DAILY_VLOG,
+  daily_vlog: POOL_DAILY_VLOG,
+  vlog: POOL_DAILY_VLOG,
+  news: [...POOL_NEWS_GREETING, ...POOL_NEWS_WEATHER, ...POOL_NEWS_REPORT, ...POOL_NEWS_CLOSING],
+  news_greeting: POOL_NEWS_GREETING,
+  news_weather: POOL_NEWS_WEATHER,
+  news_report: POOL_NEWS_REPORT,
+  news_closing: POOL_NEWS_CLOSING,
+  fairy_tale: [...POOL_STORYBOOK_INTRO, ...POOL_STORYBOOK_MIDDLE, ...POOL_STORYBOOK_END],
+  kids: [...POOL_STORYBOOK_INTRO, ...POOL_STORYBOOK_MIDDLE, ...POOL_STORYBOOK_END],
+  storybook: [...POOL_STORYBOOK_INTRO, ...POOL_STORYBOOK_MIDDLE, ...POOL_STORYBOOK_END],
+  storybook_intro: POOL_STORYBOOK_INTRO,
+  storybook_middle: POOL_STORYBOOK_MIDDLE,
+  storybook_end: POOL_STORYBOOK_END,
+  travel: POOL_TRAVEL,
+  food: POOL_FOOD_REVIEW,
+  food_review: POOL_FOOD_REVIEW,
+  english: POOL_ENGLISH,
+  english_lesson: POOL_ENGLISH,
+  motivation: POOL_MOTIVATION,
+  fitness: POOL_MOTIVATION,
+  kpop: POOL_MOTIVATION,
+};
 
 export const MOCK_TEMPLATES: Template[] = [
 

@@ -372,15 +372,18 @@ export default function HomeScreen() {
       //   스트림을 살려두면 안드로이드 Chrome 에서 SpeechRecognition 이 같은 마이크에
       //   동시 접근 시 audio 를 못받아 results 가 안올라감. 권한은 origin 단위로
       //   브라우저에 캐싱되므로 RecordingCamera 에서 재호출해도 팝업 없음.
+      // FIX-PERM-SINGLE (2026-04-23): 홈 preflight 에서 스트림을 stop 하지 말고
+      //   __permissionStream 에 살려두기. RecordingCamera 가 이를 재사용해 추가 팝업 방지.
+      //   이전 버전은 stop 후 origin 캐시에 의존했지만 iOS Safari/일부 Android 에서
+      //   재요청 시 팝업이 다시 뜨는 회귀 발생.
       if (typeof window !== 'undefined' && !(window as any).__permissionGranted) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: { echoCancellation: true, noiseSuppression: true },
           });
-          // 트랙 즉시 종료 — 마이크/카메라 해제. 권한만 origin 단위로 캐싱됨.
-          stream.getTracks().forEach((t) => t.stop());
           (window as any).__permissionGranted = true;
+          (window as any).__permissionStream = stream;
         } catch (e) {
           if (typeof console !== 'undefined') console.warn('[permission] denied or failed:', e);
         }
