@@ -25,12 +25,13 @@ export interface TemplateThumb {
 }
 
 export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
-  // REVIEWED 2026-04-23 (v4) — 사용자 "오늘의 브이로그 썸네일 교체" 피드백.
-  //   Unsplash 의 여성 스마트폰 셀프 촬영 사진 (HTTP 200 확인 · 2026-04-23).
+  // REVIEWED 2026-04-23 (v5) — 사용자 "오늘의 브이로그 주제와 맞는거로 재교체" 피드백.
+  //   Unsplash 검증 "Man filming himself live on smartphone" (photo onyMKLN7aow).
+  //   실제 스마트폰으로 셀프 촬영하는 장면 — 브이로그 주제 정확 매칭. HTTP 200 확인.
   "daily-vlog-001": {
-    "url": "https://images.unsplash.com/photo-1719831936169-faee5b519162?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1719831936169-faee5b519162?auto=format&fit=crop&w=1280&q=80",
-    "tags": "vlog, selfie, phone, young woman, recording",
+    "url": "https://images.unsplash.com/photo-1764162051244-1391c41122ac?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1764162051244-1391c41122ac?auto=format&fit=crop&w=1280&q=80",
+    "tags": "vlog, selfie, phone, live, recording, self-filming",
     "user": "unsplash",
     "pixabayId": 0
   },
@@ -53,12 +54,13 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — fairy tale: Pixabay 결과는 크리스마스 데스크탑 배경화면(mismatch).
   //   Unsplash 의 동화책/판타지 일러스트 톤 사진으로 교체. 따뜻한 색감.
-  // REVIEWED 2026-04-23 (v4) — 사용자 "동화 썸네일 교체" 피드백.
-  //   Unsplash 검증 "little girl sitting in a chair reading a book".
+  // REVIEWED 2026-04-23 (v5) — 사용자 "동화책읽기 주제와 맞는거로 재교체" 피드백.
+  //   Unsplash 검증 "little girl sitting on the floor reading a book" (photo j8ms2KHBTag).
+  //   바닥에 앉아 동화책 펼쳐 읽는 소녀 — 동화책 읽기 주제 정확 매칭. HTTP 200 확인.
   "fairy-tale-004": {
-    "url": "https://images.unsplash.com/photo-1637195141628-f0f75585a07f?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1637195141628-f0f75585a07f?auto=format&fit=crop&w=1280&q=80",
-    "tags": "fairy tale, child, reading, storybook, cozy",
+    "url": "https://images.unsplash.com/photo-1647621148693-720553a7b41e?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1647621148693-720553a7b41e?auto=format&fit=crop&w=1280&q=80",
+    "tags": "fairy tale, child, girl, reading, storybook, floor, cozy",
     "user": "unsplash",
     "pixabayId": 0
   },
@@ -151,12 +153,13 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — kpop dance: Pixabay 는 발레리나(mismatch).
   //   Unsplash 의 K-pop 안무/스튜디오 댄스 사진으로 교체. 핑크/퍼플 톤 우선.
-  // REVIEWED 2026-04-23 (v4) — 사용자 "k-pop 썸네일 교체" 피드백. 기존 ID 404.
-  //   Unsplash 검증 "men dancing on stage" — K-pop 공연 톤.
+  // REVIEWED 2026-04-23 (v5) — 사용자 "k-pop댄스 주제와 맞는거로 재교체" 피드백.
+  //   Unsplash 검증 "group of young men dancing on a stage" (photo 9kpsxy2k76g).
+  //   무대 위 남성 그룹 댄스 퍼포먼스 — K-pop 댄스 주제 정확 매칭. HTTP 200 확인.
   "dance-kpop-001": {
-    "url": "https://images.unsplash.com/photo-1621976360623-004223992275?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1621976360623-004223992275?auto=format&fit=crop&w=1280&q=80",
-    "tags": "dance, performance, stage, kpop, group",
+    "url": "https://images.unsplash.com/photo-1729166240683-d571ede41f8b?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1729166240683-d571ede41f8b?auto=format&fit=crop&w=1280&q=80",
+    "tags": "dance, performance, stage, kpop, boy group, young men",
     "user": "unsplash",
     "pixabayId": 0
   },
