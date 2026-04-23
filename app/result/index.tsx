@@ -23,12 +23,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionStore } from '../../store/sessionStore';
 import { useUserStore }    from '../../store/userStore';
 import { useInviteStore }  from '../../store/inviteStore';
-import {
-  buildInviteUrl, buildInviteShareCaption, buildInviteShortCaption, buildReplyCaption,
-  buildDisplayUrl,
-} from '../../utils/inviteLinks';
-import { generateInviteShareCard, canShareInviteCard, isInAppBrowserWithBrokenShare } from '../../utils/inviteShareCard';
+import { buildReplyCaption } from '../../utils/inviteLinks';
 import { pickOfficialSlug } from '../../utils/officialSlug';
+import { shareInvite, shareReply, prepareVideoFile } from '../../utils/share';
+import ShareSheet from '../../components/share/ShareSheet';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../services/supabaseThumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../services/templateThumbnails';
 import { getThumbnailUrl } from '../../utils/thumbnails';
@@ -42,19 +40,8 @@ import { resolveLayeredTemplate }                 from '../../services/challenge
 import type { JudgementTag, FrameTag } from '../../types/session';
 import type { MissionType } from '../../types/template';
 import { Claude, ClaudeFont } from '../../constants/claudeTheme';
-// Session-4 R: 공유/다운로드 순수 헬퍼
-import {
-  buildDownloadFilename,
-  composeShareUrl,
-  canUseWebShareFiles,
-  type SharePlatform,
-} from '../../utils/shareHelpers';
-// TEAM-SHARE-V5 (2026-04-23): end-to-end 공유 파이프라인 단일 진입점
-import {
-  shareVideoToSns,
-  blobToShareFile,
-  type ShareResult,
-} from '../../utils/shareVideo';
+// 공유/다운로드 순수 헬퍼 — 다운로드 파일명 계산만 내부에서 사용.
+import { buildDownloadFilename } from '../../utils/shareHelpers';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -232,19 +219,6 @@ async function doDownload(uri: string, name: string, mimeType?: string): Promise
   }, 60_000);
 
   return true;
-}
-
-function openPlatformShare(platform: string, text: string): void {
-  if (typeof window === 'undefined') return;
-  const url = composeShareUrl(platform as SharePlatform, text);
-  if (!url) return;
-  const a = document.createElement('a');
-  a.href = url;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -499,363 +473,7 @@ const cft = StyleSheet.create({
   },
 });
 
-// ─── Share Modal ──────────────────────────────────────────────────────────────
-
-interface ShareModalProps {
-  visible: boolean;
-  onClose: () => void;
-  composedUri: string | null;
-  composedBlob: Blob | null;
-  rawVideoUri: string;
-  shareText: string;
-  templateName: string;
-  scoreNum: number;
-}
-
-function ShareModal({
-  visible, onClose, composedUri, composedBlob,
-  rawVideoUri, shareText, templateName, scoreNum,
-}: ShareModalProps) {
-  const [toastMsg, setToastMsg] = useState('');
-  const toastAnim = useRef(new Animated.Value(0)).current;
-
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    toastAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(toastAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.delay(1800),
-      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-    ]).start();
-  };
-
-  // TEAM-SHARE-V6 (2026-04-23): iOS Safari user-gesture 보존.
-  //   navigator.share() 는 반드시 **사용자 탭 핸들러 동기 호출 스택**에서 실행되어야 한다.
-  //   이전 버전은 resolveShareFile() 안에서 fetch 를 await 한 뒤 navigator.share 를 호출해
-  //   iOS 가 "not triggered by user activation" 으로 거부 → 아무 일도 안 일어났다.
-  //   해결: 모달이 열려 있고 소스가 바뀔 때마다 File 을 **미리** 만들어 ref 에 캐시.
-  //   탭 시점엔 ref 에서 꺼내 즉시 shareVideoToSns 호출.
-  const preparedFileRef = useRef<File | null>(null);
-  const [fileReady, setFileReady] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setFileReady(false);
-    preparedFileRef.current = null;
-    (async () => {
-      let blob: Blob | null = composedBlob;
-      if (!blob) {
-        const uri = composedUri ?? rawVideoUri;
-        if (!uri) return;
-        try {
-          const resp = await fetch(uri);
-          blob = await resp.blob();
-        } catch { return; }
-      }
-      if (cancelled) return;
-      if (!blob || blob.size === 0) return;
-      preparedFileRef.current = blobToShareFile(blob, templateName);
-      setFileReady(true);
-    })();
-    return () => { cancelled = true; };
-  }, [composedBlob, composedUri, rawVideoUri, templateName, visible]);
-
-  const runShare = (platform: 'native' | 'kakao' | 'instagram' | 'youtube') => {
-    const file = preparedFileRef.current;
-    if (!file) {
-      showToast('영상이 아직 준비되지 않았어요. 잠시 후 다시 시도해주세요.');
-      return;
-    }
-    // 동기 호출: iOS 가 user gesture 로 인식하도록 await 없이 Promise 만 받는다.
-    const p = shareVideoToSns({ file, caption: shareText, title: templateName, platform });
-    showToast('📤 공유 열기...');
-    p.then((res: ShareResult) => {
-      showToast(res.message);
-      if (res.kind === 'web-share-success' || res.kind === 'fallback-success') onClose();
-    }).catch((e: any) => {
-      if (e?.name === 'AbortError') { showToast('공유가 취소됐어요.'); return; }
-      if (e?.name === 'NotAllowedError') { showToast('브라우저가 공유를 허용하지 않았어요. 길게 눌러 저장해주세요.'); return; }
-      if (e?.name === 'TypeError') { showToast('이 영상 형식은 공유할 수 없어요. 다시 촬영해주세요.'); return; }
-      showToast('공유 실패. 길게 눌러 저장해주세요.');
-    });
-  };
-
-  const handleWebShare = () => runShare('native');
-
-  const handleDownload = async (): Promise<boolean> => {
-    const uri = composedUri ?? rawVideoUri;
-    if (!uri) return false;
-    showToast('📥 영상 저장 중...');
-    // TEAM-DOWNLOAD (2026-04-23): await 로 blob 실제 도착 확인 후 정직한 완료 토스트.
-    const ok = await doDownload(uri, templateName, composedBlob?.type).catch(() => false);
-    showToast(ok ? '✓ 다운로드 완료' : '저장 실패. 다시 시도해주세요.');
-    return ok;
-  };
-
-  const handleCopyLink = async () => {
-    if (typeof navigator === 'undefined') return;
-    try {
-      const url = typeof window !== 'undefined' ? window.location.href : '';
-      await navigator.clipboard.writeText(shareText + '\n' + url);
-      showToast('🔗 링크 복사됨!');
-    } catch {
-      showToast('복사 실패');
-    }
-  };
-
-  // Copy caption to clipboard (used before opening platform since uploads need manual caption paste)
-  const copyCaption = async () => {
-    if (typeof navigator === 'undefined') return;
-    try { await navigator.clipboard.writeText(shareText); } catch {}
-  };
-
-  const shareOptions: Array<{
-    label: string; sub: string; accent: boolean;
-    onPress: () => void;
-  }> = [
-    {
-      label: '영상 다운로드', sub: 'MP4 · 기기에 저장', accent: true,
-      onPress: handleDownload,
-    },
-    {
-      label: '캡션 복사', sub: '해시태그 포함',        accent: false,
-      onPress: async () => { await copyCaption(); showToast('캡션 복사 완료'); },
-    },
-    {
-      label: 'TikTok 업로드', sub: '영상+캡션 자동 준비', accent: false,
-      onPress: async () => {
-        const ok = await handleDownload();
-        await copyCaption();
-        openPlatformShare('tiktok', shareText);
-        showToast(ok ? '영상 저장·캡션 복사 완료' : '캡션은 복사됨. 영상 저장은 다시 시도해주세요.');
-      },
-    },
-    {
-      label: 'Instagram 업로드', sub: 'Stories · Reels',  accent: false,
-      onPress: () => runShare('instagram'),
-    },
-    {
-      label: 'YouTube Shorts',   sub: '업로드 페이지 열기',  accent: false,
-      onPress: () => runShare('youtube'),
-    },
-    {
-      label: '카카오톡 공유',     sub: '저장 후 카톡에서 첨부', accent: false,
-      onPress: () => runShare('kakao'),
-    },
-    {
-      label: 'X / Twitter',     sub: '게시글로 공유',      accent: false,
-      onPress: () => openPlatformShare('twitter', shareText),
-    },
-    {
-      label: 'Threads',         sub: '게시글로 공유',      accent: false,
-      onPress: () => openPlatformShare('threads', shareText),
-    },
-    {
-      label: '링크 복사',        sub: '페이지 URL + 캡션',   accent: false,
-      onPress: handleCopyLink,
-    },
-  ];
-
-  // FIX-SHARE-V4: Web Share API 경로를 포기했으므로 primary 버튼은 항상 노출 (저장+복사).
-  const hasWebShare = true;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={sm.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={sm.sheet}>
-          <View style={sm.handle} />
-
-          <Text style={sm.title}>공유</Text>
-          <Text style={sm.subtitle}>{templateName} · {scoreNum}점</Text>
-
-          {hasWebShare && (
-            <Pressable
-              style={({ hovered }: any) => [sm.primaryRow, hovered && sm.primaryRowHover]}
-              onPress={handleWebShare}
-            >
-              <View style={sm.primaryRowInner}>
-                <Text style={sm.primaryRowLabel}>영상 저장 + 캡션 복사</Text>
-                <Text style={sm.primaryRowSub}>원하는 앱에서 첨부 (카톡·인스타·유튜브·라인)</Text>
-              </View>
-              <Text style={sm.primaryRowArrow}>→</Text>
-            </Pressable>
-          )}
-
-          <View style={{ height: 4 }} />
-
-          {shareOptions.map((opt) => (
-            <Pressable
-              key={opt.label}
-              style={({ hovered }: any) => [
-                opt.accent ? sm.accentRow : sm.rowPro,
-                hovered && (opt.accent ? sm.accentRowHover : sm.rowProHover),
-              ]}
-              onPress={opt.onPress}
-            >
-              <View style={sm.rowInner}>
-                <Text style={opt.accent ? sm.accentLabel : sm.rowLabelPro}>{opt.label}</Text>
-                <Text style={opt.accent ? sm.accentSub : sm.rowSubPro}>{opt.sub}</Text>
-              </View>
-              <Text style={opt.accent ? sm.accentArrow : sm.rowArrowPro}>→</Text>
-            </Pressable>
-          ))}
-
-          <Pressable style={sm.cancelBtnPro} onPress={onClose}>
-            <Text style={sm.cancelTextPro}>취소</Text>
-          </Pressable>
-        </TouchableOpacity>
-      </TouchableOpacity>
-
-      <Animated.View style={[sm.toast, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-        <Text style={sm.toastText}>{toastMsg}</Text>
-      </Animated.View>
-    </Modal>
-  );
-}
-
-const PRO = {
-  bg: '#FAFAFA',
-  surface: '#FFFFFF',
-  ink: '#0A0A0A',
-  inkSub: '#3F3F46',
-  inkMuted: '#71717A',
-  border: '#E5E5E5',
-  borderStrong: '#D4D4D8',
-  fontSans: Platform.select({
-    web: '"Pretendard Variable",Pretendard,"Inter","SF Pro Text","Segoe UI",system-ui,-apple-system,sans-serif',
-    default: 'System',
-  }) as string,
-};
-
-const sm = StyleSheet.create({
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(10,10,10,0.45)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: PRO.surface,
-    borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    paddingHorizontal: 20, paddingBottom: 36, paddingTop: 12,
-    gap: 8,
-    borderTopWidth: 1, borderColor: PRO.border,
-    // @ts-ignore web
-    boxShadow: '0 -12px 32px -12px rgba(10,10,10,0.18)',
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  handle: {
-    width: 36, height: 4, backgroundColor: PRO.border,
-    borderRadius: 2, alignSelf: 'center', marginBottom: 14,
-  },
-  title: {
-    fontSize: 20, fontWeight: '700', color: PRO.ink,
-    textAlign: 'left', letterSpacing: -0.4,
-    paddingHorizontal: 4,
-    fontFamily: PRO.fontSans,
-  },
-  subtitle: {
-    fontSize: 13, color: PRO.inkMuted,
-    textAlign: 'left', paddingHorizontal: 4, paddingBottom: 10,
-    fontFamily: PRO.fontSans,
-  },
-  primaryRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, paddingHorizontal: 16,
-    borderRadius: 10, backgroundColor: PRO.ink,
-    gap: 12,
-    // @ts-ignore web
-    transition: 'background-color 160ms ease',
-    // @ts-ignore web
-    cursor: 'pointer',
-  },
-  primaryRowHover: { backgroundColor: '#1F1F1F' },
-  primaryRowInner: { flex: 1, gap: 2 },
-  primaryRowLabel: {
-    fontSize: 14, fontWeight: '600', color: '#FFFFFF',
-    letterSpacing: -0.1, fontFamily: PRO.fontSans,
-  },
-  primaryRowSub: {
-    fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.6)',
-    fontFamily: PRO.fontSans,
-  },
-  primaryRowArrow: {
-    fontSize: 16, color: '#FFFFFF', fontWeight: '400',
-    fontFamily: PRO.fontSans,
-  },
-
-  rowPro: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1, borderColor: PRO.border,
-    backgroundColor: PRO.surface,
-    gap: 12,
-    // @ts-ignore web
-    transition: 'border-color 160ms ease, background-color 160ms ease',
-    // @ts-ignore web
-    cursor: 'pointer',
-  },
-  rowProHover: { borderColor: PRO.borderStrong, backgroundColor: '#F8F8F8' },
-  rowInner: { flex: 1, gap: 2 },
-  rowLabelPro: {
-    fontSize: 14, fontWeight: '600', color: PRO.ink,
-    letterSpacing: -0.1, fontFamily: PRO.fontSans,
-  },
-  rowSubPro: {
-    fontSize: 11, fontWeight: '500', color: PRO.inkMuted,
-    fontFamily: PRO.fontSans,
-  },
-  rowArrowPro: {
-    fontSize: 16, color: PRO.inkMuted, fontWeight: '400',
-    fontFamily: PRO.fontSans,
-  },
-
-  accentRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, paddingHorizontal: 16,
-    borderRadius: 10, backgroundColor: PRO.ink,
-    gap: 12, marginBottom: 2,
-    // @ts-ignore web
-    transition: 'background-color 160ms ease',
-    // @ts-ignore web
-    cursor: 'pointer',
-  },
-  accentRowHover: { backgroundColor: '#1F1F1F' },
-  accentLabel: {
-    fontSize: 14, fontWeight: '600', color: '#FFFFFF',
-    letterSpacing: -0.1, fontFamily: PRO.fontSans,
-  },
-  accentSub: {
-    fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.6)',
-    fontFamily: PRO.fontSans,
-  },
-  accentArrow: {
-    fontSize: 16, color: '#FFFFFF', fontWeight: '400',
-    fontFamily: PRO.fontSans,
-  },
-
-  cancelBtnPro: {
-    alignItems: 'center', paddingVertical: 14, marginTop: 8,
-    borderRadius: 10,
-    borderWidth: 1, borderColor: PRO.border,
-  },
-  cancelTextPro: {
-    fontSize: 13, fontWeight: '600', color: PRO.inkSub,
-    fontFamily: PRO.fontSans,
-  },
-
-  toast: {
-    position: 'absolute', bottom: 120, left: 20, right: 20,
-    backgroundColor: PRO.ink, borderRadius: 10,
-    paddingVertical: 12, paddingHorizontal: 18, alignItems: 'center',
-    maxWidth: 480, alignSelf: 'center', width: 'auto',
-  },
-  toastText: {
-    color: '#FFFFFF', fontSize: 13, fontWeight: '600',
-    fontFamily: PRO.fontSans,
-  },
-});
+// Share 모달은 components/share/ShareSheet.tsx 가 단일 구현. 문서: docs/SHARE_ARCHITECTURE.md.
 
 // ─── Compositing progress bar ─────────────────────────────────────────────────
 
@@ -1220,123 +838,31 @@ export default function ResultScreen() {
     return pickOfficialSlug(activeTemplate);
   }, [activeTemplate]);
 
-  /** "친구에게 챌린지 도전장 보내기" — 내가 친구에게 보내는 flow. */
+  /** "친구에게 챌린지 도전장 보내기" — utils/share.ts 단일 진입점. */
   const handleSendInvite = useCallback(async () => {
-    // DEBUG-INVITE-2026-04-23 (v2): 사용자 반복 리포트 "버튼 눌러도 아무 반응 없음".
-    //   onPress 가 호출되는지, 각 단계 어디서 죽는지 즉각 보이게 toast 로 계단식 로깅.
-    //   버튼이 작동하는 것이 확인되면 이 즉각 로깅은 축약으로 되돌린다.
     setInviteToast('🥊 도전장 준비 중...');
     if (!activeTemplate) {
       setInviteToast('오류: 템플릿 정보 없음 — 결과 페이지를 다시 열어주세요');
       setTimeout(() => setInviteToast(''), 3000);
       return;
     }
+    const tid = activeTemplate.id;
+    const thumb =
+      SUPABASE_TEMPLATE_THUMBNAILS[tid]?.largeURL
+      || SUPABASE_TEMPLATE_THUMBNAILS[tid]?.url
+      || TEMPLATE_THUMBNAILS[tid]?.largeURL
+      || TEMPLATE_THUMBNAILS[tid]?.url
+      || (activeTemplate as any).thumbnail_url
+      || getThumbnailUrl((activeTemplate as any).genre, tid, 1280);
     try {
-      let url: string;
-      try {
-        url = buildInviteUrl(templateSlug, mySenderName, { score: scoreNum });
-      } catch (e: any) {
-        setInviteToast(`링크 생성 실패: ${e?.message || 'slug 오류'} (slug=${templateSlug})`);
-        setTimeout(() => setInviteToast(''), 4500);
-        return;
-      }
-      const caption = buildInviteShareCaption({
-        templateName: activeTemplate.name,
+      const res = await shareInvite({
+        slug: templateSlug,
         fromName: mySenderName,
+        templateName: activeTemplate.name,
         score: scoreNum,
-        inviteUrl: url,
+        thumbnailUrl: thumb,
       });
-      const shortCaption = buildInviteShortCaption({
-        templateName: activeTemplate.name, fromName: mySenderName, score: scoreNum,
-      });
-      // 1) 링크+캡션 클립보드 복사 (항상 성공)
-      let clipboardOk = false;
-      try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(caption);
-          clipboardOk = true;
-        }
-      } catch {}
-
-      // 2a) 썸네일 카드 PNG 첨부 공유 — 카카오톡·라인은 이미지 카드 미리보기 자동 렌더.
-      let shared = false;
-      if (canShareInviteCard()) {
-        const tid = activeTemplate.id;
-        const thumb =
-          SUPABASE_TEMPLATE_THUMBNAILS[tid]?.largeURL
-          || SUPABASE_TEMPLATE_THUMBNAILS[tid]?.url
-          || TEMPLATE_THUMBNAILS[tid]?.largeURL
-          || TEMPLATE_THUMBNAILS[tid]?.url
-          || (activeTemplate as any).thumbnail_url
-          || getThumbnailUrl((activeTemplate as any).genre, tid, 1280);
-        try {
-          const png = await generateInviteShareCard({
-            thumbnailUrl: thumb,
-            headline: `${mySenderName}이(가) 도전장을 보냈어요`,
-            subline: scoreNum > 0
-              ? `${activeTemplate.name} · ${scoreNum}점`
-              : activeTemplate.name,
-            // FIX-INVITE-KAKAO-PNG (2026-04-23): URL 을 카드 PNG 에 "그려넣음" →
-            // 카톡/라인이 url/text 메타를 드롭해도 수신자가 주소를 읽어 접속 가능.
-            displayUrl: buildDisplayUrl(url),
-          });
-          if (png) {
-            const file = new File([png], 'invite.png', { type: 'image/png' });
-            if ((navigator as any).canShare?.({ files: [file] })) {
-              // text 필드 마지막 줄에 \n\n + full URL. 카톡이 text 를 보존하면
-              // 링크로 자동 인식, 드롭해도 카드 PNG 에 URL 이 박혀있어 복구 가능.
-              await (navigator as any).share({
-                title: `${activeTemplate.name} 도전장`,
-                text: `${shortCaption}\n\n${url}`,
-                url,
-                files: [file],
-              });
-              shared = true;
-            }
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') { shared = true; /* 사용자 취소 = 성공 처리 */ }
-          else {
-            setInviteToast(`카드 공유 실패(${e?.name || 'Err'}) — 텍스트 공유로 폴백`);
-          }
-        }
-      }
-
-      // 2b) 폴백: 텍스트 only Web Share — in-app 브라우저(카카오톡 등)는 건너뛴다.
-      if (!shared && !isInAppBrowserWithBrokenShare()) {
-        try {
-          if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
-            await (navigator as any).share({
-              title: `${activeTemplate.name} 도전장`,
-              text: caption,
-              url,
-            });
-            shared = true;
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') { /* 사용자 취소 */ }
-          else { setInviteToast(`공유 창 오류(${e?.name || 'Err'}) — 링크는 복사됨`); }
-        }
-      }
-      // FIX-INVITE-KAKAO-PNG (2026-04-23): share API 도 없고 in-app 브라우저면
-      // 마지막 폴백으로 sms: 딥링크 열어 사용자가 메시지에 URL 붙여넣기 가능.
-      if (!shared && typeof window !== 'undefined' && typeof (navigator as any).share !== 'function') {
-        try {
-          const body = encodeURIComponent(caption);
-          // SMS 가 Android/iOS 둘 다에서 가장 호환성 좋음
-          window.location.href = `sms:?body=${body}`;
-        } catch {}
-      }
-      // 공유 성공/실패 여부 무관하게 항상 "URL 클립보드에 있음" 을 알려 사용자가
-      // 메신저가 URL 을 드롭해도 수동 paste 로 복구 가능하게 함.
-      const msg = shared
-        ? (clipboardOk
-            ? '✓ 전송됨 — 링크도 복사됐으니 메시지에 붙여넣으세요'
-            : '✓ 도전장 전송 완료')
-        : (clipboardOk
-            ? '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요'
-            : '⚠ 클립보드 차단됨 — 주소창 권한 확인 후 재시도');
-      setInviteToast(msg);
+      setInviteToast(res.message);
       setTimeout(() => setInviteToast(''), 3200);
     } catch (e: any) {
       setInviteToast(`도전장 생성 실패: ${e?.message || e?.name || 'Unknown'}`);
@@ -1344,7 +870,7 @@ export default function ResultScreen() {
     }
   }, [activeTemplate, templateSlug, mySenderName, scoreNum]);
 
-  /** "답장 보내기" — 친구가 보낸 도전장을 완료하고 다시 친구에게 영상+캡션 전송. */
+  /** "답장 보내기" — 완료된 챌린지 영상 + 답장 캡션을 원 초대자에게. */
   const handleReplyBack = useCallback(async () => {
     if (!inviteContext || !activeTemplate) return;
     const caption = buildReplyCaption({
@@ -1353,38 +879,19 @@ export default function ResultScreen() {
       score: scoreNum,
       originalInviteUrl: inviteContext.originalInviteUrl,
     });
-    // 1) 영상 저장
-    let savedOk = false;
+    setInviteToast('💌 답장 준비 중...');
     try {
-      const uri = composedUri ?? rawVideoUri;
-      if (uri) {
-        savedOk = await doDownload(uri, activeTemplate.name, composedBlob?.type).catch(() => false);
-      }
-    } catch {}
-    // 2) 캡션 복사
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(caption);
-      }
-    } catch {}
-    // 3) 네이티브 share sheet 또는 카톡 딥링크
-    try {
-      if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
-        await (navigator as any).share({
-          title: `@${inviteContext.fromName} 답장`,
-          text: caption,
-        });
-      } else if (typeof window !== 'undefined') {
-        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-        if (/Android|iPhone|iPad|iPod/i.test(ua)) {
-          try { window.location.href = 'kakaotalk://'; } catch {}
-        }
-      }
-    } catch (e: any) { /* AbortError 는 무시 */ }
-    setInviteToast(savedOk
-      ? `✓ 영상 저장 + 캡션 복사됨 — ${inviteContext.fromName}님에게 보내주세요`
-      : `✓ 캡션 복사됨 — ${inviteContext.fromName}님에게 직접 전송해주세요`);
-    setTimeout(() => setInviteToast(''), 3200);
+      // shareReply 가 File 준비(비동기 fetch)를 내부에서 하므로 user-gesture 가
+      // 유실되지만, 답장은 실패 시 클립보드 폴백이 즉시 성공하므로 수용 가능.
+      const src: Blob | string | null = composedBlob ?? composedUri ?? rawVideoUri ?? null;
+      const file = src ? await prepareVideoFile(src, activeTemplate.name) : null;
+      const res = await shareReply({ file, caption, templateName: activeTemplate.name });
+      setInviteToast(res.message);
+      setTimeout(() => setInviteToast(''), 3200);
+    } catch (e: any) {
+      setInviteToast(`답장 실패: ${e?.message || e?.name || 'Unknown'}`);
+      setTimeout(() => setInviteToast(''), 4500);
+    }
   }, [inviteContext, activeTemplate, scoreNum, composedUri, rawVideoUri, composedBlob]);
 
   const hPad = Math.min(20, (width - 360) / 2 + 16);
@@ -1418,15 +925,16 @@ export default function ResultScreen() {
         tier={scoreNum >= 90 ? 'epic' : scoreNum >= 75 ? 'normal' : 'mini'}
       />
 
-      <ShareModal
+      <ShareSheet
         visible={showShareModal}
         onClose={() => setShowShareModal(false)}
-        composedUri={composedUri}
-        composedBlob={composedBlob}
-        rawVideoUri={rawVideoUri}
-        shareText={shareText}
-        templateName={activeTemplate?.name ?? '챌린지'}
-        scoreNum={scoreNum}
+        payload={{
+          mode: 'video',
+          source: (composedBlob ?? (composedUri ?? rawVideoUri)) as Blob | string,
+          caption: shareText,
+          templateName: activeTemplate?.name ?? '챌린지',
+          scoreNum,
+        }}
       />
 
       <ScrollView

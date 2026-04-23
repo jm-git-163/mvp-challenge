@@ -22,13 +22,7 @@ import { useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import { useInviteStore } from '../../../store/inviteStore';
-import {
-  buildInviteUrl,
-  buildInviteShareCaption,
-  buildInviteShortCaption,
-  buildDisplayUrl,
-} from '../../../utils/inviteLinks';
-import { generateInviteShareCard, canShareInviteCard, isInAppBrowserWithBrokenShare } from '../../../utils/inviteShareCard';
+import { shareInvite } from '../../../utils/share';
 import { pickOfficialSlug } from '../../../utils/officialSlug';
 import type { Template } from '../../../types/template';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
@@ -441,88 +435,27 @@ export default function HomeScreen() {
   );
 
   const handleInvite = useCallback(async (t: Template) => {
-    // DEBUG-INVITE-2026-04-23 (v2): 사용자 리포트 "버튼 눌러도 아무 반응 없음".
-    //   onPress 즉시 toast — 버튼이 실제로 도달하는지, 어디서 throw 하는지 계단식 표시.
+    // 단일 진입점: utils/share.ts 의 shareInvite 가 전체 플로우 (URL 생성 →
+    // 클립보드 → PNG 카드 → Web Share → 폴백) 를 책임진다. 여기서는 결과를
+    // 토스트로 표면화하기만 한다. 문서: docs/SHARE_ARCHITECTURE.md.
     setInviteToast('🥊 도전장 준비 중...');
+    const slug = pickOfficialSlug(t);
+    const thumb =
+      SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.largeURL
+      || SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.url
+      || TEMPLATE_THUMBNAILS[t.id]?.largeURL
+      || TEMPLATE_THUMBNAILS[t.id]?.url
+      || (t as any).thumbnail_url
+      || getThumbnailUrl(t.genre, t.id, 1280);
     try {
-      // FIX-INVITE-2026-04-23: (a) 공식 slug 로 정규화해야 수신자 쪽 templates 매칭 성공.
-      //   이전엔 t.id (UUID) 를 그대로 보내서 landing 에서 "챌린지를 찾을 수 없어요" 에러.
-      //   (b) 새 v2 포맷 ?c=<base64url> → URL 길이 절반. (c) 카카오톡에 썸네일 카드 PNG 첨부.
-      const slug = pickOfficialSlug(t);
-      let url: string;
-      try {
-        url = buildInviteUrl(slug, mySenderName);
-      } catch (e: any) {
-        setInviteToast(`링크 생성 실패: ${e?.message || 'slug 오류'} (slug=${slug})`);
-        setTimeout(() => setInviteToast(''), 4500);
-        return;
-      }
-      const caption = buildInviteShareCaption({
-        templateName: t.name, fromName: mySenderName, inviteUrl: url,
+      const res = await shareInvite({
+        slug,
+        fromName: mySenderName,
+        templateName: t.name,
+        thumbnailUrl: thumb,
       });
-      const shortCaption = buildInviteShortCaption({
-        templateName: t.name, fromName: mySenderName,
-      });
-      try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(caption);
-        }
-      } catch {}
-
-      // 썸네일 카드 PNG 우선 (카카오톡 카드 미리보기).
-      let shared = false;
-      if (canShareInviteCard()) {
-        const thumb =
-          SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.largeURL
-          || SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.url
-          || TEMPLATE_THUMBNAILS[t.id]?.largeURL
-          || TEMPLATE_THUMBNAILS[t.id]?.url
-          || (t as any).thumbnail_url
-          || getThumbnailUrl(t.genre, t.id, 1280);
-        try {
-          const png = await generateInviteShareCard({
-            thumbnailUrl: thumb,
-            headline: `${mySenderName}이(가) 도전장을 보냈어요`,
-            subline: t.name,
-            // FIX-INVITE-KAKAO-PNG (2026-04-23): URL 을 카드 PNG 에 그려넣어
-            // 카톡/라인이 메타데이터를 드롭해도 수신자가 주소를 읽을 수 있음.
-            displayUrl: buildDisplayUrl(url),
-          });
-          if (png) {
-            const file = new File([png], 'invite.png', { type: 'image/png' });
-            if ((navigator as any).canShare?.({ files: [file] })) {
-              await (navigator as any).share({
-                title: `${t.name} 도전장`,
-                text: `${shortCaption}\n\n${url}`,
-                url,
-                files: [file],
-              });
-              shared = true;
-            }
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') return; // 사용자가 공유 취소
-        }
-      }
-
-      // 파일 공유 실패 시 텍스트 only 폴백 — in-app 브라우저(카톡 등)는 건너뛴다.
-      if (!shared && !isInAppBrowserWithBrokenShare()) {
-        try {
-          if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
-            await (navigator as any).share({ title: `${t.name} 도전장`, text: caption, url });
-            shared = true;
-          }
-        } catch (e: any) { /* AbortError 무시 */ }
-      }
-
-      // FIX-INVITE-KAKAO-PNG (2026-04-23): share API 가 없으면 sms: 딥링크로 폴백.
-      if (!shared && typeof window !== 'undefined' && typeof (navigator as any).share !== 'function') {
-        try { window.location.href = `sms:?body=${encodeURIComponent(caption)}`; } catch {}
-      }
-      setInviteToast(shared
-        ? '✓ 전송됨 — 링크도 복사됐으니 메시지에 붙여넣으세요'
-        : '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요');
-      setTimeout(() => setInviteToast(''), 2800);
+      setInviteToast(res.message);
+      setTimeout(() => setInviteToast(''), 3200);
     } catch (e: any) {
       setInviteToast(`도전장 생성 실패: ${e?.message || e?.name || 'Unknown'}`);
       setTimeout(() => setInviteToast(''), 4500);
