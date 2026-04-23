@@ -18,18 +18,26 @@ import type { Template } from '../../types/template';
 interface Props {
   template:    Template;
   elapsedMs:   number;
+  /**
+   * FIX-VOICE-READ-TIMINGBAR (2026-04-23): voice_read 미션 중엔 subtitle_timeline 자막이
+   *   상단 텔레프롬프터(VoiceTranscriptOverlay)와 중복되어 "하단 자막이 또 있다"는 사용자
+   *   피드백(6회 반복) 의 핵심 원인. 이 플래그가 true 면 subtitleArea 자체를 숨긴다.
+   *   타이밍 바/도트/시계는 그대로 유지 (게임 메타 정보는 필요).
+   */
+  suppressSubtitle?: boolean;
 }
 
-export default function TimingBar({ template, elapsedMs }: Props) {
+export default function TimingBar({ template, elapsedMs, suppressSubtitle = false }: Props) {
   const totalMs = template.duration_sec * 1000;
   const progress = Math.min(elapsedMs / totalMs, 1);
 
   // 현재 자막
   const currentSubtitle = useMemo(() => {
+    if (suppressSubtitle) return undefined;
     return template.subtitle_timeline.find(
       (cue) => elapsedMs >= cue.start_ms && elapsedMs < cue.end_ms
     );
-  }, [template.subtitle_timeline, elapsedMs]);
+  }, [template.subtitle_timeline, elapsedMs, suppressSubtitle]);
 
   // 미션 구간 마커 위치 계산
   const missionMarkers = useMemo(() => {
@@ -77,14 +85,16 @@ export default function TimingBar({ template, elapsedMs }: Props) {
         ))}
       </View>
 
-      {/* 자막 — 크고 눈에 잘 띄게 */}
-      <View style={styles.subtitleArea}>
-        {currentSubtitle ? (
-          <Text style={subtitleStyle} numberOfLines={2}>
-            {currentSubtitle.text}
-          </Text>
-        ) : null}
-      </View>
+      {/* 자막 — 크고 눈에 잘 띄게. voice_read 중엔 subtitleArea 자체를 제거해 빈 공간도 없앰. */}
+      {!suppressSubtitle && (
+        <View style={styles.subtitleArea}>
+          {currentSubtitle ? (
+            <Text style={subtitleStyle} numberOfLines={2}>
+              {currentSubtitle.text}
+            </Text>
+          ) : null}
+        </View>
+      )}
 
       {/* 타임라인 바 */}
       <View style={styles.timelineWrapper}>

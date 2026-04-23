@@ -2403,7 +2403,15 @@ export default function RecordScreen() {
               <TemplateOverlay template={activeTemplate} elapsed={elapsed} isRecording={isRecording && !showIntro} suppressSubtitle={currentMission?.type==='voice_read'} />
 
               {isRecording && !showIntro && (
-                <View style={r.timingBarWrap}><TimingBar template={activeTemplate} elapsedMs={elapsed} /></View>
+                <View style={r.timingBarWrap}>
+                  {/* FIX-VOICE-READ-TIMINGBAR (2026-04-23): voice_read 미션 중엔 TimingBar 자막 라인 제거.
+                       상단 VoiceTranscriptOverlay 가 이미 대본/transcript 를 크게 표시 → 하단 중복 자막 전면 kill. */}
+                  <TimingBar
+                    template={activeTemplate}
+                    elapsedMs={elapsed}
+                    suppressSubtitle={currentMission?.type === 'voice_read'}
+                  />
+                </View>
               )}
 
               {isRecording && !showIntro && <JudgementBurst tag={burstTag} combo={combo} visible={burstVisible} />}
