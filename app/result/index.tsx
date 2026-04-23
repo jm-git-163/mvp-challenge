@@ -1176,26 +1176,21 @@ export default function ResultScreen() {
 
   const [navigating, setNavigating] = useState(false);
   const goHome = useCallback(() => {
-    // FIX-NAV (2026-04-23 v6): reset() 이 Zustand 상태를 비우면 result 페이지의
-    //   자식 컴포넌트들이 null/undefined 로 리렌더되며 예외를 던져 ErrorBoundary 가
-    //   잠깐 깜빡임. v6 는 (1) navigating=true 로 전환해 페이지 UI 를 스켈레톤 으로 짧게 바꾸고
-    //   (2) 다음 프레임에 blob 해제·location.href 로 즉시 풀 리로드.
-    //   reset() 은 리로드 이후 새 페이지가 자동으로 초기화하므로 호출하지 않는다.
-    setNavigating(true);
-    const go = () => {
-      try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
-      if (typeof window !== 'undefined' && window.location) {
-        window.location.href = '/home?_b=' + Date.now();
-        return;
-      }
-      try { router.replace('/'); } catch {}
-    };
-    // requestAnimationFrame 으로 상태 업데이트 → 페인트 → 이동 순서 보장
-    if (typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => requestAnimationFrame(go));
-    } else {
-      setTimeout(go, 16);
+    // FIX-NAV v7 (2026-04-23): ErrorBoundary 깜빡임 완전 차단.
+    //   1) window.__navigatingHome=true → ErrorBoundary 가 이 플래그를 보면 에러 UI
+    //      대신 투명 View 를 반환 (언마운트 중 throw 를 삼킴).
+    //   2) navigating=true → 현재 페이지 트리 즉시 스켈레톤.
+    //   3) 같은 tick 에서 location.replace 로 바로 네비 — rAF 대기 없음.
+    if (typeof window !== 'undefined') {
+      (window as any).__navigatingHome = true;
     }
+    setNavigating(true);
+    try { if (composedUri) URL.revokeObjectURL(composedUri); } catch {}
+    if (typeof window !== 'undefined' && window.location) {
+      try { window.location.replace('/home?_b=' + Date.now()); return; }
+      catch { window.location.href = '/home?_b=' + Date.now(); return; }
+    }
+    try { router.replace('/'); } catch {}
   }, [composedUri, router]);
 
   const doRetake = useCallback(() => {

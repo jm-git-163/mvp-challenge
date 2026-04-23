@@ -79,8 +79,13 @@ function stripClutterLayers(t: Template): Template {
   if (!Array.isArray(layers)) return t;
   // FIX-SUBTITLE-DUP v2 (2026-04-23): karaoke_caption 은 스크립트 동기 하단 자막 —
   //   voice_read 미션 템플릿에서 상단 텔레프롬프터와 내용이 달라 혼선. 전역 제거.
-  const KILL_TYPES = new Set(['news_ticker', 'kinetic_text', 'karaoke_caption']);
-  const KILL_IDS = new Set(['hashtag_strip']);
+  // FIX-SUBTITLE-DUP v3 (2026-04-23): subtitle_track/lower_third 등 하단 텍스트 레이어
+  //   일체 제거. 유저 요구: "voice_read 미션 중 하단 자막 전부 없애라".
+  const KILL_TYPES = new Set([
+    'news_ticker', 'kinetic_text', 'karaoke_caption',
+    'subtitle_track', 'lower_third', 'hashtag_strip', 'ticker',
+  ]);
+  const KILL_IDS = new Set(['hashtag_strip', 'bottom_ticker', 'subtitle_timeline']);
   // FIX-EFFECT-INTENSITY (2026-04-23): 사용자 피드백 "효과가 너무 심해 피사체가 안 보임".
   //   배경·파티클·그레인·비트플래시·크로매틱 등 피사체 가독성을 해치는 오버레이 레이어의
   //   opacity 를 강제 캡 → 카메라 피드가 선명히 드러나도록.

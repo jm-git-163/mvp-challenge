@@ -1424,8 +1424,12 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
           // FIX-Z25: 라이브 자막 (캔버스 하단 78~92%, 폰트 46px bold).
           //   유저가 말한 발화가 즉시 눈에 보여야 "인식 되는지" 확인 가능.
+          // FIX-SUBTITLE-DUP v3 (2026-04-23): voice_read 미션 중엔 상단 텔레프롬프터
+          //   (VoiceTranscriptOverlay, app/record/index.tsx) 가 이미 전체 대본+transcript
+          //   를 큼직하게 표시. 하단 라이브 캡션은 중복 → 완전 제거.
           try {
-            if (showLiveCaptionRef.current) {
+            const missionType = currentMissionRef.current?.type;
+            if (showLiveCaptionRef.current && missionType !== 'voice_read') {
               const captionText = (liveCaptionTextRef.current !== undefined
                 ? liveCaptionTextRef.current
                 : voiceTranscriptRef.current) || '';

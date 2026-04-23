@@ -1128,15 +1128,17 @@ function TemplateOverlay({ template, elapsed, isRecording, suppressSubtitle }: {
         </Animated.View>
       )}
 
-      {/* Hashtag marquee */}
-      <View style={[tov.bottomBar, { backgroundColor:gs.headerBg, borderTopColor:gs.borderColor+'66', overflow:'hidden' }]}>
-        <Animated.Text style={[tov.bottomText, {
-          color: gs.textGlow+'cc',
-          transform: [{ translateX: hashtagX.interpolate({ inputRange:[-1,0], outputRange:['-100%','0%'] }) }],
-        }]} numberOfLines={1}>
-          {hashtagLine + hashtagLine}
-        </Animated.Text>
-      </View>
+      {/* Hashtag marquee — voice_read 중엔 하단 텍스트 레이어 전부 제거 (상단 프롬프터로 집중) */}
+      {!suppressSubtitle && (
+        <View style={[tov.bottomBar, { backgroundColor:gs.headerBg, borderTopColor:gs.borderColor+'66', overflow:'hidden' }]}>
+          <Animated.Text style={[tov.bottomText, {
+            color: gs.textGlow+'cc',
+            transform: [{ translateX: hashtagX.interpolate({ inputRange:[-1,0], outputRange:['-100%','0%'] }) }],
+          }]} numberOfLines={1}>
+            {hashtagLine + hashtagLine}
+          </Animated.Text>
+        </View>
+      )}
 
       <View style={tov.progressTrack}>
         <View style={[tov.progressFill, {

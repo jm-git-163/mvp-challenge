@@ -112,10 +112,16 @@ function ChallengeCard({ item: t, width, onPress, onInvite }: CardProps) {
         hovered && card.wrapHover,
       ]}
     >
-      {/* 16:9 thumbnail — real Unsplash image */}
+      {/* 16:9 thumbnail — real Unsplash image.
+          FIX-THUMBS v12 (2026-04-23): key=uri 로 URL 이 바뀌면 RN Image 인스턴스가
+          교체되어 강제 재요청. BUILD_ID 쿼리가 들어가 있으므로 배포마다 새 URL → 새 이미지. */}
+      {(() => {
+        const uri = SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.url || TEMPLATE_THUMBNAILS[t.id]?.url || t.thumbnail_url || getThumbnailUrl(t.genre, t.id, 640);
+        return (
       <View style={card.thumb}>
         <Image
-          source={{ uri: SUPABASE_TEMPLATE_THUMBNAILS[t.id]?.url || TEMPLATE_THUMBNAILS[t.id]?.url || t.thumbnail_url || getThumbnailUrl(t.genre, t.id, 640) }}
+          key={uri}
+          source={{ uri }}
           style={card.thumbImg}
           // @ts-ignore web
           loading="lazy"
@@ -130,6 +136,8 @@ function ChallengeCard({ item: t, width, onPress, onInvite }: CardProps) {
           </View>
         ) : null}
       </View>
+        );
+      })()}
 
       {/* Body */}
       <View style={card.body}>
