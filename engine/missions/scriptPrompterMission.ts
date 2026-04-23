@@ -43,11 +43,20 @@ export interface ScriptPrompterState {
   endedAt: number | null;
   presenceSamples: number;
   presenceSum: number;
+  /** TEAM-ACCURACY (2026-04-23): 음성 활동 증거 샘플 수. */
+  voiceSamples: number;
+  /** voiceActive === true 로 기록된 프레임 수. */
+  voiceActiveSum: number;
 }
 
 export interface ScriptPrompterTickInfo {
   /** 이 프레임에서 얼굴/상체가 보였는가. */
   visible?: boolean;
+  /**
+   * TEAM-ACCURACY (2026-04-23): 이 프레임에서 마이크에 목소리가 있었는가.
+   *   호출 측이 AnalyserNode 등으로 판정 (dB 임계치 등). undefined 면 음성 게이트 비활성.
+   */
+  voiceActive?: boolean;
 }
 
 export class ScriptPrompterMission {
@@ -55,6 +64,7 @@ export class ScriptPrompterMission {
   private s: ScriptPrompterState = {
     started: false, startedAt: null, endedAt: null,
     presenceSamples: 0, presenceSum: 0,
+    voiceSamples: 0, voiceActiveSum: 0,
   };
 
   constructor(params: ScriptPrompterParams) {
@@ -70,6 +80,7 @@ export class ScriptPrompterMission {
     this.s = {
       started: true, startedAt: t, endedAt: null,
       presenceSamples: 0, presenceSum: 0,
+      voiceSamples: 0, voiceActiveSum: 0,
     };
   }
 
@@ -77,6 +88,10 @@ export class ScriptPrompterMission {
     if (!this.s.started || this.s.endedAt !== null) return;
     this.s.presenceSamples += 1;
     this.s.presenceSum += info.visible === false ? 0 : 1;
+    if (info.voiceActive !== undefined) {
+      this.s.voiceSamples += 1;
+      this.s.voiceActiveSum += info.voiceActive ? 1 : 0;
+    }
   }
 
   finish(t: number): void {
@@ -111,15 +126,32 @@ export class ScriptPrompterMission {
     return this.s.presenceSum / this.s.presenceSamples;
   }
 
-  /** 0..100 결정론적 총점. */
+  /**
+   * TEAM-ACCURACY (2026-04-23): 음성 활동 비율 (0..1). 게이트 미사용 시 1.
+   *   사용자 "말 안했는데도 100점" 피드백 대응 — totalScore 에서 cap 으로 사용.
+   */
+  voiceEvidence(): number {
+    if (this.s.voiceSamples === 0) return 1;
+    return this.s.voiceActiveSum / this.s.voiceSamples;
+  }
+
+  /**
+   * 0..100 결정론적 총점.
+   * 음성 게이트: voiceSamples>0 이면 voiceEvidence 비율로 상한. 0% 목소리 → 0점.
+   */
   totalScore(): number {
-    return Math.round(this.completion() * 60 + this.readingPace() * 25 + this.presence() * 15);
+    const raw = this.completion() * 60 + this.readingPace() * 25 + this.presence() * 15;
+    const ev = this.voiceEvidence();
+    // 음성이 거의 없으면 (<5%) 0. 5~30% 는 선형. 30%+ 통과.
+    const gate = ev < 0.05 ? 0 : ev >= 0.30 ? 1 : (ev - 0.05) / 0.25;
+    return Math.round(raw * gate);
   }
 
   reset(): void {
     this.s = {
       started: false, startedAt: null, endedAt: null,
       presenceSamples: 0, presenceSum: 0,
+      voiceSamples: 0, voiceActiveSum: 0,
     };
   }
 }

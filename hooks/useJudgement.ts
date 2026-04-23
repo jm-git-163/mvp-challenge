@@ -345,8 +345,12 @@ export function useJudgement(): {
         if (squatCandidateFrames.current >= DEBOUNCE_FRAMES) {
           const stable = squatCandidatePhaseRef.current;
 
-          // 무장: 처음 "up"을 확정한 순간부터 카운트 허용
-          if (!squatReadyRef.current && stable === 'up') {
+          // TEAM-ACCURACY (2026-04-23): 사용자 "스쿼트 카운트 잘못 셈" 피드백 대응.
+          //   녹화 시작 직후 사용자가 이미 앉아있거나 자세 찾는 중 순간 'up' 이 튀면
+          //   1-2 프레임 디바운스만으론 무장되어 첫 움직임이 오카운트됨.
+          //   무장은 4 프레임 연속 'up' 필요 — 전이(up↔down) 는 기존 2 프레임 유지.
+          const ARM_FRAMES = 4;
+          if (!squatReadyRef.current && stable === 'up' && squatCandidateFrames.current >= ARM_FRAMES) {
             squatReadyRef.current = true;
             squatPhaseRef.current = 'up';
             squatPhaseOut = 'up';
