@@ -25,13 +25,14 @@ export interface TemplateThumb {
 }
 
 export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
-  // REVIEWED 2026-04-23 — daily vlog: 셀카 찍는 여성. Pixabay 수집본 적합.
+  // REVIEWED 2026-04-23 (v4) — 사용자 "오늘의 브이로그 썸네일 교체" 피드백.
+  //   Unsplash 의 여성 스마트폰 셀프 촬영 사진 (HTTP 200 확인 · 2026-04-23).
   "daily-vlog-001": {
-    "url": "https://pixabay.com/get/g5daae4d230ed783e466bbc82a2d759ce57abda2d42b234b6c4085a4e783dc0dc8ba9883c9a739649591643fd9974fc3f520fa6439b01dd337f895eb5b9007df0_640.jpg",
-    "largeURL": "https://pixabay.com/get/g2e4f6f442a8dea5314452a3f633376808ec41d5b62803abff6106c1a0c5657e57587ca8249ad2cc2a6b1469b6554ca14bdb2056cdc1030500b81f1908b436c30_1280.jpg",
-    "tags": "woman, young woman, holiday, hat, phone, mobile phone, selfie",
-    "user": "summerstock",
-    "pixabayId": 1993219
+    "url": "https://images.unsplash.com/photo-1719831936169-faee5b519162?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1719831936169-faee5b519162?auto=format&fit=crop&w=1280&q=80",
+    "tags": "vlog, selfie, phone, young woman, recording",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   // REVIEWED 2026-04-23 — news anchor: Pixabay 결과는 컨트리뮤직 스튜디오 마이크였음 (mismatch).
   //   Unsplash 의 뉴스 데스크/방송실 사진으로 교체. 차분한 블루 톤.
@@ -52,10 +53,12 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — fairy tale: Pixabay 결과는 크리스마스 데스크탑 배경화면(mismatch).
   //   Unsplash 의 동화책/판타지 일러스트 톤 사진으로 교체. 따뜻한 색감.
+  // REVIEWED 2026-04-23 (v4) — 사용자 "동화 썸네일 교체" 피드백.
+  //   Unsplash 검증 "little girl sitting in a chair reading a book".
   "fairy-tale-004": {
-    "url": "https://images.unsplash.com/photo-1535905557558-afc4877a26fc?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1535905557558-afc4877a26fc?auto=format&fit=crop&w=1280&q=80",
-    "tags": "fairy tale, storybook, fantasy, magical, warm",
+    "url": "https://images.unsplash.com/photo-1637195141628-f0f75585a07f?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1637195141628-f0f75585a07f?auto=format&fit=crop&w=1280&q=80",
+    "tags": "fairy tale, child, reading, storybook, cozy",
     "user": "unsplash",
     "pixabayId": 0
   },
@@ -84,13 +87,15 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-04-23 (v3) — 이전 Unsplash ID 가 404. 원본 Pixabay URL 복구.
+  // REVIEWED 2026-04-23 (v4) — 사용자 "스쿼트 마스터 썸네일 교체" 피드백.
+  //   Unsplash 검증된 바벨 스쿼트 사진 (photo-page subject: "man holding barbell gym")
+  //   HTTP 200 확인 · 2026-04-23.
   "fitness-squat-master-008": {
-    "url": "https://pixabay.com/get/ge32e5dbd3f4378fc336984e9c6bada77cf68ea575569c3fa920751c51e5f44848163d6e7a1d387fd3c1ee26c1a2d08ea62ebb216cf60c5828ab658ccaabd41b0_640.jpg",
-    "largeURL": "https://pixabay.com/get/ga5b1194aa0c447890889775eaf07be300a1c89e8fd068191e5fad53ac504cca5daf4c39b314ffc0e1385aead0ae8c4b2227a2c5211584ab27b681ee8f025771e_1280.jpg",
-    "tags": "woman, workout, squats, gym, fitness",
-    "user": "u_us19rkvq",
-    "pixabayId": 7539138
+    "url": "https://images.unsplash.com/photo-1683147779485-24912f480130?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1683147779485-24912f480130?auto=format&fit=crop&w=1280&q=80",
+    "tags": "squat, barbell, strength, gym, fitness, master",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   // REVIEWED 2026-04-23 — english speak: Pixabay 는 빈 칠판 정물(mismatch, 사람 없음).
   //   Unsplash 의 영어 회화 수업 장면으로 교체.
@@ -134,30 +139,36 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-04-23 (v3) — 이전 교체 ID 가 404. 기존 작동하던 URL 복구.
+  // REVIEWED 2026-04-23 (v4) — 사용자 "플랭크 썸네일 교체" 피드백.
+  //   Unsplash 검증된 플랭크 사진 (photo-page subject: "woman executing plank on mat")
+  //   HTTP 200 확인 · 2026-04-23.
   "fitness-plank-001": {
-    "url": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=1280&q=80",
-    "tags": "plank, core, forearm plank, fitness, hold, posture",
+    "url": "https://images.unsplash.com/photo-1767611097425-87ceea79a3f0?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1767611097425-87ceea79a3f0?auto=format&fit=crop&w=1280&q=80",
+    "tags": "plank, core, mat, fitness, hold, posture",
     "user": "unsplash",
     "pixabayId": 0
   },
   // REVIEWED 2026-04-23 — kpop dance: Pixabay 는 발레리나(mismatch).
   //   Unsplash 의 K-pop 안무/스튜디오 댄스 사진으로 교체. 핑크/퍼플 톤 우선.
+  // REVIEWED 2026-04-23 (v4) — 사용자 "k-pop 썸네일 교체" 피드백. 기존 ID 404.
+  //   Unsplash 검증 "men dancing on stage" — K-pop 공연 톤.
   "dance-kpop-001": {
-    "url": "https://images.unsplash.com/photo-1535525153412-5a092d46af55?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1535525153412-5a092d46af55?auto=format&fit=crop&w=1280&q=80",
-    "tags": "dance, performance, stage, kpop, choreography",
+    "url": "https://images.unsplash.com/photo-1621976360623-004223992275?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1621976360623-004223992275?auto=format&fit=crop&w=1280&q=80",
+    "tags": "dance, performance, stage, kpop, group",
     "user": "unsplash",
     "pixabayId": 0
   },
   // REVIEWED 2026-04-23 — meditation: 명상 자세 여성. OK (소프트 파스텔).
+  // REVIEWED 2026-04-23 (v4) — 사용자 "명상 썸네일 교체" 피드백. 이전 Pixabay 해시 URL 400.
+  //   Unsplash 검증 "woman doing yoga meditation" (HTTP 200).
   "meditation-001": {
-    "url": "https://pixabay.com/get/g8188c9055b3ec1ba3fd3bf04b655ab92d599450b14af8a6099d12b457072a4c82ff65f5da87842330fe65940cf51de37f462dc679528ddbaa8315ec20c6a01b6_640.jpg",
-    "largeURL": "https://pixabay.com/get/gda21d7a0011aaf98d58b467485e2c3d97212a6c8424e9289184b296bb8414dbede6676773fce1238f835647ba10fb8d03c2b9ab10efb079a1160935f458962b5_1280.jpg",
-    "tags": "meditation, woman, relax, peaceful, outdoor",
-    "user": "StockSnap",
-    "pixabayId": 2564459
+    "url": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1280&q=80",
+    "tags": "meditation, yoga, peaceful, woman, calm",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   // REVIEWED 2026-04-23 — pushup: Pixabay 결과는 역기 드는 여성(mismatch, weightlifting).
   //   Unsplash 의 푸시업 자세 사진으로 교체.

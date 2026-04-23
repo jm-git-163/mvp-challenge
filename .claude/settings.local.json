@@ -146,7 +146,9 @@
       "Bash(git -c commit.gpgsign=false commit -m 'fix\\(stt,hss\\): STT gesture-stack fix + HSS threshold v2 *)",
       "Bash(gh run *)",
       "Bash(gh api *)",
-      "Bash(ls C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\mvp\\\\\\\\PROGRESS.md)"
+      "Bash(ls C:\\\\\\\\Users\\\\\\\\user\\\\\\\\Desktop\\\\\\\\mvp\\\\\\\\PROGRESS.md)",
+      "WebFetch(domain:unsplash.com)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -L --max-time 8 \"https://images.unsplash.com/photo-1719831936169-faee5b519162?auto=format&fit=crop&w=640&q=75\")"
     ]
   }
 }
