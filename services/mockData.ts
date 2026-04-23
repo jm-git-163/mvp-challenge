@@ -1126,16 +1126,15 @@ export const MOCK_TEMPLATES: Template[] = [
       caption_template: '스쿼트 마스터 완료! 💪 {template_name} {score}점 달성! #스쿼트챌린지 #홈트',
       video_frame_css: 'border: 3px solid #f5a623; border-radius: 12px;',
     },
+    // FIX-SQUAT-COACH (2026-04-23): 하드코딩 "N~M개" 멘트 전부 제거.
+    // 실제 카운트를 알 수 없는 시점에 "9~10개! 마지막!" 같은 거짓 멘트가 떠서 어색.
+    // 코칭은 자세 가이드만 남긴다.
     subtitle_timeline: [
-      { start_ms: 0,    end_ms: 5000,  text: '🦶 발을 어깨 너비로 벌리세요!',         style: 'bold' },
-      { start_ms: 5000, end_ms: 10000, text: '⬇️ 1~3개! 자세 유지! 천천히!',          style: 'highlight' },
-      { start_ms: 10000,end_ms: 16000, text: '💪 4~6개! 무릎이 발끝을 넘지 않게!',    style: 'bold' },
-      { start_ms: 16000,end_ms: 22000, text: '🔥 7~8개! 10개 완성! 포기 금지!',       style: 'highlight' },
-      { start_ms: 22000,end_ms: 28000, text: '⚡ 9~10개! 마지막이다! 힘내요!',         style: 'bold' },
-      { start_ms: 28000,end_ms: 34000, text: '🎉 10개 완성! 정말 잘했어요!',           style: 'highlight' },
-      { start_ms: 34000,end_ms: 39000, text: '🧘 스트레칭으로 마무리해요',             style: 'bold' },
-      { start_ms: 39000,end_ms: 42000, text: '💪 다음에 더 잘할 수 있어요!',           style: 'highlight' },
-      { start_ms: 42000,end_ms: 45000, text: '🏆 자세 유지! 최고야!',                  style: 'bold' },
+      { start_ms: 0,    end_ms: 5000,  text: '🦶 발을 어깨 너비로 벌리세요',         style: 'bold' },
+      { start_ms: 5000, end_ms: 16000, text: '⬇️ 천천히 내려가고 올라와요',           style: 'highlight' },
+      { start_ms: 16000,end_ms: 28000, text: '💪 무릎이 발끝을 넘지 않게',            style: 'bold' },
+      { start_ms: 28000,end_ms: 39000, text: '🔥 호흡 유지하며 자세 그대로',           style: 'highlight' },
+      { start_ms: 39000,end_ms: 45000, text: '🧘 마무리 스트레칭',                    style: 'bold' },
     ],
     missions: [
       {
@@ -1146,17 +1145,17 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 5000, end_ms: 15000,
         type: 'timing',
-        threshold: 0.65, guide_text: '1~4개! 천천히 내려가고 올라와요 ⬇️', anim_type: 'bounce',
+        threshold: 0.65, guide_text: '천천히 내려가고 올라와요 ⬇️', anim_type: 'bounce',
       },
       {
         seq: 3, start_ms: 15000, end_ms: 26000,
         type: 'timing',
-        threshold: 0.7, guide_text: '5~8개! 무릎이 발끝 안쪽으로! 💪', anim_type: 'bounce',
+        threshold: 0.7, guide_text: '무릎이 발끝 안쪽으로 💪', anim_type: 'bounce',
       },
       {
         seq: 4, start_ms: 26000, end_ms: 36000,
         type: 'timing',
-        threshold: 0.75, guide_text: '9~10개! 마지막 힘내요! 🔥', anim_type: 'shake',
+        threshold: 0.75, guide_text: '힘내세요! 자세 유지 🔥', anim_type: 'shake',
       },
       {
         seq: 5, start_ms: 36000, end_ms: 41000,
@@ -1548,11 +1547,11 @@ export const MOCK_TEMPLATES: Template[] = [
     bgm_url: '',
     thumbnail_url: '',
     theme_emoji: '💪',
-    scene: '카메라 앞에서 스쿼트 10회를 완성하세요! 무릎을 구부려 엉덩이를 낮춰요.',
+    scene: '카메라 앞에서 스쿼트를 시작하세요! 무릎을 구부려 엉덩이를 낮춰요.',
     created_at: new Date().toISOString(),
     intro: {
       duration_ms: 3000,
-      title: '💪 스쿼트 10회',
+      title: '💪 스쿼트 챌린지',
       subtitle: '할 수 있다! 파이팅!',
       bgColor: '#0d1b0f',
       bgColor2: '#1a3a2e',
@@ -1560,9 +1559,11 @@ export const MOCK_TEMPLATES: Template[] = [
       soundEffect: 'impact',
       accentColor: '#14b8a6',
     },
+    // FIX-SQUAT-COUNT (2026-04-23): outro 에 "10회 완료" 박지 않고
+    // 결과 페이지가 실제 측정 카운트로 채우도록 placeholder 유지.
     outro: {
       duration_ms: 2500,
-      title: '스쿼트 10회 완료!',
+      title: '스쿼트 완료!',
       subtitle: '오늘도 멋진 운동 🔥',
       animation: 'score_explosion',
       accentColor: '#14b8a6',
@@ -1577,15 +1578,16 @@ export const MOCK_TEMPLATES: Template[] = [
     },
     sns_template: {
       hashtags: ['스쿼트챌린지', '홈트', '다이어트', '운동', 'squat'],
-      caption_template: '스쿼트 10회 완료! 💪 {template_name} {score}점 달성! #스쿼트챌린지 #홈트',
+      caption_template: '스쿼트 챌린지 완료! 💪 {template_name} {score}점 달성! #스쿼트챌린지 #홈트',
       video_frame_css: 'border: 3px solid #f5a623; border-radius: 12px;',
     },
+    // FIX-SQUAT-COACH (2026-04-23): "1~3번", "4~7번" 등 가짜 카운트 멘트 제거.
+    // 자세 가이드만 남긴다. 실제 카운트는 SquatHUD 가 표시.
     subtitle_timeline: [
-      { start_ms: 0,     end_ms: 3000,  text: '🦶 발을 어깨 너비로 벌리세요!',        style: 'bold' },
-      { start_ms: 3000,  end_ms: 10000, text: '⬇️ 1~3번 스쿼트! 천천히 내려가요',     style: 'highlight' },
-      { start_ms: 10000, end_ms: 18000, text: '💪 4~7번! 무릎이 발끝을 넘지 않게!',   style: 'bold' },
-      { start_ms: 18000, end_ms: 25000, text: '🔥 8~10번! 마지막 힘내요!',            style: 'highlight' },
-      { start_ms: 25000, end_ms: 30000, text: '🏆 완료! 승리 포즈!',                  style: 'bold' },
+      { start_ms: 0,     end_ms: 3000,  text: '🦶 발을 어깨 너비로 벌리세요',        style: 'bold' },
+      { start_ms: 3000,  end_ms: 12000, text: '⬇️ 천천히 내려가고 올라와요',          style: 'highlight' },
+      { start_ms: 12000, end_ms: 22000, text: '💪 무릎이 발끝을 넘지 않게',           style: 'bold' },
+      { start_ms: 22000, end_ms: 30000, text: '🔥 호흡 유지하며 끝까지',              style: 'highlight' },
     ],
     missions: [
       {
@@ -1596,22 +1598,22 @@ export const MOCK_TEMPLATES: Template[] = [
       {
         seq: 2, start_ms: 3000, end_ms: 10000,
         type: 'timing',
-        threshold: 0.65, guide_text: '1~3번 스쿼트! 천천히 내려가요 ⬇️', anim_type: 'bounce',
+        threshold: 0.65, guide_text: '천천히 내려가고 올라와요 ⬇️', anim_type: 'bounce',
       },
       {
         seq: 3, start_ms: 10000, end_ms: 18000,
         type: 'timing',
-        threshold: 0.7, guide_text: '4~7번 스쿼트! 무릎이 발끝을 넘지 않게! 💪', anim_type: 'bounce',
+        threshold: 0.7, guide_text: '무릎이 발끝을 넘지 않게 💪', anim_type: 'bounce',
       },
       {
         seq: 4, start_ms: 18000, end_ms: 25000,
         type: 'timing',
-        threshold: 0.75, guide_text: '8~10번! 마지막 힘내요! 🔥', anim_type: 'shake',
+        threshold: 0.75, guide_text: '힘내세요! 자세 유지 🔥', anim_type: 'shake',
       },
       {
         seq: 5, start_ms: 25000, end_ms: 30000,
         type: 'gesture', gesture_id: 'hands_up', gesture_emoji: '🙌',
-        threshold: 0.6, guide_text: '완료! 양손 들어 만세! 🏆', guide_emoji: '🏆', anim_type: 'float',
+        threshold: 0.6, guide_text: '완료! 양손 들어 만세 🏆', guide_emoji: '🏆', anim_type: 'float',
       },
     ],
   },
