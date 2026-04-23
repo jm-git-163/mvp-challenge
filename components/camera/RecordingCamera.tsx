@@ -29,6 +29,10 @@ export interface RecordingCameraHandle {
   //   "챌린지 시작" 버튼 onPress 에서 이것을 호출해야 안정적으로 풀림.
   //   네이티브 빌드에서는 no-op.
   kickPlay?:      () => void;
+  // CAMERA-SWAP (2026-04-23): 녹화 중 전/후면 카메라 전환.
+  //   웹 전용 — 네이티브에서는 no-op. 성공 시 resolve, 실패 시 reject.
+  //   호출자(부모)는 성공 시 자신의 facing state 를 갱신.
+  swapCamera?: (target: 'front' | 'back') => Promise<void>;
 }
 
 interface Props {

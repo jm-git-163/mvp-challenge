@@ -25,6 +25,7 @@ import React, {
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { RecordingCameraHandle } from './RecordingCamera';
 import type { NormalizedLandmark } from '../../utils/poseUtils';
+import { swapCameraStream } from '../../engine/session/cameraSwap';
 import { getBgmPlayer } from '../../utils/bgmLibrary';
 import { resourceTracker } from '../../utils/resourceTracker';
 import { drawDiagnosticsOverlay } from '../../utils/diagnosticsOverlay';
@@ -994,6 +995,9 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     );
 
     const mountedFacingRef = useRef(facing);
+    // CAMERA-SWAP (2026-04-23): 전환 중 플래그. true 동안 draw 루프는 직전 프레임
+    //   위에 "📷 전환 중…" 오버레이를 그려 사용자 혼동을 최소화한다.
+    const swappingRef   = useRef<{ active: boolean; startedAt: number; toFacing: 'front'|'back' } | null>(null);
     // FIX-AA: facing 토글 race-guard 용 generation counter + cleanup 저장소.
     const generationRef = useRef(0);
     const cleanupsRef   = useRef<Array<() => void>>([]);
@@ -1347,6 +1351,36 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
           }
 
+          // CAMERA-SWAP (2026-04-23): 전환 중 오버레이. 캔버스 captureStream 은 계속
+          //   동작하므로 녹화본에도 이 프레임이 박힘(=블랙아웃 아님).
+          //   200ms 페이드인, 1.5s 후 자동 종료 (안전장치).
+          try {
+            const sw = swappingRef.current;
+            if (sw && sw.active) {
+              const nowMs = performance.now();
+              const dt = nowMs - sw.startedAt;
+              if (dt > 1500) {
+                // 안전장치: 1.5s 넘으면 강제 해제
+                swappingRef.current = null;
+              } else {
+                const fadeIn = Math.min(1, dt / 200);
+                ctx.save();
+                ctx.fillStyle = `rgba(8,10,18,${(0.58 * fadeIn).toFixed(3)})`;
+                ctx.fillRect(0, 0, CW, CH);
+                ctx.globalAlpha = fadeIn;
+                ctx.font = 'bold 44px system-ui, sans-serif';
+                ctx.fillStyle = '#FFD95E';
+                ctx.textAlign = 'center';
+                ctx.fillText('📷 전환 중…', CW / 2, CH / 2 - 20);
+                ctx.font = 'bold 26px system-ui, sans-serif';
+                ctx.fillStyle = '#E6E6E6';
+                const label = sw.toFacing === 'front' ? '전면 카메라' : '후면 카메라';
+                ctx.fillText(label, CW / 2, CH / 2 + 32);
+                ctx.restore();
+              }
+            }
+          } catch { /* silent */ }
+
           // POSE+THEME (2026-04-22): ?debug=1 일 때 랜드마크 스켈레톤 + pose FPS 오버레이.
           //   녹화 본에는 박히지 않는 것이 아니라, DOM 대체가 아닌 디버그 전용 캔버스 오버레이로
           //   개발자가 포즈 인식 전반 동작을 눈으로 즉시 확인. URL ?debug=1 없으면 비활성.
@@ -1620,6 +1654,75 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           }
         } catch (err) {
           try { console.warn('[RecordingCamera] kickPlay threw:', err); } catch {}
+        }
+      },
+
+      // CAMERA-SWAP (2026-04-23): 녹화 중 전/후면 카메라 전환.
+      //   - MediaRecorder 는 canvas captureStream 을 녹화 중 → 카메라 <video> 만 교체해도 녹화 끊기지 않음.
+      //   - 중복 호출 차단 (이미 swapping 이면 noop).
+      //   - 실패 시 reject → 부모가 토스트로 노출.
+      swapCamera: async (target: 'front' | 'back') => {
+        if (swappingRef.current?.active) {
+          throw new Error('이미 카메라 전환 중입니다.');
+        }
+        const vid = videoRef.current;
+        if (!vid) throw new Error('video element 미준비');
+
+        swappingRef.current = { active: true, startedAt: performance.now(), toFacing: target };
+        setCamDiagSafe({ phase: 'acquiring', facing: target, msg: `swap → ${target}` });
+
+        try {
+          const prev = streamRef.current;
+          const result = await swapCameraStream({
+            prevStream: prev,
+            target,
+            onPrevStop: () => {
+              // 모듈 내부 _streamCache 일관성 유지 (RecordingCamera.web.tsx 의 캐시).
+              if (_streamCache) {
+                try { resourceTracker.dec('mediaStream'); } catch {}
+                _streamCache = null;
+              }
+            },
+          });
+
+          if (!result.ok) {
+            // 원복 stream 이 있으면 복원
+            if (result.revertedStream && result.revertedFacing) {
+              streamRef.current = result.revertedStream;
+              _streamCache = { stream: result.revertedStream, facing: result.revertedFacing };
+              try { resourceTracker.inc('mediaStream'); } catch {}
+              try { vid.srcObject = result.revertedStream; } catch {}
+              try { await vid.play(); } catch {}
+              facingRef.current = result.revertedFacing;
+              mountedFacingRef.current = result.revertedFacing;
+            }
+            throw (result.error instanceof Error ? result.error : new Error(String(result.error)));
+          }
+
+          // 성공 — 캐시 + videoRef 갱신, facingRef 즉시 갱신(캔버스 mirror 플래그)
+          streamRef.current = result.stream;
+          _streamCache = { stream: result.stream, facing: result.facing };
+          try { resourceTracker.inc('mediaStream'); } catch {}
+          (window as any).__cameraStream = result.stream;
+          try { vid.srcObject = result.stream; } catch {}
+
+          // loadedmetadata 대기 — 최대 1.2s
+          await new Promise<void>((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            const onMeta = () => { vid.removeEventListener('loadedmetadata', onMeta); finish(); };
+            vid.addEventListener('loadedmetadata', onMeta, { once: true });
+            setTimeout(finish, 1200);
+            if (vid.readyState >= 1 && vid.videoWidth > 0) finish();
+          });
+          try { await vid.play(); } catch {}
+
+          facingRef.current = result.facing;
+          mountedFacingRef.current = result.facing;
+          setCamDiagSafe({ phase: 'playing', facing: result.facing, msg: 'swap ok' });
+        } finally {
+          // 페이드아웃 여유 200ms 후 오버레이 해제
+          setTimeout(() => { swappingRef.current = null; }, 200);
         }
       },
     }));

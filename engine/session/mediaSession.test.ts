@@ -181,6 +181,60 @@ describe('MediaSession track lifecycle', () => {
   });
 });
 
+describe('MediaSession.swapFacing (CAMERA-SWAP 2026-04-23)', () => {
+  it('성공: 기존 트랙 stop + 새 facing 획득, video 제약에 facingMode 포함', async () => {
+    const first = new FakeStream();
+    const second = new FakeStream();
+    const gum = vi.fn()
+      .mockResolvedValueOnce(first as unknown as MediaStream)
+      .mockResolvedValueOnce(second as unknown as MediaStream);
+    const s = new MediaSession({ getUserMedia: gum });
+    await s.acquire();
+    const swapped = await s.swapFacing('environment');
+    expect(swapped).toBe(second as unknown as MediaStream);
+    // 기존 트랙 전부 stop
+    for (const t of first.getTracks()) expect(t.readyState).toBe('ended');
+    // 마지막 호출이 environment 로 요청
+    const lastArg = gum.mock.calls[gum.mock.calls.length - 1][0] as MediaStreamConstraints;
+    expect((lastArg.video as MediaTrackConstraints).facingMode).toMatchObject({ ideal: 'environment' });
+  });
+
+  it('새 facing 실패 → 원본 facing 으로 원복 성공해도 swap 은 throw', async () => {
+    // 1) 초기 acquire (user) 성공
+    // 2) swap(environment) → OverconstrainedError + FALLBACK 전부 실패
+    // 3) acquire(user override) 원복 → 성공
+    const initial = new FakeStream();
+    const reverted = new FakeStream();
+    const gum = vi.fn()
+      .mockResolvedValueOnce(initial as unknown as MediaStream);
+    // 이후 모든 acquire 시도 — 첫 블록(새 target)은 전부 실패, 두번째 블록(원복)은 첫 시도에서 성공.
+    const ocErr = () => { const e = new Error('oc'); e.name = 'OverconstrainedError'; return e; };
+    // override + FALLBACK_CHAIN(4) = 최대 5 회. 전부 overconstrained 로 실패.
+    for (let i = 0; i < 5; i++) gum.mockRejectedValueOnce(ocErr());
+    // 원복: 첫 시도에서 성공
+    gum.mockResolvedValueOnce(reverted as unknown as MediaStream);
+
+    const s = new MediaSession({ getUserMedia: gum });
+    await s.acquire();
+    await expect(s.swapFacing('environment')).rejects.toBeInstanceOf(MediaSessionError);
+    // 원복 이후 getStream() 은 reverted stream 을 반환
+    expect(s.getStream()).toBe(reverted as unknown as MediaStream);
+  });
+
+  it('새 facing + 원복 전부 실패 → throw', async () => {
+    const initial = new FakeStream();
+    const gum = vi.fn()
+      .mockResolvedValueOnce(initial as unknown as MediaStream);
+    const nrErr = () => { const e = new Error('nr'); e.name = 'NotReadableError'; return e; };
+    // swap 5회 + revert 5회 전부 실패
+    for (let i = 0; i < 12; i++) gum.mockRejectedValueOnce(nrErr());
+
+    const s = new MediaSession({ getUserMedia: gum });
+    await s.acquire();
+    await expect(s.swapFacing('environment')).rejects.toBeInstanceOf(MediaSessionError);
+  });
+});
+
 describe('MediaSession constructor', () => {
   it('getUserMedia 구현 없으면 MediaSessionError(notfound) throw', () => {
     // globalThis.navigator 없는 node 환경에서는 자동으로 notfound

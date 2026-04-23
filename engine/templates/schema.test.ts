@@ -128,6 +128,63 @@ describe('zTemplate 통합', () => {
     expect(zTemplate.safeParse(bad).success).toBe(false);
   });
 
+  // CAMERA-SWAP (2026-04-23)
+  it('cameraPlan 정상 세그먼트 통과', () => {
+    const good = baseTemplate({
+      cameraPlan: {
+        segments: [
+          { atMs: 0, facing: 'front', label: '인트로 반응' },
+          { atMs: 5000, facing: 'back', label: '음식 클로즈업' },
+          { atMs: 12000, facing: 'front', label: '먹방 리액션' },
+        ],
+      },
+    });
+    expect(() => parseTemplate(good)).not.toThrow();
+  });
+
+  it('cameraPlan 없어도 통과 (optional)', () => {
+    expect(() => parseTemplate(baseTemplate())).not.toThrow();
+  });
+
+  it('cameraPlan atMs 내림차순 거부', () => {
+    const bad = baseTemplate({
+      cameraPlan: {
+        segments: [
+          { atMs: 5000, facing: 'front', label: 'a' },
+          { atMs: 2000, facing: 'back',  label: 'b' },
+        ],
+      },
+    });
+    expect(() => parseTemplate(bad)).toThrow(/오름차순/);
+  });
+
+  it('cameraPlan segment atMs > duration 거부', () => {
+    const bad = baseTemplate({
+      duration: 10,
+      cameraPlan: {
+        segments: [
+          { atMs: 0,     facing: 'front', label: '시작' },
+          { atMs: 99000, facing: 'back',  label: '너무 늦음' },
+        ],
+      },
+    });
+    expect(() => parseTemplate(bad)).toThrow(/atMs/);
+  });
+
+  it('cameraPlan label 빈 문자열 거부', () => {
+    const bad = baseTemplate({
+      cameraPlan: { segments: [{ atMs: 0, facing: 'front', label: '' }] },
+    });
+    expect(() => parseTemplate(bad)).toThrow();
+  });
+
+  it('cameraPlan facing 값 검증', () => {
+    const bad = baseTemplate({
+      cameraPlan: { segments: [{ atMs: 0, facing: 'side' as any, label: 'x' }] },
+    });
+    expect(() => parseTemplate(bad)).toThrow();
+  });
+
   it('모든 미션 kind 허용 (6종)', () => {
     const missions = [
       { kind: 'squat_count', target: 5 },

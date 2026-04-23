@@ -189,6 +189,25 @@ export const zGlobalEffect = z.object({
   props: z.record(z.string(), z.unknown()).optional(),
 });
 
+// ── 카메라 플랜 (CAMERA-SWAP 2026-04-23) ─────────────────────
+// 시점별 권장 facing. 런타임에 다음 segment 시작 5초 전 토스트 표시.
+// 자동 전환은 기본 OFF (사용자 수동) — 오동작·권한 팝업 유발 회피.
+export const zCameraPlanSegment = z.object({
+  /** 세그먼트 시작 시각 (녹화 기준 ms). 0 = 녹화 시작 순간. */
+  atMs: z.number().min(0),
+  /** 해당 구간 권장 facing. */
+  facing: z.enum(['front', 'back']),
+  /** 토스트에 표시할 짧은 라벨 (예: "음식 클로즈업"). */
+  label: z.string().min(1).max(20),
+});
+
+export const zCameraPlan = z.object({
+  segments: z.array(zCameraPlanSegment).min(1),
+});
+
+export type CameraPlanSegment = z.infer<typeof zCameraPlanSegment>;
+export type CameraPlan = z.infer<typeof zCameraPlan>;
+
 // ── 무드 ────────────────────────────────────────────────────
 export const zMoodToken = z.enum([
   'neon_cyberpunk', 'cinematic_news', 'pop_candy', 'warm_asmr', 'luxury_night',
@@ -220,6 +239,13 @@ export const zTemplate = z.object({
    * 6~8 개 권장. 영문/한글/이모지 혼용 가능. '#' 프리픽스는 자동 추가되므로 생략.
    */
   hashtags: z.array(z.string().min(1)).default([]),
+
+  /**
+   * CAMERA-SWAP (2026-04-23): 시점별 권장 카메라 facing.
+   * 런타임에 다음 segment 시작 5초 전 상단 토스트 표시 ("5초 후 후면 전환 — {label}").
+   * 자동 전환 아님 — 사용자가 🔄 버튼으로 직접 토글.
+   */
+  cameraPlan: zCameraPlan.optional(),
 }).superRefine((t, ctx) => {
   // scoreWeight 합 = 1.0 (±0.01 허용)
   const sum = t.missionTimeline.reduce((s, m) => s + m.scoreWeight, 0);
@@ -246,6 +272,20 @@ export const zTemplate = z.object({
   for (const m of t.missionTimeline) {
     if (m.endSec > t.duration + 0.001) {
       ctx.addIssue({ code: 'custom', message: `mission "${m.id}".endSec(${m.endSec}) > template.duration(${t.duration})`, path: ['missionTimeline'] });
+    }
+  }
+  // CAMERA-SWAP (2026-04-23): cameraPlan.segments — atMs 오름차순, duration 내
+  if (t.cameraPlan) {
+    const durMs = t.duration * 1000;
+    let prev = -1;
+    for (const seg of t.cameraPlan.segments) {
+      if (seg.atMs <= prev) {
+        ctx.addIssue({ code: 'custom', message: `cameraPlan.segments.atMs 는 오름차순이어야 함 (prev=${prev}, got=${seg.atMs})`, path: ['cameraPlan', 'segments'] });
+      }
+      prev = seg.atMs;
+      if (seg.atMs > durMs + 1) {
+        ctx.addIssue({ code: 'custom', message: `cameraPlan segment atMs(${seg.atMs}) > duration(${durMs}ms)`, path: ['cameraPlan', 'segments'] });
+      }
     }
   }
 });

@@ -117,4 +117,17 @@ export const foodReview: Template = {
     { kind: 'lens_flare', durationMs: 500 },
   ],
   failEffects: [],
+
+  // CAMERA-SWAP (2026-04-23): 푸드 리뷰 전용 권장 카메라 시나리오.
+  //   1) 0~5s   전면 — 리뷰어 표정·등장 인사
+  //   2) 5~12s  후면 — 음식 클로즈업
+  //   3) 12s~   전면 — 먹방 리액션·마무리
+  // 자동 전환은 아님. 런타임이 다음 세그먼트 시작 5초 전 상단 토스트 표시.
+  cameraPlan: {
+    segments: [
+      { atMs: 0,     facing: 'front', label: '리뷰어 등장' },
+      { atMs: 5000,  facing: 'back',  label: '음식 클로즈업' },
+      { atMs: 12000, facing: 'front', label: '먹방 리액션' },
+    ],
+  },
 };

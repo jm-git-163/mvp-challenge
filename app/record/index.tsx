@@ -1372,6 +1372,15 @@ export default function RecordScreen() {
   //   명시적으로 후면 전환 가능.
   const defaultFacing: 'front' | 'back' = 'front';
   const [facing, setFacing] = useState<'front'|'back'>(defaultFacing);
+  // CAMERA-SWAP (2026-04-23): 녹화 중 전/후면 전환 지원.
+  //   - 마지막 swap 시각. 1500ms 쿨다운으로 rapid toggle 차단.
+  //   - 에러 토스트. 실패 시 2.5s 표시.
+  //   - 현재 전환 중 플래그. UI disable 용.
+  const lastSwapAtRef = useRef<number>(0);
+  const [swapErrorToast, setSwapErrorToast] = useState<string | null>(null);
+  const [swapping, setSwapping] = useState(false);
+  // cameraPlan 토스트: 다음 세그먼트 안내 (5초 전). { label, facing, untilMs }
+  const [planHint, setPlanHint] = useState<{ label: string; facing: 'front'|'back'; shownAtMs: number } | null>(null);
 
   const { isReady, isRealPose, landmarks, error: poseError, status: poseStatus, retry: retryPose, setSquatMockMode } = usePoseDetection();
   const { judge, voiceTranscript, squatCount, squatMode, resetVoice,
@@ -1831,6 +1840,26 @@ export default function RecordScreen() {
   const isCountdown = state === 'countdown';
   const isRecording = state === 'recording';
   const isIdle      = state === 'idle';
+
+  // CAMERA-SWAP (2026-04-23): cameraPlan 다음 세그먼트 5초 전 토스트 힌트.
+  //   자동 전환 아님 — 사용자가 🔄 버튼으로 직접 토글.
+  //   activeTemplate.cameraPlan 은 zod 스키마 optional. 없으면 no-op.
+  useEffect(() => {
+    const plan = (activeTemplate as any)?.cameraPlan as { segments: Array<{ atMs: number; facing: 'front'|'back'; label: string }> } | undefined;
+    if (!plan || !isRecording) { setPlanHint(null); return; }
+    // 다음 세그먼트: elapsed + 5000 ms 이내의 atMs 이고, 현재 facing 과 다른 것.
+    const LEAD_MS = 5000;
+    const upcoming = plan.segments.find(s => s.atMs > elapsed && s.atMs - elapsed <= LEAD_MS && s.facing !== facing);
+    if (upcoming) {
+      setPlanHint(prev => prev && prev.label === upcoming.label ? prev : { label: upcoming.label, facing: upcoming.facing, shownAtMs: Date.now() });
+    } else {
+      setPlanHint(prev => {
+        // 힌트 표시 후 6초 지나면 숨김
+        if (prev && Date.now() - prev.shownAtMs > 6000) return null;
+        return prev;
+      });
+    }
+  }, [elapsed, facing, isRecording, activeTemplate]);
   const missionProg = currentMission
     ? Math.min(1, Math.max(0, (elapsed-currentMission.start_ms)/Math.max(1,currentMission.end_ms-currentMission.start_ms)))
     : 0;
@@ -1961,6 +1990,20 @@ export default function RecordScreen() {
                 </View>
               )}
 
+              {/* CAMERA-SWAP (2026-04-23): cameraPlan 힌트 토스트 (다음 세그먼트 5초 전) */}
+              {planHint && (
+                <View style={r.planHintToast} pointerEvents="none">
+                  <Text style={r.planHintText}>
+                    5초 후 {planHint.facing === 'front' ? '전면' : '후면'} 전환 — {planHint.label}
+                  </Text>
+                </View>
+              )}
+              {/* CAMERA-SWAP: 전환 실패 토스트 */}
+              {swapErrorToast && (
+                <View style={r.swapErrorToast} pointerEvents="none">
+                  <Text style={r.swapErrorText}>{swapErrorToast}</Text>
+                </View>
+              )}
               {/* TOP HUD: [● REC 00:23]  [score]  [🔥3x] [🔄] */}
               <Animated.View style={[r.topHud, { opacity:hudOpacity }]}>
                 <View style={r.recBadge}>
@@ -1978,19 +2021,44 @@ export default function RecordScreen() {
                 )}
                 <TouchableOpacity
                   style={r.flipBtn}
-                  onPress={() => {
-                    // FIX-AA (2026-04-22): 녹화 중 facing 전환 시 기존 audio track
-                    //   이 stop 되면서 녹화본 오디오가 끊기는 경로가 있어 억제.
-                    //   녹화 시작 전 / idle 상태에서만 토글 허용.
-                    if (isRecording || state === 'countdown' || state === 'processing') {
+                  onPress={async () => {
+                    // CAMERA-SWAP (2026-04-23): 녹화 중에도 전환 허용.
+                    //   - 카운트다운·processing 은 여전히 차단 (타이밍 민감).
+                    //   - 1.5s 쿨다운 (rapid toggle 방지).
+                    //   - swapping 중 중복 호출 방지.
+                    if (state === 'countdown' || state === 'processing') return;
+                    if (swapping) return;
+                    const now = Date.now();
+                    if (now - lastSwapAtRef.current < 1500) return;
+                    const target: 'front'|'back' = facing === 'front' ? 'back' : 'front';
+
+                    // 녹화 전(idle) 상태면 단순 state 전환 (useEffect 가 stream 재설정)
+                    if (!isRecording) {
+                      lastSwapAtRef.current = now;
+                      setFacing(target);
                       return;
                     }
-                    setFacing(f => f==='front'?'back':'front');
+
+                    // 녹화 중: 캔버스 captureStream 유지한 채 video 소스만 교체
+                    if (!cameraRef.current?.swapCamera) return;
+                    setSwapping(true);
+                    lastSwapAtRef.current = now;
+                    try {
+                      await cameraRef.current.swapCamera(target);
+                      setFacing(target);
+                    } catch (err) {
+                      console.warn('[record] swapCamera failed:', err);
+                      setSwapErrorToast('카메라 전환 실패 — 다시 시도해주세요');
+                      setTimeout(() => setSwapErrorToast(null), 2500);
+                    } finally {
+                      setSwapping(false);
+                    }
                   }}
                   hitSlop={{top:12,bottom:12,left:12,right:12}}
-                  disabled={isRecording || state === 'countdown' || state === 'processing'}
+                  disabled={state === 'countdown' || state === 'processing' || swapping}
                 >
                   <Text style={r.flipText}>🔄</Text>
+                  <Text style={r.flipLabel}>{facing==='front'?'전면':'후면'}</Text>
                 </TouchableOpacity>
               </Animated.View>
 
@@ -2414,10 +2482,18 @@ const r = StyleSheet.create({
     // @ts-ignore web
     boxShadow:'0 0 12px rgba(234,179,8,0.6)' },
   comboText:    { color:'#fff', fontSize:12, fontWeight:'900' },
-  flipBtn:      { width:40, height:40, borderRadius:20, backgroundColor:'rgba(0,0,0,0.65)', alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'rgba(255,255,255,0.18)',
+  flipBtn:      { minWidth:52, height:40, paddingHorizontal:8, borderRadius:20, backgroundColor:'rgba(0,0,0,0.65)', alignItems:'center', justifyContent:'center', flexDirection:'row', gap:4, borderWidth:1, borderColor:'rgba(255,255,255,0.18)',
     // @ts-ignore web
     backdropFilter:'blur(8px)' },
-  flipText:     { fontSize:18 },
+  flipText:     { fontSize:16 },
+  // CAMERA-SWAP (2026-04-23): 토글 버튼 옆 현재 facing 라벨.
+  flipLabel:    { color:'#fff', fontSize:10, fontWeight:'900', letterSpacing:0.8 },
+  // CAMERA-SWAP: 실패 토스트.
+  swapErrorToast: { position:'absolute', top:60, left:20, right:20, backgroundColor:'rgba(239,68,68,0.92)', paddingVertical:10, paddingHorizontal:14, borderRadius:12, zIndex:60, alignItems:'center' },
+  swapErrorText:  { color:'#fff', fontSize:13, fontWeight:'800' },
+  // CAMERA-SWAP: cameraPlan 힌트 토스트.
+  planHintToast:  { position:'absolute', top:60, left:20, right:20, backgroundColor:'rgba(20,20,28,0.88)', paddingVertical:10, paddingHorizontal:14, borderRadius:12, zIndex:59, alignItems:'center', borderWidth:1, borderColor:'rgba(255,217,94,0.6)' },
+  planHintText:   { color:'#FFD95E', fontSize:13, fontWeight:'800' },
   charArea:     { position:'absolute', top:60, alignSelf:'center', alignItems:'center', zIndex:20 },
   charBubble:   { width:70, height:70, borderRadius:35, alignItems:'center', justifyContent:'center', borderWidth:1.5 },
   charEmoji:    { fontSize:42 },

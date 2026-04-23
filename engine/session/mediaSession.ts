@@ -160,6 +160,93 @@ export class MediaSession {
     this.stale = true;
   }
 
+  /**
+   * CAMERA-SWAP (2026-04-23): 녹화 중 facing 전환을 위한 on-demand swap.
+   *
+   * iOS Safari 가 동일 origin 에서 카메라 두 개를 동시 acquire 할 수 없으므로
+   * 듀얼 acquire 대신 stop → 재acquire 패턴을 사용한다.
+   *
+   * 동작:
+   *  1. 현재 stream 트랙 stop + stale 마킹
+   *  2. 새 facing 으로 acquire (override 사용 → 폴백 체인은 기존 것 그대로)
+   *  3. 실패 시 원본 facing 으로 원복 시도
+   *  4. 두 번 다 실패 → MediaSessionError throw
+   *
+   * 호출자는 반환된 새 stream 을 video element 에 부착해야 한다.
+   * 캔버스 합성 파이프라인이 video → canvas → captureStream 구조이므로
+   * MediaRecorder 자체는 끊기지 않는다 (캔버스 출력 트랙은 동일).
+   */
+  async swapFacing(target: 'user' | 'environment'): Promise<MediaStream> {
+    // 동시 swap 직렬화 — in-flight 가 있으면 그것을 대기
+    if (this.acquiring) {
+      try { await this.acquiring; } catch { /* 이전 실패는 무시하고 새로 시도 */ }
+    }
+
+    // 원복 대비: 현재 facing 추출. video track settings 에서 facingMode 우선.
+    const prevFacing: 'user' | 'environment' = this.detectCurrentFacing() ?? (target === 'user' ? 'environment' : 'user');
+
+    // 1) 기존 stream 정리 (stop) — 일부 Android 에서 즉시 재요청 시 NotReadable 회피용 80ms 지연
+    if (this.stream) {
+      for (const track of this.stream.getTracks()) {
+        try { track.stop(); } catch { /* ignore */ }
+      }
+      this.stream = null;
+    }
+    this.stale = true;
+    await new Promise((r) => setTimeout(r, 80));
+
+    // 2) 새 facing 으로 acquire
+    const buildOverride = (facing: 'user' | 'environment'): MediaConstraintsOverride => ({
+      video: {
+        facingMode: { ideal: facing } as MediaTrackConstraints['facingMode'],
+        width: { ideal: 720, max: 1080 },
+        height: { ideal: 1280, max: 1920 },
+        frameRate: { ideal: 30, max: 30 },
+      },
+      audio: DEFAULT_CONSTRAINTS.audio,
+    });
+
+    try {
+      this.stale = false;
+      const acquired = await this.acquire(buildOverride(target));
+      return acquired;
+    } catch (firstErr) {
+      // 3) 원복 시도
+      try {
+        this.stale = false;
+        const reverted = await this.acquire(buildOverride(prevFacing));
+        // 원복 성공해도 swap 실패는 호출자에게 알림
+        throw new MediaSessionError(
+          `카메라 전환 실패 — 원본 facing(${prevFacing})으로 복귀했습니다.`,
+          firstErr,
+          classifyError(firstErr),
+        );
+      } catch (revertErr) {
+        if (revertErr instanceof MediaSessionError) throw revertErr;
+        throw new MediaSessionError(
+          '카메라 전환 및 원복에 모두 실패했습니다.',
+          revertErr,
+          classifyError(revertErr),
+        );
+      }
+    }
+  }
+
+  /** 현재 video track 의 facingMode 를 추출 (없으면 null). */
+  private detectCurrentFacing(): 'user' | 'environment' | null {
+    if (!this.stream) return null;
+    try {
+      const getVT = (this.stream as MediaStream).getVideoTracks;
+      if (typeof getVT !== 'function') return null;
+      const vt = getVT.call(this.stream)[0];
+      if (!vt) return null;
+      const settings = (vt as MediaStreamTrack).getSettings?.();
+      const fm = (settings as { facingMode?: string } | undefined)?.facingMode;
+      if (fm === 'user' || fm === 'environment') return fm;
+    } catch { /* ignore */ }
+    return null;
+  }
+
   private async acquireInternal(override?: MediaConstraintsOverride): Promise<MediaStream> {
     // 기존 스트림이 stale이면 정리하고 신규 요청
     if (this.stream) {
