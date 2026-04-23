@@ -514,7 +514,7 @@ function drawGenreEffect(
     // 하단 티커 스트립 (스크롤)
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, CH - 36, CW, 36);
-    const tickerText = '    MotiQ 챌린지 생중계 · 시청자 참여 급증 · 팔로워 증가 중 · 채널 구독 부탁 드립니다 · ';
+    const tickerText = '    챌린지 뉴스 생중계 · 시청자 참여 급증 · 팔로워 증가 중 · 채널 구독 부탁 드립니다 · ';
     const scrollX = CW - ((elapsed * 0.12) % (CW + 600));
     ctx.font = '600 16px sans-serif';
     ctx.fillStyle = '#fbbf24';
