@@ -417,7 +417,7 @@ export default function HomeScreen() {
   const keyExtractor = useCallback((t: Template) => t.id, []);
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, themeDark && { backgroundColor: '#050509' }]}>
       {/* Team RELIABILITY (2026-04-22): 홈 최초 진입 시 1회 권한 안내 모달.
           허용 시 origin 에 권한이 캐시되어 카드 클릭/ /record 에서 팝업 없음. */}
       <PermissionWelcomeModal />
