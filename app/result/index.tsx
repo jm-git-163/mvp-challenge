@@ -1318,8 +1318,21 @@ export default function ResultScreen() {
           else { setInviteToast(`공유 창 오류(${e?.name || 'Err'}) — 링크는 복사됨`); }
         }
       }
+      // FIX-INVITE-KAKAO-PNG (2026-04-23): share API 도 없고 in-app 브라우저면
+      // 마지막 폴백으로 sms: 딥링크 열어 사용자가 메시지에 URL 붙여넣기 가능.
+      if (!shared && typeof window !== 'undefined' && typeof (navigator as any).share !== 'function') {
+        try {
+          const body = encodeURIComponent(caption);
+          // SMS 가 Android/iOS 둘 다에서 가장 호환성 좋음
+          window.location.href = `sms:?body=${body}`;
+        } catch {}
+      }
+      // 공유 성공/실패 여부 무관하게 항상 "URL 클립보드에 있음" 을 알려 사용자가
+      // 메신저가 URL 을 드롭해도 수동 paste 로 복구 가능하게 함.
       const msg = shared
-        ? '✓ 도전장 전송 완료'
+        ? (clipboardOk
+            ? '✓ 전송됨 — 링크도 복사됐으니 메시지에 붙여넣으세요'
+            : '✓ 도전장 전송 완료')
         : (clipboardOk
             ? '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요'
             : '⚠ 클립보드 차단됨 — 주소창 권한 확인 후 재시도');

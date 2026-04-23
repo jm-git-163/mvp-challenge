@@ -79,6 +79,52 @@ export default function ChallengeInviteScreen() {
     if (ctx) setInviteContext(ctx, fullUrl);
   }, [ctx, fullUrl, setInviteContext]);
 
+  // FIX-INVITE-KAKAO-PNG (2026-04-23): OG/Twitter 메타를 런타임에 초대자 컨텍스트로
+  //   덮어씀. 카톡/라인이 URL 만 포워드한 경우, 링크 미리보기 페처가 이 메타를
+  //   읽어가 "누가·어느 챌린지" 카드를 렌더. 정적 +html.tsx 의 전역 메타보다 우선.
+  //   expo-router SPA 환경이라 SSR 은 없지만, 일부 메신저(카톡 데스크톱·in-app)는
+  //   JS 실행 후 메타를 수집한다. 실패해도 전역 OG 가 폴백.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!ctx) return;
+    const templateName = template?.name ?? ctx.slug;
+    const title = `${ctx.fromName}이(가) ${templateName} 도전장을 보냈어요!`;
+    const desc = ctx.message
+      ? `"${ctx.message}" — 탭해서 함께 도전하세요`
+      : (typeof ctx.score === 'number'
+          ? `${ctx.fromName}님의 점수 ${ctx.score}점. 탭해서 함께 도전하세요`
+          : '탭해서 함께 도전하세요');
+    const img =
+      SUPABASE_TEMPLATE_THUMBNAILS[template?.id ?? '']?.largeURL
+      || SUPABASE_TEMPLATE_THUMBNAILS[template?.id ?? '']?.url
+      || TEMPLATE_THUMBNAILS[template?.id ?? '']?.largeURL
+      || TEMPLATE_THUMBNAILS[template?.id ?? '']?.url
+      || (template ? getThumbnailUrl((template as any).genre, template.id, 1280) : '');
+
+    const setMeta = (selector: string, attr: 'content', value: string) => {
+      let el = document.head.querySelector(selector) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement('meta');
+        const m = /^meta\[(property|name)="([^"]+)"\]$/.exec(selector);
+        if (m) el.setAttribute(m[1], m[2]);
+        document.head.appendChild(el);
+      }
+      el.setAttribute(attr, value);
+    };
+    try {
+      document.title = title;
+      setMeta('meta[property="og:title"]',       'content', title);
+      setMeta('meta[property="og:description"]', 'content', desc);
+      setMeta('meta[property="og:url"]',         'content', fullUrl);
+      if (img) setMeta('meta[property="og:image"]',     'content', img);
+      if (img) setMeta('meta[property="og:image:alt"]', 'content', templateName);
+      setMeta('meta[name="twitter:title"]',       'content', title);
+      setMeta('meta[name="twitter:description"]', 'content', desc);
+      if (img) setMeta('meta[name="twitter:image"]', 'content', img);
+      setMeta('meta[name="description"]', 'content', desc);
+    } catch { /* 메타 조작 실패해도 전역 OG 가 폴백 */ }
+  }, [ctx, template, fullUrl]);
+
   if (!ctx) {
     return (
       <SafeAreaView style={s.root}>

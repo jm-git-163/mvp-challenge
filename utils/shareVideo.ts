@@ -218,10 +218,34 @@ export async function shareVideoToSns(opts: ShareVideoOptions): Promise<ShareRes
   const downloaded = await downloadFile(file);
   const captionCopied = caption ? await copyToClipboard(caption) : false;
 
-  // Fire deep-link only on mobile for platform-specific routes;
-  // desktop users just get the download + caption.
-  if (platform !== 'native' && isMobile()) {
-    deepLinkFor(platform);
+  // FIX-SHARE-AUTOOPEN (2026-04-23): fire deep-link for platform-specific
+  // routes on ALL devices — desktop users still land in the platform's web
+  // upload page (youtube studio, instagram web, etc.), which is what the
+  // user asked for ("다운로드만 되고 아무것도 안 열림"). On mobile we delay
+  // briefly so the <a download> has a chance to commit the file to disk
+  // before the same-tab scheme nav pulls focus away from the browser.
+  if (platform !== 'native') {
+    const fireDeep = () => deepLinkFor(platform);
+    if (isMobile()) {
+      // 700ms: long enough for download toast, short enough to feel instant.
+      setTimeout(fireDeep, 700);
+    } else {
+      // Desktop: new tab opens immediately, download continues in background.
+      fireDeep();
+    }
+  }
+
+  // FIX-SHARE-AUTOOPEN: even for 'native' platform, if Web Share fell through
+  // (canUseWebShareFiles=false) we now have no OS share sheet. Open the
+  // generic system share by firing a lightweight text-only navigator.share
+  // if available — otherwise the user just gets download + clipboard.
+  if (platform === 'native' && typeof navigator !== 'undefined'
+      && typeof navigator.share === 'function') {
+    try {
+      // Best-effort, non-blocking. If the browser blocks this because the
+      // user-gesture was consumed, no-op — user already has the file.
+      navigator.share({ text: caption, title: title || file.name }).catch(() => {});
+    } catch {}
   }
 
   if (!downloaded && !captionCopied) {

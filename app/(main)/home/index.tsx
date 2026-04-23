@@ -26,6 +26,7 @@ import {
   buildInviteUrl,
   buildInviteShareCaption,
   buildInviteShortCaption,
+  buildDisplayUrl,
 } from '../../../utils/inviteLinks';
 import { generateInviteShareCard, canShareInviteCard, isInAppBrowserWithBrokenShare } from '../../../utils/inviteShareCard';
 import { pickOfficialSlug } from '../../../utils/officialSlug';
@@ -388,6 +389,8 @@ export default function HomeScreen() {
 
   const startSession = useSessionStore(s => s.startSession);
   const mySenderName = useInviteStore(s => s.mySenderName);
+  const inviteContext = useInviteStore(s => s.inviteContext);
+  const clearInvite = useInviteStore(s => s.clearInvite);
   const [inviteToast, setInviteToast] = useState('');
 
   const { templates, loading, error, refetch } = useTemplates(
@@ -481,13 +484,16 @@ export default function HomeScreen() {
             thumbnailUrl: thumb,
             headline: `${mySenderName}이(가) 도전장을 보냈어요`,
             subline: t.name,
+            // FIX-INVITE-KAKAO-PNG (2026-04-23): URL 을 카드 PNG 에 그려넣어
+            // 카톡/라인이 메타데이터를 드롭해도 수신자가 주소를 읽을 수 있음.
+            displayUrl: buildDisplayUrl(url),
           });
           if (png) {
             const file = new File([png], 'invite.png', { type: 'image/png' });
             if ((navigator as any).canShare?.({ files: [file] })) {
               await (navigator as any).share({
                 title: `${t.name} 도전장`,
-                text: `${shortCaption}\n${url}`,
+                text: `${shortCaption}\n\n${url}`,
                 url,
                 files: [file],
               });
@@ -509,8 +515,12 @@ export default function HomeScreen() {
         } catch (e: any) { /* AbortError 무시 */ }
       }
 
+      // FIX-INVITE-KAKAO-PNG (2026-04-23): share API 가 없으면 sms: 딥링크로 폴백.
+      if (!shared && typeof window !== 'undefined' && typeof (navigator as any).share !== 'function') {
+        try { window.location.href = `sms:?body=${encodeURIComponent(caption)}`; } catch {}
+      }
       setInviteToast(shared
-        ? '✓ 도전장 전송 완료'
+        ? '✓ 전송됨 — 링크도 복사됐으니 메시지에 붙여넣으세요'
         : '✓ 도전장 링크 복사됨 — 친구에게 붙여넣기 해주세요');
       setTimeout(() => setInviteToast(''), 2800);
     } catch (e: any) {
@@ -574,8 +584,28 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={s.listHeader}>
-            {/* TEAM-UX (2026-04-23 v3): 리스트 헤더 자가진단 배너 — 사용자 피드백
-                "여전히 제일 위에 있다" → 제거. */}
+            {/* INVITE-BANNER (2026-04-23): inviteContext 가 살아있으면 홈에도 리본 노출.
+                답장 플로우 미완료 상태를 시각적으로 환기 — 사용자가 도전장 존재를 잊지 않게. */}
+            {inviteContext ? (
+              <Pressable
+                style={s.inviteBanner}
+                onPress={() => router.push(`/challenge/${inviteContext.slug}` as any)}
+              >
+                <Text style={s.inviteBannerText} numberOfLines={2}>
+                  🥊 {inviteContext.fromName}님의 도전장이 대기 중
+                </Text>
+                <Text style={s.inviteBannerSub} numberOfLines={1}>
+                  탭하면 챌린지로 이동 · 길게 눌러 닫기
+                </Text>
+                <Pressable
+                  onPress={(e) => { e.stopPropagation?.(); clearInvite(); }}
+                  style={s.inviteBannerClose}
+                  accessibilityLabel="도전장 닫기"
+                >
+                  <Text style={s.inviteBannerCloseText}>✕</Text>
+                </Pressable>
+              </Pressable>
+            ) : null}
             <Text style={s.h1}>챌린지</Text>
             <Text style={s.h1Sub}>
               {loading ? '불러오는 중' : error ? '오류 발생' : `${templates.length}개의 챌린지`}
@@ -788,6 +818,45 @@ const s = StyleSheet.create({
     paddingBottom: 28,
     paddingTop: 8,
     gap: 6,
+  },
+  inviteBanner: {
+    marginBottom: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(236,72,153,0.55)',
+    backgroundColor: 'rgba(236,72,153,0.12)',
+    position: 'relative',
+    // @ts-ignore web
+    boxShadow: '0 6px 18px rgba(236,72,153,0.25)',
+    gap: 4,
+  },
+  inviteBannerText: {
+    color: '#ec4899',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  inviteBannerSub: {
+    color: 'rgba(236,72,153,0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inviteBannerClose: {
+    position: 'absolute',
+    top: 6,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteBannerCloseText: {
+    color: '#ec4899',
+    fontSize: 14,
+    fontWeight: '800',
   },
   h1: Platform.select({
     web: {
