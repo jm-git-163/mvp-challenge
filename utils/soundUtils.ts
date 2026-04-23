@@ -363,24 +363,24 @@ let _lastJudgementSpeak = 0;
 export function speakJudgement(type: SoundType): void {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   const now = Date.now();
-  if (now - _lastJudgementSpeak < 2000) return;
-  _lastJudgementSpeak = now;
+  // TEAM-CHAOS (2026-04-23 v3): 최소 간격 2s → 6s. "퍼펙트·콤보" 가 끊임없이 외쳐져
+  //   난리나던 문제의 주범. 사용자 지시: "힘내세요·자세 이렇게 하세요" 수준 코칭만.
+  if (now - _lastJudgementSpeak < 6000) return;
 
+  // TEAM-CHAOS: 과잉 리액션(퍼펙트/어메이징/콤보) 전부 삭제. 실패·미스만 짧은 코칭 톤.
+  //   호출부에서 fitness 장르는 아예 speakJudgement 를 안 부르도록 이미 게이트했으나
+  //   타 경로 방어 위해 map 자체도 최소화.
   const map: Partial<Record<SoundType, string>> = {
-    perfect:       '퍼펙트!',
-    good:          '좋아요!',
-    fail:          '아쉬워요',
-    amazing:       '어메이징!',
-    combo:         '콤보!',
-    mission_clear: '미션 클리어!',
-    oops:          '이런!',
+    fail: '힘내세요',
+    oops: '자세를 바로잡아요',
   };
   const text = map[type];
   if (!text) return;
+  _lastJudgementSpeak = now;
 
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = 'ko-KR';
-  utt.rate = 1.1;
+  utt.rate = 1.0;
   window.speechSynthesis.speak(utt);
 }
 

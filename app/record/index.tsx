@@ -1721,15 +1721,22 @@ export default function RecordScreen() {
     if (result.tag !== prevTagRef.current) {
       const prev = prevTagRef.current;
       prevTagRef.current = result.tag;
+      // TEAM-CHAOS (2026-04-23 v3): 사용자 피드백 "퍼펙트·몇개했니·콤보 끝없이 외쳐대 난리".
+      //   fitness 템플릿은 rep 단위 SFX (playSound tick/combo/amazing) 가 이미 충분 →
+      //   여기서 추가 speakJudgement TTS 는 전부 차단. perfect/good/fail 사운드만 재생.
+      const isFitness = activeTemplate?.genre === 'fitness';
       if (result.tag === 'perfect') {
         playSound('perfect'); setCharState('perfect'); addParticles(); bounceChar();
         comboRef.current += 1; setCombo(comboRef.current);
-        if (comboRef.current >= 3) { playSound('combo'); speakJudgement('combo'); } else speakJudgement('perfect');
+        if (!isFitness) {
+          if (comboRef.current >= 3) { playSound('combo'); speakJudgement('combo'); } else speakJudgement('perfect');
+        }
       } else if (result.tag === 'good') {
         playSound('good'); setCharState('good'); bounceChar();
-        comboRef.current += 1; setCombo(comboRef.current); speakJudgement('good');
+        comboRef.current += 1; setCombo(comboRef.current);
+        if (!isFitness) speakJudgement('good');
       } else {
-        if (comboRef.current >= 2) { playSound('oops'); speakJudgement('fail'); }
+        if (comboRef.current >= 2 && !isFitness) { playSound('oops'); speakJudgement('fail'); }
         comboRef.current = 0; setCombo(0); setCharState('fail');
       }
       if (result.tag !== 'fail' || prev !== 'fail') {
@@ -1748,22 +1755,22 @@ export default function RecordScreen() {
     }
   }, [state, countdown]);
 
-  // POSE+THEME (2026-04-22): 스쿼트 카운트 +1 마다 힘찬 SFX.
-  //   useJudgement 는 카운트만 올린다 → 여기서 delta 감지해 'combo' (8-note glissando) 재생.
-  //   3/5/10 등 라운드 카운트엔 'amazing' 으로 승격해 성취감 강화.
+  // TEAM-CHAOS (2026-04-23 v3): 사용자 피드백 "난리 났다 — 소리가 너무 많이 터짐".
+  //   이전엔 rep 마다 tick/combo/amazing 삼단 스팸. 이제는:
+  //     - 매 rep: 가벼운 'tick' 만 (+1 카운트 피드백)
+  //     - 10 회 도달 시에만 한 번 'mission_clear' (목표 달성 축하)
+  //   중간 3/5/10 구간 fanfare 전부 제거 → 촬영 중 조용하고 집중 가능.
   const prevSquatSfxRef = useRef(0);
   useEffect(() => {
     if (squatCount > prevSquatSfxRef.current) {
+      const prev = prevSquatSfxRef.current;
       prevSquatSfxRef.current = squatCount;
-      if (squatCount % 10 === 0 || squatCount === 5) {
-        playSound('amazing');
-      } else if (squatCount % 3 === 0) {
-        playSound('combo');
+      if (prev < 10 && squatCount >= 10) {
+        playSound('mission_clear');
       } else {
         playSound('tick');
       }
     } else if (squatCount < prevSquatSfxRef.current) {
-      // 리셋 감지
       prevSquatSfxRef.current = squatCount;
     }
   }, [squatCount]);
@@ -2084,9 +2091,9 @@ export default function RecordScreen() {
                 </Animated.View>
               )}
 
-              {/* FIX-SQUAT-HUD (2026-04-23): 사용자 피드백 "카운트 0/10 표시가 올라가지도 않고 혼란".
-                  카운트 HUD 를 숨김. 점수는 결과 페이지에서 집계 후 표시. */}
-              {false && isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
+              {/* TEAM-CHAOS (2026-04-23 v3): HipMotionGate v3 완화로 카운트가 실제로 올라감 →
+                  SquatHUD 재활성. 사용자가 "내가 몇 개 했는지" 즉시 볼 수 있어야 동기부여. */}
+              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
                 <SquatHUD count={squatCount} phase={squatPhase} kneeAngle={squatKneeAngle} mode={squatMode} />
               )}
 
