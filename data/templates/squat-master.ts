@@ -1,14 +1,14 @@
 /**
  * data/templates/squat-master.ts
  *
- * TEAM-TEMPLATE (2026-04-22) — 스쿼트 마스터 독립 템플릿.
+ * TEAM-TEMPLATE-v2 (2026-04-23) — 스쿼트 마스터 독립 템플릿 비주얼 강화.
  *
  * 사용자 피드백: "스쿼트는 bgm은 딱 맞는데 화면에 사람 전신이 다 나와야하는데
- * 원형으로 구멍이 있어서 얼굴만 나오고" → `portrait_split` 으로 전신 프레이밍,
- * 레이어는 11개로 압축 (기존 neon-arena 26개 대비 60% 감소).
+ * 원형으로 구멍이 있어서 얼굴만 나오고" → `portrait_split` 으로 전신 프레이밍 유지.
+ * v2: 11 → 22 레이어. 인트로/미드/아웃트로 명확 분리, 비트 반응 강화, 반응형 다층화.
  *
  * 팔레트: 헬스 테마 — 인디고(#1B2A4E) + 에너지옐로우(#FFD23F) + 핫레드(#FF3B3B).
- * BGM: synthwave-128 (고에너지 워크아웃).
+ * BGM: anomy5-aggressive-sport-phonk (고에너지 워크아웃).
  */
 import type { Template } from '../../engine/templates/schema';
 
@@ -16,6 +16,7 @@ const INDIGO = '#1B2A4E';
 const YELLOW = '#FFD23F';
 const RED    = '#FF3B3B';
 const WHITE  = '#FFFFFF';
+const NAVY   = '#0A1530';
 
 export const squatMaster: Template = {
   id: 'squat-master',
@@ -39,33 +40,45 @@ export const squatMaster: Template = {
   cameraFraming: { kind: 'portrait_split', topRatio: 0.67 },
 
   layers: [
-    // 배경 (3)
-    { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1,    enabled: true, props: { colors: [INDIGO, '#000000'], rotatePeriodSec: 60 } },
-    { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.6,  enabled: true, props: { color: YELLOW, perspective: true, scrollPerBarPx: 48 } },
-    { id: 'bg_sweat',      type: 'particle_ambient', zIndex: 3, opacity: 0.5,  enabled: true, props: { preset: 'electric_blue_rise', count: 24 } },
+    // ── 배경 (4) ────────────────────────────────────────────────
+    { id: 'bg_mesh',       type: 'gradient_mesh',    zIndex: 1, opacity: 1,    enabled: true, props: { colors: [NAVY, INDIGO, '#000000'], rotatePeriodSec: 60 } },
+    { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.55, enabled: true, props: { color: YELLOW, perspective: true, scrollPerBarPx: 48 }, reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.2, easing: 'easeOut', durationMs: 240 } } },
+    { id: 'bg_sweat',      type: 'particle_ambient', zIndex: 3, opacity: 0.5,  enabled: true, props: { preset: 'electric_blue_rise', count: 28 } },
+    { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.35, enabled: true, props: { shapes: ['star'], yBand: [120, 420], tint: YELLOW, sizeJitter: 0.4 } },
 
-    // 카메라 (2)
+    // ── 카메라 (2) ─────────────────────────────────────────────
     { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true },
-    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.25, enabled: true, props: { ringColor: YELLOW, ringWidth: 2, glowBlur: 10 },
-      reactive: { onBeat: { every: 2, property: 'glow', amount: 0.3, easing: 'overshoot', durationMs: 120 } } },
+    { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.3,  enabled: true, props: { ringColor: YELLOW, ringWidth: 3, glowBlur: 12 },
+      reactive: { onBeat: { every: 2, property: 'glow', amount: 0.35, easing: 'overshoot', durationMs: 130 } } },
 
-    // HUD (4) — HR, BPM 카운터, 타이머, 점수
+    // ── 비트 반응 레이어 (3) ─────────────────────────────────────
+    { id: 'beat_flash',    type: 'beat_flash',       zIndex: 73, opacity: 1, enabled: true, props: { color: YELLOW, maxAlpha: 0.18 },
+      reactive: { onBeat: { every: 2, property: 'opacity', amount: 0.18, easing: 'standard', durationMs: 150 } }, activeRange: { startSec: 3, endSec: 17 } },
+    { id: 'beat_pulse',    type: 'pulse_circle',     zIndex: 24, opacity: 0.25, enabled: true, props: { cx: 540, cy: 1100, baseRadius: 420, color: RED },
+      reactive: { onBeat: { every: 4, property: 'scale', amount: 0.18, easing: 'easeOut', durationMs: 360 } }, activeRange: { startSec: 3, endSec: 17 } },
+    { id: 'chroma_pulse',  type: 'chromatic_pulse',  zIndex: 74, opacity: 0.6, enabled: true, props: { peakPx: 0.4 },
+      reactive: { onBeat: { every: 8, property: 'opacity', amount: 0.5, easing: 'easeOut', durationMs: 220 } }, activeRange: { startSec: 4, endSec: 16 } },
+
+    // ── HUD (4) ────────────────────────────────────────────────
     { id: 'hud_counter',   type: 'counter_hud',      zIndex: 60, opacity: 1, enabled: true, props: { target: 10, format: '{n} / 10', fontSize: 72, position: 'bottom-center', fontFamily: '"JetBrains Mono"' } },
     { id: 'hud_timer',     type: 'timer_ring',       zIndex: 61, opacity: 1, enabled: true, props: { position: 'top-left', color: YELLOW } },
     { id: 'hud_score',     type: 'score_hud',        zIndex: 62, opacity: 1, enabled: true, props: { position: 'top-right', label: 'HR', suffix: ' BPM', color: RED } },
     { id: 'hud_prompt',    type: 'mission_prompt',   zIndex: 63, opacity: 1, enabled: true, props: { text: '스쿼트 10회', color: YELLOW, position: 'top' }, activeRange: { startSec: 2.5, endSec: 5 } },
 
-    // 반응형 (1)
-    { id: 'beat_flash',    type: 'beat_flash',       zIndex: 73, opacity: 1, enabled: true, props: { color: YELLOW, maxAlpha: 0.18 },
-      reactive: { onBeat: { every: 2, property: 'opacity', amount: 0.18, easing: 'standard', durationMs: 150 } }, activeRange: { startSec: 3, endSec: 17 } },
-
-    // 인트로 (1)
+    // ── 인트로 (2) ─────────────────────────────────────────────
+    { id: 'intro_flash',   type: 'beat_flash',       zIndex: 28, opacity: 1, enabled: true, props: { color: YELLOW, peakOpacity: 0.5 }, activeRange: { startSec: 0, endSec: 0.6 } },
     { id: 'intro_title',   type: 'kinetic_text',     zIndex: 29, opacity: 1, enabled: true, props: { text: 'SQUAT × 10', fontSize: 100, color: YELLOW, strokeColor: INDIGO, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 200, staggerMs: 60 }, activeRange: { startSec: 0, endSec: 2.5 } },
 
-    // 아웃트로 (1)
-    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'COMPLETE!', fontSize: 88, color: RED, strokeColor: WHITE, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 55 }, activeRange: { startSec: 17, endSec: 20 } },
+    // ── 미드 훅 (2) ────────────────────────────────────────────
+    { id: 'mid_tag',       type: 'kinetic_text',     zIndex: 42, opacity: 1, enabled: true, props: { text: '🔥 KEEP GOING', fontSize: 64, color: RED, strokeColor: WHITE, strokeWidth: 6, mode: 'pop', position: 'top-center', startMs: 9500, staggerMs: 50 }, activeRange: { startSec: 9.5, endSec: 12 } },
+    { id: 'mid_burst',     type: 'particle_burst',   zIndex: 43, opacity: 1, enabled: true, props: { colors: [YELLOW, RED], count: 40, durationMs: 800 }, activeRange: { startSec: 9.5, endSec: 11 } },
 
-    // 해시태그 (1)
+    // ── 아웃트로 (3) ───────────────────────────────────────────
+    { id: 'outro_flash',   type: 'beat_flash',       zIndex: 74, opacity: 1, enabled: true, props: { color: RED, peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
+    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: 'COMPLETE!', fontSize: 88, color: RED, strokeColor: WHITE, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 55 }, activeRange: { startSec: 17, endSec: 20 } },
+    { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.6, enabled: true, props: { x: 540, y: 700, color: YELLOW, size: 320 }, activeRange: { startSec: 17, endSec: 20 } },
+
+    // ── 해시태그 ───────────────────────────────────────────────
     { id: 'hashtag_strip', type: 'news_ticker',      zIndex: 72, opacity: 0.9, enabled: true, props: { texts: ['#squat', '#fitness', '#workout', '#hr', '#challenge', '#motiq'], separator: '   ', speedPxPerSec: 90, fontSize: 28, bgColor: 'rgba(27,42,78,0.7)', color: YELLOW, accentColor: RED, position: 'bottom' }, activeRange: { startSec: 2.5, endSec: 17 } },
   ],
 
@@ -77,11 +90,14 @@ export const squatMaster: Template = {
 
   postProcess: [
     { kind: 'bloom', intensity: 0.7 },
-    { kind: 'vignette', intensity: 0.25 },
+    { kind: 'chromatic', baseOffsetPx: 1.5, onOnsetPx: 5 },
+    { kind: 'vignette', intensity: 0.28 },
+    { kind: 'saturation', boost: 0.12 },
   ],
 
   successEffects: [
-    { kind: 'particle_burst', durationMs: 800, props: { count: 80 } },
+    { kind: 'particle_burst', durationMs: 800, props: { count: 80, colors: [YELLOW, RED] } },
+    { kind: 'lens_flare', durationMs: 600 },
   ],
   failEffects: [
     { kind: 'chromatic_pulse', durationMs: 300 },

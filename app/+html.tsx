@@ -27,11 +27,19 @@ export default function Root({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         />
-        <meta name="theme-color" content="#0b0d1a" />
+        <meta name="theme-color" content="#0F0A1F" />
         <meta name="color-scheme" content="dark" />
 
         <title>{TITLE}</title>
         <meta name="description" content={DESC} />
+
+        {/* Gen-Z 리브랜드(2026-04-23): Pretendard Variable — CDN 경량 동적 서브셋.
+            로컬 번들 추가 없이 한글 가변 폰트 즉시 적용. */}
+        <link
+          rel="stylesheet"
+          as="style"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
+        />
 
         {/* Open Graph */}
         <meta property="og:type" content="website" />
@@ -64,7 +72,17 @@ export default function Root({ children }: PropsWithChildren) {
 }
 
 const responsiveCss = `
-html, body, #root { height: 100%; background: #05060d; }
+html, body, #root {
+  height: 100%;
+  background-color: #0F0A1F;
+  background-image:
+    radial-gradient(60% 40% at 12% 8%, rgba(255,61,127,0.32) 0%, rgba(255,61,127,0) 60%),
+    radial-gradient(45% 35% at 92% 18%, rgba(0,229,255,0.26) 0%, rgba(0,229,255,0) 65%),
+    radial-gradient(55% 45% at 78% 95%, rgba(198,255,0,0.18) 0%, rgba(198,255,0,0) 60%),
+    radial-gradient(70% 60% at 30% 95%, rgba(139,92,246,0.30) 0%, rgba(139,92,246,0) 70%),
+    linear-gradient(180deg, #150A28 0%, #0F0A1F 100%);
+  background-attachment: fixed;
+}
 body {
   margin: 0;
   overflow: hidden;
@@ -72,11 +90,29 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", "Apple SD Gothic Neo", "Malgun Gothic",
-    "Noto Sans KR", Arial, sans-serif;
+  color: #FFFFFF;
+  font-family: "Pretendard Variable", Pretendard, "Inter", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo",
+    "Malgun Gothic", "Noto Sans KR", Arial, sans-serif;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  letter-spacing: -0.01em;
 }
 * { -webkit-tap-highlight-color: transparent; }
+
+/* Gen-Z gradient text helper (className="gz-grad-text") */
+.gz-grad-text {
+  background: linear-gradient(120deg, #FFE066 0%, #FF3D7F 50%, #00E5FF 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Subtle wiggle for emoji badges */
+@keyframes gzWiggle {
+  0%,100% { transform: rotate(-4deg) scale(1); }
+  50%     { transform: rotate(6deg)  scale(1.06); }
+}
 
 /* Global skeleton shimmer sweep (used by home loading placeholders) */
 @keyframes skeletonSweep {

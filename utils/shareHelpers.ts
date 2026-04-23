@@ -102,6 +102,10 @@ export interface NavigatorShareLike {
  * Web Share API 파일 공유 가능 여부.
  *   - navigator.share + canShare({files}) 통과
  *   - iOS Safari 는 webm 거부 → 별도 차단
+ *   - TEAM-SHARE (2026-04-23): 사용자 피드백 "SNS 업로드가 중간에 멎음 (KakaoTalk)".
+ *     Android 의 KakaoTalk·Instagram 등 네이티브 앱은 webm 컨테이너 seek 실패 시
+ *     업로드를 중단 → webm 을 Web Share 파일로 보내는 경로 전역 차단.
+ *     대신 "다운로드 → 앱에서 직접 첨부" 폴백으로 유도 (항상 mp4 만 공유).
  */
 export function canUseWebShareFiles(
   nav: NavigatorShareLike | undefined | null,
@@ -109,10 +113,9 @@ export function canUseWebShareFiles(
   fileName: string,
 ): boolean {
   if (!nav || typeof nav.share !== 'function' || !blob) return false;
-  const ua = nav.userAgent || '';
-  const isIOS = /iPad|iPhone|iPod/.test(ua) && !('MSStream' in (globalThis as object));
   const ext = extensionForBlob(blob);
-  if (isIOS && ext === 'webm') return false; // iOS 는 webm 파일 거부
+  // webm 은 어떤 플랫폼이든 Web Share 파일 모드 금지 — 모바일 앱들이 안정적으로 수신 못함.
+  if (ext === 'webm' || ext === 'ogv') return false;
 
   // 환경에 따라 File 생성자가 없을 수 있음 (node/test) → 안전 guard
   if (typeof File !== 'function') return false;

@@ -107,11 +107,15 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 10197728
   },
   "fitness-plank-001": {
-    "url": "https://pixabay.com/get/g04b9ebd327e0aea93d23adc9b92afe1ea46076e2f8253e9f9817fe95ce0f3711de924e84c2323a82797f7a13eaec62bf4e72b4df977ed9de84c51e79ac7e77d4_640.jpg",
-    "largeURL": "https://pixabay.com/get/g6a8fd83e5c20b997c311791a97259f25bcbfbd86b161689492f1ea906313132d814cd5da9401b0030b5e004b8fc0339f975964b86214936b6ad6f1c7ad30ca78_1280.jpg",
-    "tags": "woman, crunches, sport, training, exercise, fit, fitness, wellness, body, abdominals, movement, sporty, active, condition, shoes, sneakers, health, healthy, sport, sport, exercise, exercise, exercise, exercise, fitness, fitness, fitness, fitness, fitness, health, health",
-    "user": "5132824",
-    "pixabayId": 2250970
+    // TEAM-UX (2026-04-23): 사용자 피드백 "플랭크 이미지가 플랭크가 아님 (crunches)".
+    //   Pixabay 이미지 기계 수집이 크런치/복근 운동을 플랭크로 혼동 → Unsplash 의
+    //   실제 plank 자세 사진으로 교체. 무료 (Unsplash License: 상업용·크레딧 불필요).
+    //   사진 ID `photo-1566241440091-ec10de8db2e1` (옆에서 본 플랭크 홀드).
+    "url": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=1280&q=80",
+    "tags": "plank, core, forearm plank, fitness, hold, 30s, posture",
+    "user": "unsplash",
+    "pixabayId": 0
   },
   "dance-kpop-001": {
     "url": "https://pixabay.com/get/ge4fc185117628094788ee7bfda01fdb8a91929f4421111b574061302635546b4e43b04a1cc19d383498eb9bd139d056cfae3857f5e94bd900bc4afdca2ccbef2_640.jpg",

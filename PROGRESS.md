@@ -478,3 +478,9 @@
 - FIX-I (Whisper WASM foundation, Session 1/3): @xenova/transformers 도입 + `utils/whisperRecognizer.ts` (SpeechRecognizer 인터페이스 동일, 5s chunk 추론, 16kHz 리샘플, mic AudioContext, diagnostic 카운터) + `utils/sttFactory.ts` (URL `?stt=whisper|webkit` → localStorage → env `EXPO_PUBLIC_STT_ENGINE` → default 'webkit' 4단계 우선순위) + `SttRecognizer` 공유 인터페이스 + useJudgement/record 팩토리 배선 + 디버그 HUD `stt=` 표시 (775/775 green). Android Chrome `webkitSpeechRecognition not-allowed` 시스템 제약 우회책. 활성화: `?stt=whisper` 로 진입 → 최초 1회 ~39MB 모델 IndexedDB 캐싱. Session 2: Web Worker 격리(메인스레드 블로킹 제거), Session 3: 모델 프리로드 UX + 저사양 tier 자동 감지.
 
 - TEAM-TEMPLATE (2026-04-22): 3개 → **11개 독립 챌린지 템플릿** 확장. squat-master/kpop-dance/daily-vlog/english-speaking/storybook-reading/travel-checkin/unboxing-promo/food-review/motivation-speech/social-viral/news-anchor 각각 고유 팔레트·BGM·레이어(10~14개)·framing(fullscreen/portrait_split). challengeTemplateMap 1:1. oscillator BGM 폴백 완전 제거(무음 stub). 961/961 green.
+
+- TEAM-UX (2026-04-23): 사용자 수면 중 피드백 1차 처리.
+  (1) 녹화 화면의 진단 오버레이 debugOn 게이트 — VoiceDebugOverlay / ResourceDebugOverlay / SQUAT DEBUG HUD / RecognitionStatusPanel / Voice 진단 뱃지 / 온캔버스 diagnosticsOverlay (녹화본에 박히던 것). 기본 비표시. `?debug=1` 로만 복원.
+  (2) 플랭크 챌린지 (fitness-plank-001): 썸네일을 Pixabay '크런치' 이미지 → Unsplash plank hold 사진으로 교체. subtitle_timeline / missions 에 10초 단위 카운트다운(30···/20···/10···) + 자세 안내(엉덩이 수평·배에 힘·팔꿈치 아래) 삽입. 4단계 → 5단계 미션.
+  (3) 명상 챌린지 (meditation-001): record/index.tsx 에서 speakMission() meditation-001 차단 — TTS 완전 무음. guide_text·subtitle 모두 짧고 부드러운 톤으로 단순화 ("들이쉬어요" / "잠시 멈춰요" / "천천히 내쉬어요").
+  (4) SNS 공유 중단 이슈: shareHelpers.canUseWebShareFiles — iOS 만이 아니라 전 플랫폼에서 webm Web Share 파일 차단. KakaoTalk/Instagram Android 가 webm seek 실패 시 업로드 중단하는 문제 회피. 대신 "다운로드 → 앱에서 첨부" 폴백으로 유도 (result/index.tsx handleWebShare + toast).

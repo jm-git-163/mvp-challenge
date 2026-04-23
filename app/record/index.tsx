@@ -1679,6 +1679,9 @@ export default function RecordScreen() {
       if (m.type === 'voice_read') {
         // no speakMission — 가이드는 자막 렌더로만 처리
         // FIX-S: 녹화 중 BGM 재생 안 함 → duck/unduck 불필요
+      } else if (activeTemplate?.id === 'meditation-001') {
+        // TEAM-UX (2026-04-23): 사용자 피드백 "명상은 눈치없이 너무 센목소리 tts가 명상 깨는거 같아".
+        //   명상 챌린지는 TTS 완전 차단 — 자막만 부드럽게 표시.
       } else {
         if (m.guide_text) speakMission(m.guide_text);
       }
@@ -1882,7 +1885,7 @@ export default function RecordScreen() {
               combo={combo}
               squatCount={squatCount}
               voiceTranscript={voiceTranscript}
-              showDiagnostics={true}
+              showDiagnostics={debugOn}
               diagVoiceListening={!!speechBadge.listening}
               diagVoiceTranscript={speechBadge.transcript || voiceTranscript || ''}
               diagVoiceError={speechBadge.err}
@@ -2078,8 +2081,9 @@ export default function RecordScreen() {
 
               {/* FIX-Z6 / FIX-Z10: 음성 인식 진단 뱃지 — 3줄 표시, 100ms 폴링.
                   엔진·상태 / 마지막 라이프사이클 이벤트 / 인식 텍스트.
-                  프리체크 실패 시 빨간 배경 강조. */}
-              {isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (() => {
+                  프리체크 실패 시 빨간 배경 강조.
+                  TEAM-UX (2026-04-23): 사용자 "화면에 이상한 진단 자막 다 지우고" → debugOn 게이트. */}
+              {debugOn && isRecording && activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (() => {
                 const preFail = speechBadge.preCheck && !speechBadge.preCheck.ok;
                 const raw = speechBadge.transcript || voiceTranscript || '';
                 const shown = raw ? (raw.length > 30 ? '…' + raw.slice(-30) : raw) : '(없음)';
@@ -2122,8 +2126,9 @@ export default function RecordScreen() {
               )}
 
               {/* Team RELIABILITY (2026-04-22): ?debug=1 리소스 카운터.
-                  2회 챌린지 후 값이 0 으로 돌아오는지 확인 — 누수 탐지용. */}
-              <ResourceDebugOverlay />
+                  2회 챌린지 후 값이 0 으로 돌아오는지 확인 — 누수 탐지용.
+                  TEAM-UX (2026-04-23): debugOn 게이트 적용. */}
+              {debugOn && <ResourceDebugOverlay />}
 
               {/* FIX-Y6 (2026-04-22): Whisper 모델 로딩 배너. 모바일에서 voice 미션 템플릿
                   선택 시, 40MB 모델 다운로드가 필요 → 상태를 숨기지 않고 명시. */}
@@ -2158,8 +2163,9 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {/* FIX-Q (2026-04-22): 스쿼트 진단 HUD — 왜 카운트 안되는지 원인 표시 */}
-              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
+              {/* FIX-Q (2026-04-22): 스쿼트 진단 HUD — 왜 카운트 안되는지 원인 표시.
+                  TEAM-UX (2026-04-23): debugOn 게이트. */}
+              {debugOn && isRecording && !showIntro && activeTemplate?.genre==='fitness' && (
                 <View pointerEvents="none" style={{
                   position:'absolute', top:180, right:8, zIndex:9997,
                   backgroundColor:'rgba(0,0,0,0.75)',
@@ -2209,8 +2215,8 @@ export default function RecordScreen() {
 
               {/* FIX-Z20 (2026-04-22): 인식 3종 통합 진단 패널 (우하단).
                   기존 FIX-Z10(음성)·FIX-Z19(스쿼트) 뱃지와 병행.
-                  voice/pose/squat 을 한 화면에서 비교할 수 있도록 recording 중 항상 표시. */}
-              {isRecording && activeTemplate?.genre && (
+                  TEAM-UX (2026-04-23): 사용자 피드백 "화면에 이상한 진단 자막 다 지우고" → debugOn 게이트. */}
+              {debugOn && isRecording && activeTemplate?.genre && (
                 <RecognitionStatusPanel
                   voiceState={{
                     status: (speechBadge.err

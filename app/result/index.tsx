@@ -500,11 +500,20 @@ function ShareModal({
         const probe = new File([composedBlob], filename, { type: composedBlob.type || 'video/webm' });
         await navigator.share({ files: [probe], title: `${templateName} 챌린지 완료!`, text: shareText });
       } else {
-        await navigator.share({
-          title: `${templateName} 챌린지 완료!`,
-          text: shareText,
-          url: typeof window !== 'undefined' ? window.location.href : '',
-        });
+        // TEAM-SHARE (2026-04-23): 사용자 피드백 "카톡 업로드가 중간에 멎음".
+        //   webm 또는 files 미지원 환경 → Web Share 파일 모드 안 됨.
+        //   링크 공유 대신 "다운로드 → 앱에서 첨부" 유도 (영상 본체가 원본으로 전달).
+        if (composedBlob) {
+          const uri = composedUri ?? rawVideoUri;
+          if (uri) doDownload(uri, templateName, composedBlob?.type).catch(() => {});
+          showToast('📥 영상을 저장했어요. 카톡/앱에서 직접 첨부해주세요.');
+        } else {
+          await navigator.share({
+            title: `${templateName} 챌린지 완료!`,
+            text: shareText,
+            url: typeof window !== 'undefined' ? window.location.href : '',
+          });
+        }
       }
       onClose();
     } catch (e: any) {

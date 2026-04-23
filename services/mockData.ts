@@ -1225,32 +1225,42 @@ export const MOCK_TEMPLATES: Template[] = [
       caption_template: '플랭크 30초 성공! 🔥 {template_name} {score}점! 코어 완성! #플랭크챌린지 #홈트',
       video_frame_css: 'border: 3px solid #ff4b2b; border-radius: 12px;',
     },
+    // TEAM-UX (2026-04-23): 사용자 피드백 "플랭크는 자세 안내와 버티는 시간을 초로 표시".
+    //   10초 단위 카운트다운 자막(매우 큰 폰트) + 자세 안내 서브라인.
     subtitle_timeline: [
-      { start_ms: 0,     end_ms: 5000,  text: '🙌 팔 뻗기 준비 자세!',        style: 'bold' },
-      { start_ms: 5000,  end_ms: 20000, text: '💪 플랭크 15초! 버텨요! 코어 긴장!', style: 'highlight' },
-      { start_ms: 20000, end_ms: 35000, text: '🔥 아직 15초 더! 포기하지 마세요!', style: 'bold' },
-      { start_ms: 35000, end_ms: 40000, text: '🎉 30초 완료! 최고야!',          style: 'highlight' },
+      { start_ms: 0,     end_ms: 5000,  text: '🙌 준비 · 팔꿈치 아래로!',         style: 'bold' },
+      { start_ms: 5000,  end_ms: 15000, text: '💪 30초 버티기 · 엉덩이 수평!',     style: 'highlight' },
+      { start_ms: 15000, end_ms: 25000, text: '🔥 20초 남음 · 배에 힘 꽉!',        style: 'highlight' },
+      { start_ms: 25000, end_ms: 35000, text: '⏱ 10초 · 숨 쉬며 버텨!',           style: 'highlight' },
+      { start_ms: 35000, end_ms: 40000, text: '🎉 완료! 코어 완성 💪',             style: 'highlight' },
     ],
+    // TEAM-UX (2026-04-23): 미션 guide_text 에 큰 초 카운트 삽입.
+    //   subtitle_track 에서 숫자 크게 렌더 (이미 style: highlight 지원).
     missions: [
       {
         seq: 1, start_ms: 0, end_ms: 5000,
         type: 'gesture', gesture_id: 'arms_spread', gesture_emoji: '🙌',
-        threshold: 0.6, guide_text: '팔 뻗기 준비 자세!', anim_type: 'bounce',
+        threshold: 0.6, guide_text: '팔꿈치 바닥에! 몸은 일자로', anim_type: 'bounce',
       },
       {
-        seq: 2, start_ms: 5000, end_ms: 20000,
+        seq: 2, start_ms: 5000, end_ms: 15000,
         type: 'timing',
-        threshold: 0.7, guide_text: '플랭크 15초! 버텨요! 💪 코어 긴장!', anim_type: 'pulse',
+        threshold: 0.7, guide_text: '30··· 버텨! 엉덩이 들지 마', anim_type: 'pulse',
       },
       {
-        seq: 3, start_ms: 20000, end_ms: 35000,
+        seq: 3, start_ms: 15000, end_ms: 25000,
         type: 'timing',
-        threshold: 0.75, guide_text: '아직 15초 더! 포기하지 마세요! 🔥', anim_type: 'shake',
+        threshold: 0.75, guide_text: '20··· 배에 힘! 호흡 계속', anim_type: 'shake',
       },
       {
-        seq: 4, start_ms: 35000, end_ms: 40000,
+        seq: 4, start_ms: 25000, end_ms: 35000,
+        type: 'timing',
+        threshold: 0.75, guide_text: '10··· 거의 다 왔어!', anim_type: 'shake',
+      },
+      {
+        seq: 5, start_ms: 35000, end_ms: 40000,
         type: 'expression',
-        threshold: 0.6, guide_text: '🎉 30초 완료! 최고야!', guide_emoji: '🎉', anim_type: 'float',
+        threshold: 0.6, guide_text: '🎉 완료! 최고야', guide_emoji: '🎉', anim_type: 'float',
       },
     ],
   },
@@ -1389,26 +1399,28 @@ export const MOCK_TEMPLATES: Template[] = [
       caption_template: '명상 챌린지 완료! 🌸 {template_name} {score}점! 마음이 편안해졌어요 #명상챌린지 #힐링',
       video_frame_css: 'border: 3px solid #a18cd1; border-radius: 16px;',
     },
+    // TEAM-UX (2026-04-23): 사용자 피드백 "명상은 센 TTS 가 명상을 깨뜨림" → 부드러운 자막만.
+    //   record/index.tsx 에서 meditation-001 은 speakMission() 차단.
     subtitle_timeline: [
-      { start_ms: 0,     end_ms: 10000, text: '🌬️ 눈 감고 깊게 숨 들이쉬기... 4초',   style: 'bold' },
-      { start_ms: 10000, end_ms: 20000, text: '😌 7초 참기... 차분하게 유지',           style: 'normal' },
-      { start_ms: 20000, end_ms: 30000, text: '✨ 8초 내쉬기... 평온한 마음으로 완료!', style: 'highlight' },
+      { start_ms: 0,     end_ms: 10000, text: '🌬️  들이쉬어요',            style: 'normal' },
+      { start_ms: 10000, end_ms: 20000, text: '😌  잠시 멈춰요',             style: 'normal' },
+      { start_ms: 20000, end_ms: 30000, text: '✨  천천히 내쉬어요',         style: 'normal' },
     ],
     missions: [
       {
         seq: 1, start_ms: 0, end_ms: 10000,
         type: 'timing',
-        threshold: 0.6, guide_text: '눈 감고 깊게 숨 들이쉬기 🌬️ 4초 들이쉬고', anim_type: 'float',
+        threshold: 0.6, guide_text: '들이쉬어요 🌬️', anim_type: 'float',
       },
       {
         seq: 2, start_ms: 10000, end_ms: 20000,
         type: 'timing',
-        threshold: 0.6, guide_text: '7초 참기... 차분하게 유지 😌', anim_type: 'float',
+        threshold: 0.6, guide_text: '잠시 멈춰요 😌', anim_type: 'float',
       },
       {
         seq: 3, start_ms: 20000, end_ms: 30000,
         type: 'expression',
-        threshold: 0.6, guide_text: '8초 내쉬기 & 평온한 표정 유지 ✨', guide_emoji: '✨', anim_type: 'pulse',
+        threshold: 0.6, guide_text: '천천히 내쉬어요 ✨', guide_emoji: '✨', anim_type: 'pulse',
       },
     ],
   },

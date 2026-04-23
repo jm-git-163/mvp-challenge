@@ -1,8 +1,14 @@
 /**
  * claudeTheme.ts
- * 중앙 디자인 토큰 — Anthropic Claude 시그니처 팔레트.
- * 모든 화면은 이 모듈에서 색/타이포/모양을 가져온다.
+ * 레거시 토큰 — 자가진단·디버그 도구 화면용으로만 잔존.
+ * 메인 UX 는 `constants/genzPalette.ts` (GZ/GZGradient/GZFont …) 사용.
+ *
+ * Gen-Z 리브랜드(2026-04-23): 홈/카드/녹화·결과 표면은 GZ 토큰으로 마이그레이션.
+ *   기존 import 호환을 위해 Claude/ClaudeFont 등은 유지하되, 새로운 코드에서는
+ *   GZ 를 import 할 것.
  */
+
+export { GZ, GZGradient, GZFont, GZSize, GZWeight, GZRadius, GZShadow } from './genzPalette';
 
 export const Claude = {
   // Cream paper surfaces (light)
