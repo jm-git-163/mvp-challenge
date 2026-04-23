@@ -184,13 +184,15 @@ export function pickScript(pool: string | readonly string[], rng: () => number =
  * @param opts.historySize 최근 제외 개수 (기본 3)
  * @param opts.rng 테스트용 결정론적 난수 소스 (기본 Math.random)
  */
-export function pickScriptWithHistory(
-  pool: readonly string[],
+export type ScriptPoolItemLike = string | { text: string; translation?: string };
+
+export function pickScriptWithHistory<T extends ScriptPoolItemLike>(
+  pool: readonly T[],
   templateId: string,
   missionId: string,
   opts?: { historySize?: number; rng?: () => number },
-): string {
-  if (!pool || pool.length === 0) return '';
+): T {
+  if (!pool || pool.length === 0) return '' as unknown as T;
   const rng = opts?.rng ?? Math.random;
   if (pool.length === 1) return pool[0];
 

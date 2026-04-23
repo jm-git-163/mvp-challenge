@@ -391,7 +391,8 @@ function drawMissionCard(
   ctx.font = 'bold 32px sans-serif';
   ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
   // FIX-SCRIPT-POOL (2026-04-23): read_text 가 배열 가능 → 첫 엔트리 폴백.
-  const rt = Array.isArray(mission.read_text) ? (mission.read_text[0] ?? '') : (mission.read_text ?? '');
+  const rtFirst = Array.isArray(mission.read_text) ? mission.read_text[0] : mission.read_text;
+  const rt = typeof rtFirst === 'string' ? rtFirst : (rtFirst?.text ?? '');
   ctx.fillText(
     ((mission.guide_text ?? rt ?? '') as string).slice(0, 22),
     CW / 2, y + 52,

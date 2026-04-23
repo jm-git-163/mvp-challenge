@@ -5,6 +5,21 @@
 import type { Template } from '../types/template';
 import type { UserSession, UserProfile } from '../types/session';
 
+// FIX-SCRIPT-I18N (2026-04-23 v4): English teleprompter 는 원문(영어) + 한글 번역을
+//   함께 보여줘야 사용자가 맥락을 이해하고 자신있게 낭독할 수 있다.
+//   따라서 풀 원소는 단순 string 또는 { text, translation } 객체 둘 다 허용.
+//   - text: 음성인식 타겟 & 프롬프터 메인(큰 글씨)
+//   - translation: 프롬프터 보조(작은 회색 글씨). 한글 번역.
+export type ScriptEntry = { text: string; translation?: string };
+export type ScriptPoolItem = string | ScriptEntry;
+
+export function getScriptText(item: ScriptPoolItem): string {
+  return typeof item === 'string' ? item : item.text;
+}
+export function getScriptTranslation(item: ScriptPoolItem): string {
+  return typeof item === 'string' ? '' : (item.translation ?? '');
+}
+
 // FIX-SCRIPT-POOL (2026-04-23): voice_read 미션 대본 풀.
 //   사용자가 같은 템플릿을 반복 실행해도 매번 다른 문장을 읽도록 풀 기반 로테이션.
 //   useJudgement 가 pickScriptWithHistory 로 localStorage 최근 3개 제외 랜덤 선택.
@@ -75,19 +90,20 @@ const POOL_NEWS_WEATHER: string[] = [
 ];
 
 const POOL_NEWS_REPORT: string[] = [
-  // 3인칭 서술체 — 주어 + "~했다/~했습니다/~밝혔습니다". 정부/전문가/시민 같은 뉴스 주체.
-  '정부는 오늘 신규 일자리 대책을 발표하며, 청년 지원을 강화하겠다고 밝혔습니다.',
-  '관련 전문가에 따르면, 이번 결과는 수년간의 연구가 결실을 맺은 것으로 평가됩니다.',
-  '시민들은 이번 정책에 대체로 긍정적인 반응을 보인 것으로 조사됐습니다.',
-  '한국은행은 오늘 기준금리를 동결하며, 물가 추이를 지속 관찰하겠다고 발표했습니다.',
-  '코스피는 오늘 장중 2% 넘게 오르며, 올해 최고치를 다시 경신했습니다.',
-  '국내 연구진이 개발한 신기술이 국제 학술지에 게재되며 세계적 주목을 받고 있습니다.',
-  '외교부는 관련국과의 긴밀한 협의를 이어가고 있다고 공식 입장을 내놓았습니다.',
-  '대표팀은 오늘 경기에서 값진 승리를 거두며, 결승 진출 가능성을 높였습니다.',
-  '교육부는 내년부터 적용될 새로운 교육 과정의 주요 내용을 오늘 공개했습니다.',
+  // FIX-SCRIPT-I18N (2026-04-23 v4): 정치/현직정치인/정당/이념 관련 문장 전면 제거.
+  //   생활·경제지표·스포츠·문화·과학·재난 일반 보도만 남김. 격식체 "~습니다/~됐습니다".
+  '이번 주 전국 고속도로 귀성 차량이 몰리며, 주요 구간에서 정체가 이어지고 있습니다.',
+  '코스피 지수가 장중 2퍼센트 넘게 오르며, 올해 최고치를 다시 경신했습니다.',
+  '국내 연구진이 개발한 신소재 기술이 국제 학술지에 게재되며 주목을 받고 있습니다.',
+  '한국 대표팀은 오늘 경기에서 값진 승리를 거두며, 결승 진출 가능성을 높였습니다.',
   '소방 당국은 현장 진화를 마친 뒤, 정확한 화재 원인을 조사 중이라고 전했습니다.',
-  '문화체육관광부는 오늘 신작 국가 문화 프로젝트의 개요를 발표했습니다.',
-  '전국 주요 고속도로는 귀성 차량이 몰리며 정체가 계속되고 있는 것으로 전해졌습니다.',
+  '이번 주말 전국 주요 관광지는 단풍 절정을 맞아 많은 인파가 몰릴 것으로 보입니다.',
+  '올해 프로야구 한국시리즈가 오늘 저녁 개막전을 시작으로 본격적인 막을 올립니다.',
+  '최근 조사에 따르면 국내 커피 소비량이 지난해보다 8퍼센트 증가한 것으로 나타났습니다.',
+  '세계적인 오케스트라의 서울 공연이 전석 매진되며 큰 관심을 모으고 있습니다.',
+  '기상청은 이번 주말 전국에 강한 바람이 불겠으며, 해안가 안전에 유의해야 한다고 밝혔습니다.',
+  '국내 스타트업이 개발한 인공지능 기술이 해외 박람회에서 최우수상을 수상했습니다.',
+  '한국 영화가 국제 영화제 본상에 노미네이트되며, 영화계의 주목을 받고 있습니다.',
 ];
 
 const POOL_NEWS_CLOSING: string[] = [
@@ -214,49 +230,51 @@ const POOL_FOOD_REVIEW: string[] = [
   '오늘 리뷰 도움 되셨다면 구독과 좋아요 부탁해요!',
 ];
 
-const POOL_ENGLISH: string[] = [
-  'Hello everyone! Nice to meet you!',
-  'The weather is beautiful today!',
-  'I love learning English every single day!',
-  'Challenge accepted and completed! Yes!',
-  'Hello! My name is Challenge Master!',
-  'My pronunciation is getting better and better!',
-  'Today is a wonderful day for a new start!',
-  'Thank you so much for watching my video.',
-  'Please like and subscribe if you enjoyed!',
-  'I am so excited to share this with you.',
-  'Let me know what you think in the comments.',
-  'See you in the next video! Take care!',
-  'Practice makes perfect, keep going!',
-  'Every small step counts, I believe in myself!',
-  'Speaking English boosts my confidence daily.',
-  'Good morning! I hope you have a great day.',
-  'Never give up on your dreams and goals.',
-  'This is my favorite time of the year.',
-  'I am grateful for this amazing opportunity.',
-  'Let me introduce myself to all of you.',
-  'Have a fantastic weekend, everyone!',
-  'Believe in yourself and anything is possible.',
-  'Today, I learned something new and exciting.',
-  'Keep smiling, it makes the world brighter.',
+// FIX-SCRIPT-I18N (2026-04-23 v4): English speaking 챌린지 — 공공영역/널리 인용되는
+//   유명 명언. 각 항목은 { text, translation } 으로 프롬프터가 영문 원문(큰 글씨) +
+//   한글 번역(작은 회색 글씨) 2단 표시. 8~25 단어, 저작권/출처 귀속 안전.
+const POOL_ENGLISH: ScriptEntry[] = [
+  { text: 'Stay hungry, stay foolish.',
+    translation: '항상 갈망하라, 우직하게 나아가라. — 스티브 잡스' },
+  { text: 'The only way to do great work is to love what you do.',
+    translation: '위대한 일을 해내는 유일한 방법은, 자신이 하는 일을 사랑하는 것이다. — 스티브 잡스' },
+  { text: 'I have learned that people will forget what you said, but they will never forget how you made them feel.',
+    translation: '사람들은 당신이 한 말은 잊어도, 당신이 그들에게 남긴 감정은 결코 잊지 않는다. — 마야 안젤루' },
+  { text: 'The best and most beautiful things in the world cannot be seen or even touched; they must be felt with the heart.',
+    translation: '세상에서 가장 아름다운 것들은 보거나 만질 수 없고, 오직 마음으로 느껴야 한다. — 헬렌 켈러' },
+  { text: 'Darkness cannot drive out darkness; only light can do that. Hate cannot drive out hate; only love can.',
+    translation: '어둠은 어둠을 몰아낼 수 없다. 오직 빛만이 그렇게 할 수 있다. 증오는 증오를 몰아낼 수 없다. 오직 사랑만이. — 마틴 루터 킹' },
+  { text: 'Education is the most powerful weapon which you can use to change the world.',
+    translation: '교육은 세상을 바꾸기 위해 당신이 사용할 수 있는 가장 강력한 무기다. — 넬슨 만델라' },
+  { text: 'Imagination is more important than knowledge.',
+    translation: '상상력은 지식보다 더 중요하다. — 알버트 아인슈타인' },
+  { text: 'In the middle of every difficulty lies opportunity.',
+    translation: '모든 어려움의 한가운데에는 기회가 숨어 있다. — 알버트 아인슈타인' },
+  { text: 'The future belongs to those who believe in the beauty of their dreams.',
+    translation: '미래는 자신의 꿈의 아름다움을 믿는 사람들의 것이다. — 엘리너 루스벨트' },
+  { text: 'Life is what happens when you are busy making other plans.',
+    translation: '인생이란, 당신이 다른 계획을 세우느라 바쁠 때 일어나는 일이다. — 존 레논' },
+  { text: 'Success is not final, failure is not fatal: it is the courage to continue that counts.',
+    translation: '성공은 끝이 아니고, 실패는 치명적이지 않다. 계속 나아가는 용기야말로 중요하다. — 윈스턴 처칠' },
+  { text: 'Do not go where the path may lead, go instead where there is no path and leave a trail.',
+    translation: '길이 이끄는 곳으로 가지 말고, 길이 없는 곳으로 가 자취를 남겨라. — 랠프 월도 에머슨' },
 ];
 
+// FIX-SCRIPT-I18N (2026-04-23 v4): motivation-speech 챌린지 — 역사적 한국 인물
+//   (독립운동가/시인/장군/학자) 명언. 현직정치인·현대 정치인 제외, 공공역사 인물만.
 const POOL_MOTIVATION: string[] = [
-  // 동기부여 연설 — 단호/고양. 반말 단정 또는 청중 호명형 "여러분".
-  '포기하지 마세요. 오늘의 여러분이 내일을 만듭니다.',
-  '한계는 스스로 정하는 것입니다. 한 번 더 가봅시다.',
-  '실패해도 괜찮습니다. 다시 일어서면 그뿐입니다.',
-  '나는 할 수 있다! 지금 이 순간 증명하겠습니다.',
-  '여러분의 꿈은 반드시 이루어집니다. 믿으십시오.',
-  '내 인생의 주인공은 바로 나 자신입니다.',
-  '지금 이 순간, 최고의 나와 마주하십시오.',
-  '어떤 벽도 여러분의 의지를 막을 수 없습니다.',
-  '성공은 준비된 자의 것입니다. 나는 준비됐습니다.',
-  '두려움을 이겨내는 것, 그것이 진짜 용기입니다.',
-  '오늘 흘린 땀이 내일의 나를 빛나게 합니다.',
-  '할 수 있다. 될 수 있다. 반드시 해낼 것입니다.',
-  '도전을 멈추지 마십시오. 계속 전진하십시오.',
-  '어제의 나를 뛰어넘는 것, 그것이 진정한 승리입니다.',
+  '내가 죽으면 한 개의 별이 되리라. — 안중근',
+  '하루라도 책을 읽지 않으면 입안에 가시가 돋는다. — 안중근',
+  '죽고자 하면 살 것이요, 살고자 하면 죽을 것이다. — 이순신',
+  '신에게는 아직 열두 척의 배가 남아 있사옵니다. — 이순신',
+  '나의 소원은 첫째도 독립이요, 둘째도 독립이요, 셋째도 완전한 자주독립이다. — 김구',
+  '눈길을 걸어갈 때 함부로 걷지 마라. 오늘 내가 걸어간 발자국은 뒷사람의 이정표가 되리니. — 서산대사',
+  '죽는 날까지 하늘을 우러러 한 점 부끄럼이 없기를. — 윤동주',
+  '펜은 칼보다 강하다, 그러나 뜻은 펜보다 강하다. — 주시경',
+  '내가 원하는 우리나라는 오직 한없이 가지고 싶은 것은 높은 문화의 힘이다. — 백범 김구',
+  '뜻이 있는 곳에 반드시 길이 있다. — 도산 안창호',
+  '나라를 잃은 민족은 천만 번 자강하여야 한다. — 도산 안창호',
+  '우리 민족은 세계에서 가장 훌륭한 민족이 될 수 있다. 그 밑거름이 되자. — 도산 안창호',
 ];
 
 // FIX-SCRIPT-TONE (2026-04-23 v3) — 신규 톤 풀.
@@ -317,7 +335,7 @@ const POOL_SOCIAL_VIRAL: string[] = [
  * 해결: 원본 read_text 문자열이 어느 서브풀에 속하는지(또는 가장 닮았는지) 먼저 판정하고,
  *       그 서브풀 안에서만 로테이션. 미션의 의도(greeting/weather/report/closing 등)를 유지.
  */
-export const SCRIPT_SUBPOOLS: Record<string, string[]> = {
+export const SCRIPT_SUBPOOLS: Record<string, ScriptPoolItem[]> = {
   daily_vlog: POOL_DAILY_VLOG,
   news_greeting: POOL_NEWS_GREETING,
   news_weather: POOL_NEWS_WEATHER,
@@ -340,12 +358,12 @@ export const SCRIPT_SUBPOOLS: Record<string, string[]> = {
 };
 
 /** 원본 read_text 에 가장 잘 맞는 서브풀을 반환. 매칭 실패 시 null. */
-export function pickSubPoolForText(originalText: string): string[] | null {
+export function pickSubPoolForText(originalText: string): ScriptPoolItem[] | null {
   if (!originalText) return null;
   const src = originalText.trim();
-  // 1) 원문이 이미 풀에 들어있으면 그 풀 확정.
+  // 1) 원문이 이미 풀에 들어있으면 그 풀 확정. (객체 풀은 text 필드로 비교)
   for (const pool of Object.values(SCRIPT_SUBPOOLS)) {
-    if (pool.includes(src)) return pool;
+    if (pool.some(item => getScriptText(item) === src)) return pool;
   }
   // 2) 키워드 힌트 매칭 (공지성 문구 / 뉴스 세그먼트 등).
   const t = src.toLowerCase();
@@ -404,7 +422,7 @@ export function pickSubPoolForText(originalText: string): string[] | null {
   return null;
 }
 
-export const SCRIPT_POOLS_BY_THEME: Record<string, string[]> = {
+export const SCRIPT_POOLS_BY_THEME: Record<string, ScriptPoolItem[]> = {
   daily: POOL_DAILY_VLOG,
   daily_vlog: POOL_DAILY_VLOG,
   vlog: POOL_DAILY_VLOG,

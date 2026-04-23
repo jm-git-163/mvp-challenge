@@ -30,7 +30,10 @@ export interface Mission {
   //   배열인 경우 useJudgement 가 pickScriptWithHistory 로 localStorage 기반 최근
   //   3개 제외 랜덤 선택 → 사용자가 동일 템플릿을 반복 실행해도 다른 대본을 읽게 됨.
   //   기존 단일 string 은 하위호환 유지.
-  read_text?: string | string[];
+  // FIX-SCRIPT-I18N (2026-04-23 v4): 영어 챌린지는 { text, translation } 객체로도
+  //   풀을 제공해 프롬프터가 한글 번역을 함께 표시할 수 있게 함. 기존 string/string[]
+  //   은 하위호환 그대로 유지.
+  read_text?: string | Array<string | { text: string; translation?: string }>;
   read_lang?: 'ko' | 'en';  // language for speech recognition
   // common
   threshold: number;         // 0~1 pass threshold

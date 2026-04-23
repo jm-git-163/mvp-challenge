@@ -33,7 +33,7 @@ describe('voice_read 미션 풀 크기', () => {
       for (const m of voiceReads) {
         const rt = m.read_text;
         if (!rt) continue;
-        if (Array.isArray(rt)) rt.forEach((s) => unique.add(s));
+        if (Array.isArray(rt)) rt.forEach((s) => unique.add(typeof s === 'string' ? s : s.text));
         else unique.add(rt);
       }
       expect(unique.size, `고유 문장 수`).toBeGreaterThanOrEqual(minSize);
@@ -50,8 +50,9 @@ describe('voice_read 미션 풀 크기', () => {
         if (Array.isArray(m.read_text)) {
           expect(m.read_text.length).toBeGreaterThan(0);
           m.read_text.forEach((s) => {
-            expect(typeof s).toBe('string');
-            expect(s.length).toBeGreaterThan(0);
+            const text = typeof s === 'string' ? s : s.text;
+            expect(typeof text).toBe('string');
+            expect(text.length).toBeGreaterThan(0);
           });
         }
       }

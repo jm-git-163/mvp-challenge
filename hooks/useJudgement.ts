@@ -20,7 +20,7 @@ import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
 import { pickScriptWithHistory } from '../engine/missions/scriptPrompterMission';
-import { SCRIPT_POOLS_BY_THEME, pickSubPoolForText } from '../services/mockData';
+import { SCRIPT_POOLS_BY_THEME, pickSubPoolForText, getScriptText, getScriptTranslation, type ScriptPoolItem } from '../services/mockData';
 import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
@@ -165,6 +165,8 @@ export function useJudgement(): {
    *  풀(배열) 입력 시 세션 시작 시 한 번만 선택된 값이 고정되며, 단일 string 일 땐 그대로.
    *  UI 는 mission.read_text 대신 이 값을 렌더링해야 사용자가 이번에 읽을 문장을 본다. */
   resolvedReadText: string;
+  /** FIX-SCRIPT-I18N (2026-04-23 v4): English 풀 항목의 한글 번역. 없으면 빈 문자열. */
+  resolvedReadTranslation: string;
   // FIX-Z25: 대본 판정 결과 (voice_read 미션 final transcript 기준).
   //   RecordingCamera.drawFrame 에서 drawJudgementToast 에 넘김.
   latestJudgement: { tier: JudgementTier; at: number } | null;
@@ -232,8 +234,10 @@ export function useJudgement(): {
   //   mission.read_text 가 배열이면 pickScriptWithHistory 로 한 번만 뽑아서 여기에
   //   고정 — 같은 미션이 재진입돼도 동일 문자열 유지 (seq 단위 캐시).
   const resolvedReadTextRef = useRef<string>('');
+  const resolvedReadTranslationRef = useRef<string>('');
   const resolvedMissionKeyRef = useRef<string>('');
   const [resolvedReadText, setResolvedReadText] = useState<string>('');
+  const [resolvedReadTranslation, setResolvedReadTranslation] = useState<string>('');
 
   // UI State
   const [voiceTranscript, setVoiceTranscript] = useState('');
@@ -280,7 +284,7 @@ export function useJudgement(): {
           //   genre/theme 이 news/kids/fairy_tale/english/motivation 인 경우엔 raw 를 **버리고**
           //   톤 맞는 풀에서만 로테이션. 또한 mission.seq 로 서브세그먼트 추정:
           //   seq 1 → greeting/intro, 마지막 → closing/end, 중간 → report/middle.
-          let pool: string[] | null = Array.isArray(rt) ? rt : null;
+          let pool: ScriptPoolItem[] | null = Array.isArray(rt) ? (rt as ScriptPoolItem[]) : null;
           if (!pool && typeof rt === 'string') {
             const genreKey = (template?.genre || '').toLowerCase();
             const themeKey = (template?.theme_id || '').toLowerCase();
@@ -319,23 +323,44 @@ export function useJudgement(): {
               const key = themeKey || genreKey;
               const candidate = SCRIPT_POOLS_BY_THEME[key];
               if (candidate && candidate.length > 0) {
-                pool = candidate.includes(rt) ? candidate : [rt, ...candidate];
+                const alreadyIn = candidate.some(it => getScriptText(it) === rt);
+                pool = alreadyIn ? candidate : [rt as ScriptPoolItem, ...candidate];
               }
             }
           }
+          let resolvedTranslation = '';
           if (pool && pool.length > 1) {
+            let pickedItem: ScriptPoolItem;
             if (resolvedMissionKeyRef.current !== missionKey) {
-              resolvedText = pickScriptWithHistory(pool, tmplId, String(mission.seq));
+              pickedItem = pickScriptWithHistory(pool, tmplId, String(mission.seq));
               resolvedMissionKeyRef.current = missionKey;
             } else {
-              resolvedText = resolvedReadTextRef.current || pickScriptWithHistory(pool, tmplId, String(mission.seq));
+              // 기존 resolved 가 있으면 그대로 재사용. 없으면 풀에서 다시 뽑음.
+              if (resolvedReadTextRef.current) {
+                const hit = pool.find(it => getScriptText(it) === resolvedReadTextRef.current);
+                pickedItem = hit ?? pickScriptWithHistory(pool, tmplId, String(mission.seq));
+              } else {
+                pickedItem = pickScriptWithHistory(pool, tmplId, String(mission.seq));
+              }
             }
+            resolvedText = getScriptText(pickedItem);
+            resolvedTranslation = getScriptTranslation(pickedItem);
+          } else if (pool && pool.length === 1) {
+            resolvedText = getScriptText(pool[0]);
+            resolvedTranslation = getScriptTranslation(pool[0]);
+            resolvedMissionKeyRef.current = missionKey;
           } else {
-            resolvedText = Array.isArray(rt) ? (rt[0] ?? '') : String(rt);
+            resolvedText = Array.isArray(rt)
+              ? (rt[0] ? getScriptText(rt[0] as ScriptPoolItem) : '')
+              : String(rt);
             resolvedMissionKeyRef.current = missionKey;
           }
+          resolvedReadTranslationRef.current = resolvedTranslation;
+          setResolvedReadTranslation(resolvedTranslation);
         } else {
           resolvedMissionKeyRef.current = '';
+          resolvedReadTranslationRef.current = '';
+          setResolvedReadTranslation('');
         }
         resolvedReadTextRef.current = resolvedText;
         setResolvedReadText(resolvedText);
@@ -852,8 +877,10 @@ export function useJudgement(): {
     setVoiceAccuracy(0);
     // FIX-SCRIPT-POOL (2026-04-23): 다음 세션에서 다시 풀 로테이션 돌도록 초기화.
     resolvedReadTextRef.current  = '';
+    resolvedReadTranslationRef.current = '';
     resolvedMissionKeyRef.current = '';
     setResolvedReadText('');
+    setResolvedReadTranslation('');
 
     // 스쿼트 초기화
     squatCountRef.current          = 0;
@@ -878,6 +905,7 @@ export function useJudgement(): {
     squatCount,
     squatMode,
     resolvedReadText,
+    resolvedReadTranslation,
     latestJudgement: latestJudgementRef.current,
     lastSquatCountAt: lastSquatCountAtRef.current,
     micPermissionDeniedAt: micDeniedAtRef.current,
