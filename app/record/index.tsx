@@ -1892,8 +1892,11 @@ export default function RecordScreen() {
             </View>
           );
         })()}
-        {/* FIX-H: 항상 보이는 음성 상태 스트립 (voice_read 미션 중 / recording 상태). */}
-        {state === 'recording' && activeTemplate?.missions.some(m => m.type === 'voice_read') && (() => {
+        {/* FIX-H: 항상 보이는 음성 상태 스트립 (voice_read 미션 중 / recording 상태).
+            TEAM-UX (2026-04-23): 게임 몰입 저해 — debugOn 게이트. 평시엔 숨김.
+            실제 오작동(err / results=0 장기) 안내는 VoiceTranscriptOverlay 내
+            srStalled 경로로 유저에게 자연스럽게 전달됨. */}
+        {debugOn && state === 'recording' && activeTemplate?.missions.some(m => m.type === 'voice_read') && (() => {
           let srDiag: any = null;
           try { srDiag = getGlobalSpeechRecognizer().getDiagnostic(); } catch {}
           const ok = srDiag?.listening && !srDiag?.error;
@@ -2084,8 +2087,11 @@ export default function RecordScreen() {
 
               {/* FIX-Z5 (2026-04-22): 항상 보이는 DOM 뱃지 — 카운트 / 포즈 감지 상태.
                   FIX-Z17 (2026-04-22): 진단 정보 확장. 실기기에서 "왜 카운트가 안 되는지"를
-                  한눈에 파악할 수 있도록 5줄 + mock 모드 경고 추가. */}
-              {activeTemplate?.genre === 'fitness' && isRecording && (() => {
+                  한눈에 파악할 수 있도록 5줄 + mock 모드 경고 추가.
+                  TEAM-UX (2026-04-23): 게임 몰입 저해 — debugOn 게이트.
+                  SquatHUD(top:60) 에서 이미 count/phase/depth 를 큼지막하게 보여주므로
+                  이 부가 배지는 진단 모드 전용. 단 mock 실패는 아래 별도 경고 토스트로 항상 노출. */}
+              {debugOn && activeTemplate?.genre === 'fitness' && isRecording && (() => {
                 const isMock = poseStatus === 'ready-mock';
                 const badgeBg = isMock ? 'rgba(234,88,12,0.95)'
                               : poseStatus === 'error' ? 'rgba(220,38,38,0.95)'
@@ -2136,6 +2142,24 @@ export default function RecordScreen() {
                 </View>
                 );
               })()}
+
+              {/* TEAM-UX (2026-04-23): 포즈 엔진 mock 실패 토스트 (항상 노출, user-actionable).
+                  위 진단 배지는 debugOn 으로 숨겼지만 이 경고만은 사용자 대응 필요 — 별도로 유지. */}
+              {activeTemplate?.genre === 'fitness' && isRecording && poseStatus === 'ready-mock' && (
+                <View pointerEvents="none" style={{
+                  position:'absolute', top: 56, left: 12, right: 12,
+                  backgroundColor: 'rgba(234,88,12,0.96)',
+                  borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
+                  zIndex: 9998, elevation: 19,
+                }}>
+                  <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>
+                    ⚠️ 포즈 엔진이 로드되지 않았어요
+                  </Text>
+                  <Text style={{ color:'#fff', fontSize:11, marginTop:2 }}>
+                    새로고침 후 다시 시도해 주세요.
+                  </Text>
+                </View>
+              )}
 
               {/* FIX-Z11 (2026-04-22): 촬영 시작 전 음성 미지원 경고.
                   iOS Safari 는 webkitSpeechRecognition 자체가 없으므로 사용자가 녹화 전에
@@ -2274,7 +2298,8 @@ export default function RecordScreen() {
 
               {/* FIX-N (2026-04-22): 스쿼트 감지 모드 표시 — 정직한 UX.
                   full-body = 무릎각도 정밀 (점수 100%), near-mode = 얼굴 Y 진동 (최대 70%)
-                  TEAM-UX (2026-04-23): near-mode(경고) 때만 노출 — full-body 는 숨겨 화면 정돈. */}
+                  TEAM-UX (2026-04-23): 내부 용어("near-mode") 노출 금지. 유저 관점의
+                  액션 가이드로 문구 변경 — "물러서면 점수가 올라갑니다". */}
               {isRecording && !showIntro && activeTemplate?.genre==='fitness' && squatMode === 'near-mode' && (
                 <View pointerEvents="none" style={{
                   position:'absolute', top:120, right:8, zIndex:9997,
@@ -2282,10 +2307,7 @@ export default function RecordScreen() {
                   paddingHorizontal:10, paddingVertical:6, borderRadius:6,
                 }}>
                   <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>
-                    ⚠ 근접 모드 · 점수 최대 70%
-                  </Text>
-                  <Text style={{ color:'#fff', fontSize:9, marginTop:2 }}>
-                    폰을 세워두고 물러서면 100%
+                    📏 조금 물러서면 점수가 올라가요
                   </Text>
                 </View>
               )}
