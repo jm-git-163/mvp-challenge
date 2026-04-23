@@ -1319,14 +1319,20 @@ function VoiceTranscriptOverlay({ transcript, readText }: { transcript:string; r
   );
 }
 const vtv = StyleSheet.create({
-  wrap:            { position:'absolute', bottom:150, left:8, right:8, gap:6, zIndex:25, alignItems:'center' },
-  scriptBox:       { width:'100%', backgroundColor:'rgba(30,30,60,0.90)',
+  // FIX-PROMPTER (2026-04-23): 사용자 "자막이 아래면 얼굴이 제대로 안 나온다" 피드백.
+  //   따라 읽을 문장(스크립트) + 음성 인식 박스를 **화면 상단**으로 이동.
+  //   유저가 텔레프롬프터처럼 정면 카메라를 응시한 채 읽을 수 있게 함.
+  //   top 값은 상단 HUD(카운트다운·점수바) 밑으로 안전 여백 확보.
+  wrap:            { position:'absolute', top:100, left:8, right:8, gap:8, zIndex:25, alignItems:'center' },
+  scriptBox:       { width:'100%', backgroundColor:'rgba(30,30,60,0.92)',
     // @ts-ignore web
-    backdropFilter:'blur(14px)', borderRadius:14, paddingVertical:10, paddingHorizontal:16, borderWidth:1, borderColor:'rgba(124,58,237,0.4)', alignItems:'center', gap:4 },
-  scriptLabel:     { color:'rgba(167,139,250,0.8)', fontSize:11, fontWeight:'700', letterSpacing:0.5 },
-  scriptText:      { color:'#c4b5fd', fontSize:18, fontWeight:'800', textAlign:'center', lineHeight:26,
+    backdropFilter:'blur(14px)', borderRadius:14, paddingVertical:12, paddingHorizontal:18, borderWidth:2, borderColor:'rgba(124,58,237,0.55)', alignItems:'center', gap:6,
     // @ts-ignore web
-    textShadow:'0 0 12px rgba(167,139,250,0.6)' },
+    boxShadow:'0 4px 24px rgba(124,58,237,0.35)' },
+  scriptLabel:     { color:'rgba(167,139,250,0.9)', fontSize:11, fontWeight:'800', letterSpacing:0.8 },
+  scriptText:      { color:'#E0D4FF', fontSize:22, fontWeight:'900', textAlign:'center', lineHeight:30,
+    // @ts-ignore web
+    textShadow:'0 0 14px rgba(167,139,250,0.7), 0 2px 6px rgba(0,0,0,0.8)' },
   transcriptBox:   { width:'100%', borderRadius:16, paddingVertical:14, paddingHorizontal:18, borderWidth:2, alignItems:'center', gap:6,
     // @ts-ignore web
     backdropFilter:'blur(14px)' },
