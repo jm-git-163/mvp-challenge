@@ -10,7 +10,7 @@ import type { TemplateThumb } from './templateThumbnails';
 
 export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   "021ccc86-7d9f-41c0-88bd-970406bebd2e": {
-    "url": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=640&q=75",
+    "url": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=640&q=75&v=2",
     "largeURL": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=1280&q=80",
     "tags": "daily vlog, self filming, tripod, content creator",
     "user": "unsplash",
@@ -31,7 +31,7 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 2787754
   },
   "8e0b4493-5c5e-4ece-82dd-2ba93f9b8036": {
-    "url": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=640&q=75",
+    "url": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=640&q=75&v=2",
     "largeURL": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=1280&q=80",
     "tags": "toddler, storybook, reading, fairy tale",
     "user": "unsplash",
@@ -52,7 +52,7 @@ export const SUPABASE_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 410324
   },
   "e2d9cc60-08c3-4200-86ba-3a7cdfa6ad54": {
-    "url": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=640&q=75",
+    "url": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=640&q=75&v=2",
     "largeURL": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=1280&q=80",
     "tags": "kpop, dance, stage, performance, group",
     "user": "unsplash",
