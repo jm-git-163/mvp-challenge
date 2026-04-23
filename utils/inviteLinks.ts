@@ -90,9 +90,13 @@ export function buildInviteUrl(
     payload.s = Math.max(0, Math.min(100, Math.round(opts.score)));
   }
   const c = toBase64Url(JSON.stringify(payload));
-  // 경로는 /challenge/<slug> 로 유지 (기존 라우트 호환). /c/<slug> 로 가려면
-  // app/c/[slug]/index.tsx 추가가 필요하므로 보류.
-  return `${origin}/challenge/${cleanSlug}?c=${c}`;
+  // FIX-OG-CRAWLER (2026-04-23): 공유 URL 은 `/share/challenge/<slug>` 로 발급한다.
+  // 이 경로는 Vercel serverless 함수(api/share/challenge/[slug].ts) 로 rewrite 되어
+  // **JS 실행 없는 크롤러(카카오톡/라인/페북)** 도 OG 리치 프리뷰를 읽을 수 있는
+  // 정적 HTML 을 응답. 실제 사용자 브라우저는 meta refresh + location.replace 로
+  // SPA 라우트 `/challenge/<slug>?c=...` 로 자동 이동.
+  // parseInviteUrl 은 두 경로(`/challenge/`, `/share/challenge/`) 모두 받는다.
+  return `${origin}/share/challenge/${cleanSlug}?c=${c}`;
 }
 
 /**
@@ -105,7 +109,8 @@ export function parseInviteUrl(url: string): InviteContext | null {
   let qs = '';
   try {
     const u = new URL(url, 'https://placeholder.invalid');
-    const m = u.pathname.match(/\/(?:challenge|c)\/([^/]+)/i);
+    // `/challenge/<slug>`, `/c/<slug>`, `/share/challenge/<slug>` 세 경로 모두 허용.
+    const m = u.pathname.match(/\/(?:share\/challenge|challenge|c)\/([^/]+)/i);
     if (m) slug = decodeURIComponent(m[1]);
     qs = u.search.startsWith('?') ? u.search.slice(1) : u.search;
   } catch {

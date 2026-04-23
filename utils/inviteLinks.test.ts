@@ -14,9 +14,10 @@ import {
 } from './inviteLinks';
 
 describe('buildInviteUrl (v2 compact)', () => {
-  it('기본 slug + from 만으로 URL 생성 — 단일 c 파라미터', () => {
+  it('기본 slug + from 만으로 URL 생성 — 단일 c 파라미터, /share/ prefix', () => {
     const url = buildInviteUrl('squat-master', '지민', { origin: 'https://motiq.app' });
-    expect(url.startsWith('https://motiq.app/challenge/squat-master?c=')).toBe(true);
+    // FIX-OG-CRAWLER: /share/challenge/ prefix (Vercel serverless OG 함수 경로)
+    expect(url.startsWith('https://motiq.app/share/challenge/squat-master?c=')).toBe(true);
     // 레거시 파라미터 없음
     expect(url).not.toContain('from=');
     expect(url).not.toContain('msg=');
@@ -55,12 +56,12 @@ describe('buildInviteUrl (v2 compact)', () => {
   it('UUID 도 slug 로 허용 (DB template id 호환)', () => {
     const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const url = buildInviteUrl(uuid, 'a', { origin: 'https://x' });
-    expect(url).toContain(`/challenge/${uuid}`);
+    expect(url).toContain(`/share/challenge/${uuid}`);
   });
 
   it('trailing slash origin 도 정규화', () => {
     const url = buildInviteUrl('squat-master', 'a', { origin: 'https://motiq.app/' });
-    expect(url.startsWith('https://motiq.app/challenge/')).toBe(true);
+    expect(url.startsWith('https://motiq.app/share/challenge/')).toBe(true);
   });
 });
 
@@ -87,6 +88,24 @@ describe('parseInviteUrl (v2)', () => {
 
   it('슬러그만 있고 쿼리 없으면 null', () => {
     expect(parseInviteUrl('https://motiq.app/challenge/squat-master')).toBeNull();
+  });
+
+  it('/share/challenge/ prefix 경로도 파싱 (OG 크롤러용 URL)', () => {
+    const url = buildInviteUrl('kpop-dance', '민수', {
+      origin: 'https://motiq.app', score: 77,
+    });
+    expect(url).toContain('/share/challenge/');
+    const ctx = parseInviteUrl(url);
+    expect(ctx?.slug).toBe('kpop-dance');
+    expect(ctx?.fromName).toBe('민수');
+    expect(ctx?.score).toBe(77);
+  });
+
+  it('레거시 /challenge/ prefix 경로도 계속 파싱 (backward compat)', () => {
+    const ctx = parseInviteUrl('https://motiq.app/challenge/squat-master?from=지민&score=50');
+    expect(ctx?.slug).toBe('squat-master');
+    expect(ctx?.fromName).toBe('지민');
+    expect(ctx?.score).toBe(50);
   });
 });
 
@@ -149,7 +168,7 @@ describe('buildInviteShareCaption', () => {
     });
     expect(cap).toContain('87점');
     expect(cap).toContain('도전장');
-    expect(cap).toContain('https://motiq.app/challenge/squat-master?c=');
+    expect(cap).toContain('https://motiq.app/share/challenge/squat-master?c=');
   });
 });
 
