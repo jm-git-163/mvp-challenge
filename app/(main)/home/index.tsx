@@ -609,8 +609,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: T.borderStrong,
-    backgroundColor: GZ.surface,
+    borderColor: GZ.borderStrong,
+    // TEAM-UX (2026-04-23): "메뉴 안 보인다" 피드백.
+    //   이전 GZ.surface(8% 흰색) 은 밝은 네온 mesh 위에서 거의 안 보임.
+    //   검정 반투명 (65%) 으로 바꿔 두 모드 모두에서 선명.
+    backgroundColor: 'rgba(15,10,31,0.65)',
     alignItems: 'center',
     justifyContent: 'center',
     // @ts-ignore web

@@ -18,11 +18,6 @@ export default function MainLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        // TEAM-UX (2026-04-23): 다크모드 토글을 html/body 배경에 걸었는데
-        //   Tabs sceneContainer 가 기본 불투명 배경으로 덮고 있어서 보이지 않음 → transparent.
-        sceneStyle: { backgroundColor: 'transparent' },
-        // @ts-ignore — 구버전 expo-router 의 prop 이름
-        sceneContainerStyle: { backgroundColor: 'transparent' },
         tabBarStyle: {
           backgroundColor: T.surface,
           borderTopColor: T.border,
