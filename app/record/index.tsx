@@ -2025,34 +2025,30 @@ export default function RecordScreen() {
                   <Text style={{ color:'#fff', fontSize:32, fontWeight:'800', lineHeight: 36 }}>
                     {squatCount}
                   </Text>
-                  {/* 1: 포즈 엔진 상태 */}
-                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.9, marginTop:2, fontWeight:'700' }}>
-                    {isMock ? '🟠 MOCK 모드 (실제 카운트 불가)'
-                     : poseStatus === 'ready-real' ? '🟢 실제 포즈 감지 중'
-                     : poseStatus === 'error' ? '🔴 포즈 엔진 실패'
-                     : poseStatus === 'loading' ? '⏳ 모델 로딩 중' : `… ${poseStatus}`}
-                  </Text>
-                  {/* 2: 판정 모드 */}
-                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2 }}>
-                    {squatMode === 'full-body' ? '✅ 풀바디 (정밀)' :
-                     squatMode === 'near-mode' ? '🟡 근접 (최대 70%)' :
-                     squatDebug.landmarkCount > 0 ? `탐지중… (lm ${squatDebug.landmarkCount})` :
-                     '⚠️ 랜드마크 0'}
-                  </Text>
-                  {/* 3: 무릎각 + phase + ready */}
-                  <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2, fontFamily:'monospace' }}>
-                    {Math.round(squatKneeAngle)}° {squatPhase === 'down' ? '⬇DOWN' : squatPhase === 'up' ? '⬆UP' : '—'}
-                    {' '}cand:{squatDebug.candidatePhase}×{squatDebug.candidateFrames}
-                    {squatDebug.ready ? ' armed' : ' idle'}
-                  </Text>
-                  {/* 4: 게이트 플래그 */}
-                  <Text style={{ color:'#fff', fontSize:9, opacity: 0.8, marginTop:2, fontFamily:'monospace' }}>
-                    {gateStr}
-                  </Text>
-                  {/* 5: mock 경고 배너 */}
+                  {/* TEAM-UX (2026-04-23): 사용자 "이상한 글자 많이 뜨고 지저분" 피드백.
+                      엔진 상태·게이트 플래그·cand:frames×n 같은 진단 텍스트는 debugOn 전용.
+                      평시엔 SQUATS 숫자만, mock 실패 때만 빨간 경고 배너. */}
+                  {debugOn && (
+                    <>
+                      <Text style={{ color:'#fff', fontSize:10, opacity: 0.9, marginTop:2, fontWeight:'700' }}>
+                        {isMock ? '🟠 MOCK'
+                         : poseStatus === 'ready-real' ? '🟢 감지중'
+                         : poseStatus === 'error' ? '🔴 엔진 실패'
+                         : poseStatus === 'loading' ? '⏳ 로딩' : `… ${poseStatus}`}
+                      </Text>
+                      <Text style={{ color:'#fff', fontSize:10, opacity: 0.85, marginTop:2, fontFamily:'monospace' }}>
+                        {Math.round(squatKneeAngle)}° {squatPhase === 'down' ? '⬇DOWN' : squatPhase === 'up' ? '⬆UP' : '—'}
+                        {' '}cand:{squatDebug.candidatePhase}×{squatDebug.candidateFrames}
+                        {squatDebug.ready ? ' armed' : ' idle'}
+                      </Text>
+                      <Text style={{ color:'#fff', fontSize:9, opacity: 0.8, marginTop:2, fontFamily:'monospace' }}>
+                        {gateStr}
+                      </Text>
+                    </>
+                  )}
                   {isMock && (
                     <Text style={{ color:'#fff', fontSize:10, marginTop:4, fontWeight:'700', backgroundColor:'rgba(0,0,0,0.35)', paddingHorizontal:6, paddingVertical:3, borderRadius:4 }}>
-                      포즈 엔진 로딩 실패 — 타이머는 흐르지만 스쿼트 카운트는 0 유지됩니다. 새로고침 권장.
+                      포즈 엔진 로딩 실패 — 새로고침 권장.
                     </Text>
                   )}
                 </View>
@@ -2195,21 +2191,20 @@ export default function RecordScreen() {
               )}
 
               {/* FIX-N (2026-04-22): 스쿼트 감지 모드 표시 — 정직한 UX.
-                  full-body = 무릎각도 정밀 (점수 100%), near-mode = 얼굴 Y 진동 (최대 70%) */}
-              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && squatMode !== 'idle' && (
+                  full-body = 무릎각도 정밀 (점수 100%), near-mode = 얼굴 Y 진동 (최대 70%)
+                  TEAM-UX (2026-04-23): near-mode(경고) 때만 노출 — full-body 는 숨겨 화면 정돈. */}
+              {isRecording && !showIntro && activeTemplate?.genre==='fitness' && squatMode === 'near-mode' && (
                 <View pointerEvents="none" style={{
                   position:'absolute', top:120, right:8, zIndex:9997,
-                  backgroundColor: squatMode === 'full-body' ? 'rgba(16,185,129,0.9)' : 'rgba(245,158,11,0.9)',
+                  backgroundColor: 'rgba(245,158,11,0.9)',
                   paddingHorizontal:10, paddingVertical:6, borderRadius:6,
                 }}>
                   <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>
-                    {squatMode === 'full-body' ? '✓ 전신 정밀 모드' : '⚠ 근접 모드 · 점수 최대 70%'}
+                    ⚠ 근접 모드 · 점수 최대 70%
                   </Text>
-                  {squatMode === 'near-mode' && (
-                    <Text style={{ color:'#fff', fontSize:9, marginTop:2 }}>
-                      폰을 세워두고 물러서면 100%
-                    </Text>
-                  )}
+                  <Text style={{ color:'#fff', fontSize:9, marginTop:2 }}>
+                    폰을 세워두고 물러서면 100%
+                  </Text>
                 </View>
               )}
 

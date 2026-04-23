@@ -449,15 +449,9 @@ export default function HomeScreen() {
         </View>
       </SafeAreaView>
 
-      {/* 모바일 필수 배너 — SafeAreaView 밖에 두어 어떤 뷰포트에서도 클리핑 없음 */}
-      <Pressable
-        onPress={() => router.push('/selftest')}
-        style={[s.selftestBanner, { marginHorizontal: sidePad }]}
-        accessibilityLabel="SelfTest"
-      >
-        <Text style={s.selftestBannerT}>🩺 자가진단 열기</Text>
-        <Text style={s.selftestBannerSub}>카메라·마이크·포즈·스쿼트·자막 실시간 점검 ›</Text>
-      </Pressable>
+      {/* TEAM-UX (2026-04-23): 자가진단 배너는 상단에서 제거 — 메인 시선 방해.
+          프로필 화면에서 접근 가능 (또는 직접 /selftest URL).
+          사용자 피드백: "자가진단 열기 저거는 없애거나 하단으로". */}
 
       <GenreFilter selected={selectedGenre} onSelect={setSelectedGenre} />
 

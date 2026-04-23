@@ -45,14 +45,17 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle:      { backgroundColor: Claude.shell },
+          headerStyle:      { backgroundColor: 'transparent' },
           headerTintColor:  Claude.paper,
           headerTitleStyle: {
             fontWeight: '700',
             // @ts-ignore web
             fontFamily: '"Tiempos Headline",Georgia,serif',
           },
-          contentStyle:     { backgroundColor: Claude.shell },
+          // TEAM-UX (2026-04-23): 이전엔 Claude.shell(#0E0B06) 불투명 배경으로 덮어
+          //   +html.tsx 의 네온 mesh / motiq-dark 오버라이드가 보이지 않았다.
+          //   transparent 로 바꾸면 html/body 배경이 그대로 통과 → 다크 모드 토글 동작.
+          contentStyle:     { backgroundColor: 'transparent' },
         }}
       >
         <Stack.Screen name="(main)" options={{ headerShown: false }} />
