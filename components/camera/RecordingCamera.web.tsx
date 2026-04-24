@@ -118,18 +118,55 @@ const genreColor = (g: string) => GENRE_COLORS[g] ?? '#7c3aed';
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
+// FIX-CAMERA-ZOOM (2026-04-24): 사용자 누차 피드백 — "셀피 카메라 들어가면
+//   얼굴이 화면에 꽉 차서 부담스럽다". 이전 fix (camera_feed.ts) 는 Phase 5
+//   composition 엔진 전용이라 실제 녹화 화면에는 효과 없음. 진짜 사용 경로인
+//   RecordingCamera 의 drawCamera 에 직접 적용.
+//
+//   scale 파라미터:
+//     - 1.00 풀스크린 (기존). 전신 운동/댄스 등.
+//     - 0.78 (기본) 상하좌우 11% 검은 매트. 얼굴 미디엄~롱 샷.
+//     - 0.70 더 멀리 (사용자가 "여전히 크다" 면 다음에 0.7 로).
+//
+//   genre 별 자동 매핑:
+//     squat/fitness/dance → 1.00 (전신 필요)
+//     news/storybook → 0.72 (책상에 앉은 진행자 느낌)
+//     기타(토킹·표정·음성) → 0.78
+function pickCameraScale(template: any): number {
+  const g = String(template?.genre ?? '').toLowerCase();
+  const n = String(template?.name ?? '').toLowerCase();
+  const id = String(template?.id ?? '').toLowerCase();
+  const blob = `${g} ${n} ${id}`;
+  if (/squat|fitness|운동|workout|dance|댄스|kpop|전신/.test(blob)) return 1.0;
+  if (/news|뉴스|storybook|동화|fairy/.test(blob)) return 0.72;
+  return 0.78;
+}
+
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
   facing: 'front' | 'back',
+  scale: number = 0.78,
 ) {
   if (video.readyState < 2) return;
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) return;
 
+  const s = Math.min(1, Math.max(0.5, scale));
+  const dw = Math.round(CW * s);
+  const dh = Math.round(CH * s);
+  const dx = Math.round((CW - dw) / 2);
+  const dy = Math.round((CH - dh) / 2);
+
+  // 검은 매트 (여백). 풀스크린(s===1) 이면 패스.
+  if (s < 0.999) {
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, CW, CH);
+  }
+
   const videoAR  = vw / vh;
-  const canvasAR = CW / CH;
+  const destAR   = dw / dh;
 
   if (facing === 'front') {
     ctx.save();
@@ -137,16 +174,19 @@ function drawCamera(
     ctx.scale(-1, 1);
   }
 
-  if (videoAR > canvasAR) {
+  // dest rect 가 좌우반전 좌표계 위에서도 같은 위치에 그려지도록 dx 보정
+  const ddx = facing === 'front' ? CW - dx - dw : dx;
+
+  if (videoAR > destAR) {
     const srcH = vh;
-    const srcW = srcH * canvasAR;
+    const srcW = srcH * destAR;
     const srcX = (vw - srcW) / 2;
-    ctx.drawImage(video, srcX, 0, srcW, srcH, 0, 0, CW, CH);
+    ctx.drawImage(video, srcX, 0, srcW, srcH, ddx, dy, dw, dh);
   } else {
     const srcW = vw;
-    const srcH = srcW / canvasAR;
+    const srcH = srcW / destAR;
     const srcY = (vh - srcH) / 2;
-    ctx.drawImage(video, 0, srcY, srcW, srcH, 0, 0, CW, CH);
+    ctx.drawImage(video, 0, srcY, srcW, srcH, ddx, dy, dw, dh);
   }
 
   if (facing === 'front') ctx.restore();
@@ -1325,7 +1365,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               CW / 2, CH / 2 + 110,
             );
           } else {
-            try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
+            try { drawCamera(ctx, video, face, pickCameraScale(tmpl)); } catch (e) { /* silent */ }
           }
 
           // CAMERA-SWAP (2026-04-23): 전환 중 오버레이. 캔버스 captureStream 은 계속

@@ -76,37 +76,60 @@ function getGenreColor(genre: string): string {
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
+// FIX-CAMERA-ZOOM (2026-04-24): 동일한 근거로 RecordingCamera.web.tsx 와 함께
+//   녹화본 캔버스에도 카메라 매트(여백) 적용.
+function pickCameraScale(template: any): number {
+  const g = String(template?.genre ?? '').toLowerCase();
+  const n = String(template?.name ?? '').toLowerCase();
+  const id = String(template?.id ?? '').toLowerCase();
+  const blob = `${g} ${n} ${id}`;
+  if (/squat|fitness|운동|workout|dance|댄스|kpop|전신/.test(blob)) return 1.0;
+  if (/news|뉴스|storybook|동화|fairy/.test(blob)) return 0.72;
+  return 0.78;
+}
+
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
   facing: 'front' | 'back',
+  scale: number = 0.78,
 ) {
   if (video.readyState < 2) return; // HAVE_CURRENT_DATA
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (vw === 0 || vh === 0) return;
 
+  const s = Math.min(1, Math.max(0.5, scale));
+  const dw = Math.round(CW * s);
+  const dh = Math.round(CH * s);
+  const dx = Math.round((CW - dw) / 2);
+  const dy = Math.round((CH - dh) / 2);
+
+  if (s < 0.999) {
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, CW, CH);
+  }
+
   const videoAR  = vw / vh;
-  const canvasAR = CW / CH; // 9/16
+  const destAR   = dw / dh;
 
   if (facing === 'front') {
     ctx.save();
     ctx.translate(CW, 0);
     ctx.scale(-1, 1);
   }
+  const ddx = facing === 'front' ? CW - dx - dw : dx;
 
-  if (videoAR > canvasAR) {
-    // Video wider than canvas → crop left/right
+  if (videoAR > destAR) {
     const srcH = vh;
-    const srcW = srcH * canvasAR;
+    const srcW = srcH * destAR;
     const srcX = (vw - srcW) / 2;
-    ctx.drawImage(video, srcX, 0, srcW, srcH, 0, 0, CW, CH);
+    ctx.drawImage(video, srcX, 0, srcW, srcH, ddx, dy, dw, dh);
   } else {
-    // Video taller than canvas → crop top/bottom
     const srcW = vw;
-    const srcH = srcW / canvasAR;
+    const srcH = srcW / destAR;
     const srcY = (vh - srcH) / 2;
-    ctx.drawImage(video, 0, srcY, srcW, srcH, 0, 0, CW, CH);
+    ctx.drawImage(video, 0, srcY, srcW, srcH, ddx, dy, dw, dh);
   }
 
   if (facing === 'front') {
@@ -533,8 +556,8 @@ const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
         const lms     = landmarksRef.current;
         const face    = facingRef.current;
 
-        // 1. Camera (center-cropped, 9:16)
-        drawCamera(ctx, video, face);
+        // 1. Camera (center-cropped, 9:16) — 템플릿별 scale 매트 적용
+        drawCamera(ctx, video, face, pickCameraScale(tmpl));
 
         // 2. Genre effect (border glow / news bar / fitness bar)
         // FIX-VOICE-READ-BOTTOM (2026-04-23): news 장르 'LIVE NEWS' 하단 바가
