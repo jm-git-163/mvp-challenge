@@ -1,8 +1,7 @@
 /**
  * RecordingCamera.tsx
  * expo-camera 기반 카메라 컴포넌트
- * 웹: getUserMedia 카메라 프리뷰 (포즈 추정은 목 모드 동작)
- * 네이티브: 전면 카메라 + 10fps 프레임 캡처 + 영상 녹화
+ * 네이티브: 카메라 방향 지원 + 영상 녹화
  */
 
 import React, {
@@ -15,30 +14,77 @@ import React, {
 import { StyleSheet, View, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import type { CameraView as CameraViewType } from 'expo-camera';
+import type { NormalizedLandmark } from '../../utils/poseUtils';
 
-const FRAME_INTERVAL   = 100;   // 10fps
-const CAPTURE_QUALITY  = 0.25;
+const FRAME_INTERVAL  = 100;   // 10fps
+const CAPTURE_QUALITY = 0.25;
 
 export interface RecordingCameraHandle {
   startRecording: () => Promise<string>;
   stopRecording:  () => void;
   isRecording:    () => boolean;
+  // FIX-Z25 (2026-04-22): 부모가 유저 제스처 스택 안에서 video.play() 를
+  //   한번 더 찔러줄 수 있게 하는 hatch. iOS Safari 의 autoplay gesture
+  //   정책상 컴포넌트 내부 비동기 setup 에서 play() 가 거부될 때,
+  //   "챌린지 시작" 버튼 onPress 에서 이것을 호출해야 안정적으로 풀림.
+  //   네이티브 빌드에서는 no-op.
+  kickPlay?:      () => void;
+  // CAMERA-SWAP (2026-04-23): 녹화 중 전/후면 카메라 전환.
+  //   웹 전용 — 네이티브에서는 no-op. 성공 시 resolve, 실패 시 reject.
+  //   호출자(부모)는 성공 시 자신의 facing state 를 갱신.
+  swapCamera?: (target: 'front' | 'back') => Promise<void>;
 }
 
 interface Props {
+  facing?:             'front' | 'back';
   onFrame?:            (base64: string, width: number, height: number) => void;
   onPermissionDenied?: () => void;
   children?:           React.ReactNode;
   paused?:             boolean;
+  landmarks?:          NormalizedLandmark[];  // used only on web; ignored on native
+  // Canvas compositing props — web only, ignored on native
+  template?:           any;
+  elapsed?:            number;
+  currentMission?:     any | null;
+  missionScore?:       number;
+  isRecording?:        boolean;
+  currentTag?:         'perfect' | 'good' | 'fail' | null;
+  tagTimestamp?:       number;
+  combo?:              number;
+  squatCount?:         number;
+  voiceTranscript?:    string;
+  // FIX-Z25: web-only pass-through props (native 에서는 사용 안 함).
+  latestJudgement?:        any;
+  lastSquatCountAt?:       number | null;
+  micPermissionDeniedAt?:  number | null;
+  liveCaptionText?:        string;
+  liveCaptionAccent?:      string;
+  showLiveCaption?:        boolean;
+  // 기존 diag props 도 web only — 웹에서 JSX 전파 시 TS 에러 방지용.
+  showDiagnostics?:        boolean;
+  diagVoiceListening?:     boolean;
+  diagVoiceTranscript?:    string;
+  diagVoiceError?:         string | null;
+  diagVoicePreCheckOk?:    boolean | null;
+  diagVoiceSupported?:     boolean;
+  diagPoseStatus?:         string;
+  diagPoseLandmarkCount?:  number;
+  diagIsRealPose?:         boolean;
+  diagSquatCount?:         number;
+  diagSquatTarget?:        number;
+  diagSquatPhase?:         string;
+  diagSquatReady?:         boolean;
+  diagSquatFaceOk?:        boolean;
+  diagSquatBodyOk?:        boolean;
 }
 
 const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
-  ({ onFrame, onPermissionDenied, children, paused = false }, ref) => {
+  ({ facing = 'front', onFrame, onPermissionDenied, children, paused = false }, ref) => {
     const [permission, requestPermission] = useCameraPermissions();
-    const cameraRef        = useRef<CameraViewType>(null);
-    const frameTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
-    const isRecordingRef   = useRef(false);
-    const isCaptureRef     = useRef(false);
+    const cameraRef      = useRef<CameraViewType>(null);
+    const frameTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+    const isRecordingRef = useRef(false);
+    const isCaptureRef   = useRef(false);
 
     // 권한 요청
     useEffect(() => {
@@ -50,9 +96,9 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
       }
     }, [permission]);
 
-    // 프레임 캡처 루프 (네이티브 전용 — 웹은 목 포즈로 자동 처리)
+    // 프레임 캡처 루프 (네이티브 전용)
     const captureFrame = useCallback(async () => {
-      if (Platform.OS === 'web') return;        // 웹은 목 모드에서 자동 생성
+      if (Platform.OS === 'web') return;
       if (!cameraRef.current || isCaptureRef.current || paused) return;
       isCaptureRef.current = true;
       try {
@@ -66,7 +112,7 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
           onFrame(photo.base64, photo.width || 256, photo.height || 256);
         }
       } catch {
-        // 프레임 단위 실패 무시
+        // frame-level error, ignored
       } finally {
         isCaptureRef.current = false;
       }
@@ -75,15 +121,15 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
     useEffect(() => {
       if (!permission?.granted || Platform.OS === 'web') return;
       frameTimerRef.current = setInterval(captureFrame, FRAME_INTERVAL);
-      return () => { if (frameTimerRef.current) clearInterval(frameTimerRef.current); };
+      return () => {
+        if (frameTimerRef.current) clearInterval(frameTimerRef.current);
+      };
     }, [captureFrame, permission?.granted]);
 
-    // 외부에서 호출 가능한 녹화 핸들
     useImperativeHandle(ref, () => ({
       startRecording: () =>
         new Promise<string>((resolve, reject) => {
           if (Platform.OS === 'web') {
-            // 웹: 5초 후 빈 URI 반환 (시뮬레이션)
             setTimeout(() => resolve(''), 5000);
             return;
           }
@@ -91,7 +137,10 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
           isRecordingRef.current = true;
           cameraRef.current
             .recordAsync({ maxDuration: 60 })
-            .then((r) => { isRecordingRef.current = false; resolve(r?.uri ?? ''); })
+            .then((r) => {
+              isRecordingRef.current = false;
+              resolve(r?.uri ?? '');
+            })
             .catch(reject);
         }),
 
@@ -103,7 +152,6 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
       isRecording: () => isRecordingRef.current,
     }));
 
-    // 웹: 브라우저 카메라 없이도 어두운 배경으로 대체
     if (!permission?.granted && Platform.OS !== 'web') {
       return <View style={styles.container} />;
     }
@@ -114,18 +162,17 @@ const RecordingCamera = forwardRef<RecordingCameraHandle, Props>(
           <CameraView
             ref={cameraRef}
             style={StyleSheet.absoluteFill}
-            facing={'front' as CameraType}
+            facing={facing as CameraType}
             mode="video"
             videoQuality="720p"
           />
         ) : (
-          // 웹: 카메라 프리뷰 대신 어두운 배경 + 목 오버레이 표시
           <View style={[StyleSheet.absoluteFill, styles.webPlaceholder]} />
         )}
         {children}
       </View>
     );
-  }
+  },
 );
 
 RecordingCamera.displayName = 'RecordingCamera';

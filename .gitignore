@@ -40,3 +40,14 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+.vercel
+.claude/worktrees/
+
+# secrets / 개인 메모 (로컬 전용)
+*api*.txt
+*API*.txt
+secrets.txt
+secrets/
+*.secret
+
