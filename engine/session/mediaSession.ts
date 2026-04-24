@@ -269,6 +269,14 @@ export class MediaSession {
     let lastErr: unknown = null;
     for (const constraints of chain) {
       try {
+        // FIX-INVITE-EXHAUSTIVE (2026-04-24): 모든 getUserMedia 호출 지점에 스택 로깅.
+        //   사용자 제보 시 콘솔에서 `[perm-src]` 로 grep 해 어떤 경로에서 권한
+        //   프롬프트가 실제 발생했는지 정확히 추적 가능. 싱글톤 외부의 호출이
+        //   발견되면 CLAUDE.md §3 #13 위반.
+        try {
+          const stack = new Error().stack?.split('\n').slice(2, 6).join(' | ') ?? '';
+          console.info('[perm-src] getUserMedia called from mediaSession.acquireInternal', { constraints, stack });
+        } catch {}
         const stream = await this.getUserMediaImpl(constraints);
         this.attachTrackWatchers(stream);
         this.stream = stream;

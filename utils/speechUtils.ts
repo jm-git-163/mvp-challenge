@@ -183,6 +183,19 @@ export function disposeGlobalSpeechRecognizer(): void {
   }
 }
 
+// ── Kakao in-app WebView 감지 ─────────────────────────────────────────────────
+// FIX-INVITE-EXHAUSTIVE (2026-04-24): 카카오톡 in-app 브라우저는
+//   (a) webkitSpeechRecognition 이 Google ASR 서버에 닿지 못해 매번 실패,
+//   (b) 각 SpeechRecognition.start() 호출마다 Android 시스템 mic 권한 UI 를
+//       재표시하는 WebView 버그가 있다. 따라서 Kakao WebView 에서는 SR 을
+//       완전히 비활성화하고, 음성 미션은 마이크 볼륨 기반으로만 동작한다.
+export function isKakaoInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = (navigator.userAgent || '').toLowerCase();
+  // 'kakaotalk' 이 standard UA 에 포함되며, Inline 앱의 경우 'kakaostory' 도 포함.
+  return ua.includes('kakaotalk') || ua.includes('kakaostory');
+}
+
 // ── SpeechRecognition 래퍼 ────────────────────────────────────────────────────
 // 핵심: 인스턴스 1개를 전체 세션 동안 재사용
 //       new SpeechRecognition() 생성 = Chrome 마이크 팝업 재표시
@@ -206,10 +219,25 @@ export class SpeechRecognizer {
   private retryCountRef = 0;
   private static RETRY_MAX = 5;
   private static RETRY_DELAY_MS = 1000;
+  // FIX-INVITE-EXHAUSTIVE (2026-04-24): onend-driven restart 누적 카운터.
+  //   일부 Android WebView (Kakao 아님에도 Naver/Facebook in-app 등) 에서 start()
+  //   가 조용히 mic 권한 UI 를 재표시하는 경우가 있어, 세션 당 무한 재시작을
+  //   30 회로 하드캡. 이를 초과하면 _listening=false 로 놓고 onFinal 호출 후 종료.
+  private restartCountRef = 0;
+  private static RESTART_MAX = 30;
 
   constructor() {
     this.lastEvent = 'init: webkit-api-check';
     if (typeof window !== 'undefined') {
+      // FIX-INVITE-EXHAUSTIVE (2026-04-24): Kakao in-app WebView 는 SR 을 아예 막는다.
+      //   Google ASR 미연결 + start() 마다 mic 권한 UI 재표시 = 사용자가 보는 "권한 팝업 루프".
+      //   supported=false 로 두면 useJudgement 의 `sr.isSupported()` 체크가 false 가 되어
+      //   listen() 자체가 호출되지 않는다. 점수는 볼륨 기반 폴백(현재는 0) 으로.
+      if (isKakaoInAppBrowser()) {
+        this.supported = false;
+        this.lastEvent = 'init: kakao-webview blocked';
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRec) {
@@ -337,6 +365,8 @@ export class SpeechRecognizer {
     this._finalText  = '';
     this._targetText = targetText ?? '';
     this.rec.lang    = lang === 'ko' ? 'ko-KR' : 'en-US';
+    this.restartCountRef = 0;
+    try { console.info('[perm-src] SR.listen() called (initial start follows)'); } catch {}
 
     // FIX-Z9 (2026-04-22): 모바일 Chrome 에서 continuous=true 는 구글 ASR 백엔드가
     //   10~15초 후 무응답으로 세션을 끊지만 onend 가 즉시 발생하지 않음 → dead state.
@@ -398,7 +428,9 @@ export class SpeechRecognizer {
       if (recoverable && this._listening && this._gen === myGen) {
         if (this.retryCountRef < SpeechRecognizer.RETRY_MAX) {
           this.retryCountRef += 1;
+          this.restartCountRef += 1;
           this.lastEvent = `onerror: ${e.error} → auto-retry #${this.retryCountRef}`;
+          try { console.info('[perm-src] SR.start() from onerror auto-retry', this.retryCountRef); } catch {}
           setTimeout(() => {
             if (!this._listening || this._gen !== myGen) return;
             try { this.rec?.start(); }
@@ -453,7 +485,18 @@ export class SpeechRecognizer {
         }
       } catch {}
       if (this._listening && this._gen === myGen) {
-        this.lastEvent = `onend #${this.endCount} → restart`;
+        // FIX-INVITE-EXHAUSTIVE (2026-04-24): 하드캡 30 회. 초과 시 무한 재시작 중단.
+        //   이 경로에서만 start() 가 실행되므로 이를 막으면 onend 루프가 끝난다.
+        if (this.restartCountRef >= SpeechRecognizer.RESTART_MAX) {
+          this._listening = false;
+          this.lastEvent = `onend #${this.endCount} → restart-cap(${SpeechRecognizer.RESTART_MAX}) reached, giving up`;
+          this.lastError = '음성 인식 재시작 한도 초과';
+          try { onFinal(this._finalText || accumulated.trim()); } catch {}
+          return;
+        }
+        this.restartCountRef++;
+        this.lastEvent = `onend #${this.endCount} → restart #${this.restartCountRef}`;
+        try { console.info('[perm-src] SR.restart from onend #', this.restartCountRef); } catch {}
         // Chrome InvalidStateError 회피: 100ms 지연 후 재시작
         setTimeout(() => {
           if (!this._listening || this._gen !== myGen) return;
@@ -577,16 +620,12 @@ export async function checkSpeechCapability(): Promise<{ ok: boolean; reason?: s
     }
     return { ok: false, reason: 'SpeechRecognition API 없음 (Chrome/Edge 권장)' };
   }
-  // permissions.query 는 브라우저별 지원 편차가 커서 실패해도 무시.
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anyNav = navigator as any;
-    if (anyNav.permissions?.query) {
-      const status = await anyNav.permissions.query({ name: 'microphone' });
-      if (status?.state === 'denied') {
-        return { ok: false, reason: '마이크 권한 거부됨 (브라우저 설정에서 허용)' };
-      }
-    }
-  } catch { /* ignore */ }
+  // FIX-INVITE-EXHAUSTIVE (2026-04-24): navigator.permissions.query({name:'microphone'})
+  //   호출 제거. 일부 Android WebView (Kakao/Naver 등) 에서 "권한 상태 조회" 호출이
+  //   내부적으로 시스템 마이크 권한 UI 를 재표시하는 회귀가 관측됨. 권한 상태는
+  //   getUserMedia 의 NotAllowedError 로 표면화되므로 사전 조회가 없어도 기능 동일.
+  if (isKakaoInAppBrowser()) {
+    return { ok: false, reason: '카카오톡 인앱 브라우저는 음성 인식 미지원 — 외부 브라우저(크롬)에서 열어주세요' };
+  }
   return { ok: true };
 }

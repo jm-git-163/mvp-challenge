@@ -55,10 +55,14 @@ let _analyser: AnalyserNode | null = null;
 function setupAudioAnalyser(): void {
   if (_analyser || typeof window === 'undefined') return;
   try {
-    const stream = (window as any).__cameraStream as MediaStream | undefined;
+    // FIX-INVITE-EXHAUSTIVE (2026-04-24): 싱글톤 스트림 우선. __cameraStream 이
+    //   아직 세팅되기 전에도 (__permissionStream 가 먼저) 볼륨 측정 가능.
+    const w = window as any;
+    const stream = (w.__cameraStream ?? w.__permissionStream) as MediaStream | undefined;
     if (!stream) return;
     const audioTrack = stream.getAudioTracks()[0];
     if (!audioTrack || audioTrack.readyState !== 'live') return;
+    try { console.info('[perm-src] AudioContext+createMediaStreamSource from useJudgement.setupAudioAnalyser'); } catch {}
     _audioCtx = new AudioContext();
     const source = _audioCtx.createMediaStreamSource(stream);
     _analyser = _audioCtx.createAnalyser();
