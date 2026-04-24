@@ -115,6 +115,62 @@ describe('shouldAcceptSquatCount — 60fps 중복 카운트 차단', () => {
     if (shouldAcceptSquatCount(rep2At, lastAccepted)) { accepted++; lastAccepted = rep2At; }
     expect(accepted).toBe(2);
   });
+
+  // FIX-BURST-SPAM (2026-04-24): 요청 시나리오 3 종 회귀 방지.
+  //   useJudgement 훅 자체는 Zustand+MediaPipe 의존으로 단위 테스트 무거움 →
+  //   대신 시간 게이트 순수 함수로 동일 시나리오를 검증한다. acceptCountTick 안의
+  //   타임스탬프 갱신 로직(통과 시에만 lastAccepted 기록) 과 1:1 매칭된다.
+  it('5초간 60fps 스쿼트 sine 웨이브 (1.5s 주기 → 3 reps) → accept = 3', () => {
+    // 60fps * 5s = 300 프레임. 각 프레임마다 sine 의 rising edge (bottom→top 전이)
+    // 를 감지했다고 가정하고 후보로 공급. 실제 rising edge 는 주기당 1 번 (= 3 번)
+    // 이지만, MoveNet 노이즈로 edge 주변에 여러 후보 spike 가 몰린다고 가정.
+    const fps = 60;
+    const frames = fps * 5;
+    const periodMs = 1500;
+    let lastAccepted = 0;
+    let accepted = 0;
+    for (let i = 0; i < frames; i++) {
+      const tMs = (i / fps) * 1000;
+      // rising edge 의 ±100ms 안을 모두 후보로 — 각 edge 당 ~12 개 후보 프레임.
+      const phase = tMs % periodMs;
+      const nearEdge = phase < 100 || phase > periodMs - 100;
+      if (!nearEdge) continue;
+      if (shouldAcceptSquatCount(tMs, lastAccepted)) {
+        accepted++;
+        lastAccepted = tMs;
+      }
+    }
+    // 5000ms / 1500ms 주기 → 3~4 개 edge 가능. 500ms 게이트로 최대 10 회, 실제는 edge 수.
+    // sine 한 주기 당 rising edge = 1 개이므로 3 개 정도가 이상적.
+    expect(accepted).toBeGreaterThanOrEqual(3);
+    expect(accepted).toBeLessThanOrEqual(4);
+  });
+
+  it('100ms 안에 30 개 rising-edge spike 몰림 → accept = 1 (지터 방어)', () => {
+    let lastAccepted = 0;
+    let accepted = 0;
+    for (let i = 0; i < 30; i++) {
+      const tMs = 1000 + (i / 29) * 100; // 0~100ms 에 30 spike
+      if (shouldAcceptSquatCount(tMs, lastAccepted)) {
+        accepted++;
+        lastAccepted = tMs;
+      }
+    }
+    expect(accepted).toBe(1);
+  });
+
+  it('10 개 rising edge 600ms 간격 → accept = 10 (정상 천천히 스쿼트)', () => {
+    let lastAccepted = 0;
+    let accepted = 0;
+    for (let i = 0; i < 10; i++) {
+      const tMs = 1000 + i * 600;
+      if (shouldAcceptSquatCount(tMs, lastAccepted)) {
+        accepted++;
+        lastAccepted = tMs;
+      }
+    }
+    expect(accepted).toBe(10);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

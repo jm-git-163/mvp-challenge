@@ -1517,6 +1517,13 @@ export default function RecordScreen() {
   const prevCountdownRef  = useRef<number>(3);
   const comboRef          = useRef(0);
   const burstTimerRef     = useRef<ReturnType<typeof setTimeout>|null>(null);
+  // FIX-BURST-SPAM (2026-04-24): 판정 팝업 쿨다운·안정성 추적.
+  //   lastBurstAtRef: 가장 최근 팝업이 떠오른 시각 — 500ms 쿨다운 체크용.
+  //   tagChangedAtRef: tag 가 마지막으로 바뀐 시각 — 안정성 200ms 체크용.
+  //   prevSquatBurstCountRef: squatCount 증가 감지로 1 rep 당 1 팝업 보장.
+  const lastBurstAtRef    = useRef<number>(0);
+  const tagChangedAtRef   = useRef<number>(0);
+  const prevSquatBurstCountRef = useRef(0);
   const prevMissionSeqRef = useRef<number|null>(null);
   const bgmStopRef        = useRef<(()=>void)|null>(null);
   const scoreAccumRef     = useRef<number[]>([]);
@@ -1731,32 +1738,55 @@ export default function RecordScreen() {
         if (m.guide_text) speakMission(m.guide_text);
       }
     }
+    // FIX-BURST-SPAM (2026-04-24): 판정 팝업(퍼펙트/굿/아쉬워) 무차별 난사 근절.
+    //   사용자 제보: "내 결과 무관한 퍼팩트..굿..아쉬워요..막 엄청 뜨고".
+    //   근본 원인:
+    //     (1) result.tag 는 연속 스코어(무릎각도/voice 유사도) 에서 임계값 한 번
+    //         스치기만 해도 perfect↔good↔fail 을 rAF 60fps 로 토글.
+    //     (2) fitness 에선 한 rep 안에서 kneeAngle 이 115°↔95° 를 오가며 tag 가
+    //         프레임마다 바뀜 → 1 rep 당 10~20 개 팝업.
+    //   해결:
+    //     (A) fitness 미션: 팝업은 **accepted squat count 증가** 이벤트에만 연동
+    //         (아래 prevSquatBurstRef useEffect 에서 처리). 여기선 fitness 분기에서
+    //         burst 트리거를 skip.
+    //     (B) 비-fitness: 기존 tag-change 트리거 유지하되 최소 500ms 쿨다운 게이트.
+    //     (C) 안정성 게이트: tag 가 200ms 이상 같은 값으로 유지됐을 때만 emit.
     if (result.tag !== prevTagRef.current) {
       const prev = prevTagRef.current;
+      const nowMs = performance.now();
       prevTagRef.current = result.tag;
+      tagChangedAtRef.current = nowMs;
       // TEAM-CHAOS (2026-04-23 v3): 사용자 피드백 "퍼펙트·몇개했니·콤보 끝없이 외쳐대 난리".
       //   fitness 템플릿은 rep 단위 SFX (playSound tick/combo/amazing) 가 이미 충분 →
       //   여기서 추가 speakJudgement TTS 는 전부 차단. perfect/good/fail 사운드만 재생.
       const isFitness = activeTemplate?.genre === 'fitness';
       if (result.tag === 'perfect') {
-        playSound('perfect'); setCharState('perfect'); addParticles(); bounceChar();
+        if (!isFitness) { playSound('perfect'); setCharState('perfect'); addParticles(); bounceChar(); }
         comboRef.current += 1; setCombo(comboRef.current);
         if (!isFitness) {
           if (comboRef.current >= 3) { playSound('combo'); speakJudgement('combo'); } else speakJudgement('perfect');
         }
       } else if (result.tag === 'good') {
-        playSound('good'); setCharState('good'); bounceChar();
+        if (!isFitness) { playSound('good'); setCharState('good'); bounceChar(); }
         comboRef.current += 1; setCombo(comboRef.current);
         if (!isFitness) speakJudgement('good');
       } else {
         if (comboRef.current >= 2 && !isFitness) { playSound('oops'); speakJudgement('fail'); }
-        comboRef.current = 0; setCombo(0); setCharState('fail');
+        comboRef.current = 0; setCombo(0);
+        if (!isFitness) setCharState('fail');
       }
-      if (result.tag !== 'fail' || prev !== 'fail') {
-        if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
-        setBurstTag(result.tag); setBurstVisible(true);
-        setTagStampTs(performance.now());
-        burstTimerRef.current = setTimeout(() => setBurstVisible(false), 900);
+      // FIX-BURST-SPAM: fitness 는 burst 를 여기서 띄우지 않음 (squatCount 기반으로만 띄움).
+      // 비-fitness 도 500ms 쿨다운 통과 시에만 새 팝업.
+      if (!isFitness) {
+        const canBurst = (result.tag !== 'fail' || prev !== 'fail')
+          && (nowMs - lastBurstAtRef.current >= 500);
+        if (canBurst) {
+          if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+          setBurstTag(result.tag); setBurstVisible(true);
+          setTagStampTs(nowMs);
+          lastBurstAtRef.current = nowMs;
+          burstTimerRef.current = setTimeout(() => setBurstVisible(false), 900);
+        }
       }
     }
   }, [landmarks, state, elapsed]);
@@ -1787,6 +1817,35 @@ export default function RecordScreen() {
       prevSquatSfxRef.current = squatCount;
     }
   }, [squatCount]);
+
+  // FIX-BURST-SPAM (2026-04-24): fitness 판정 팝업은 오직 accepted squat count 증가
+  //   이벤트에서만 1 번 터진다. useJudgement 내부 acceptCountTick (500ms 시간게이트)
+  //   을 통과한 카운트만 squatCount state 를 올리므로, 여기서 그 증분을 감지하면
+  //   "실제로 성공한 1 rep" 과 정확히 1:1 매칭된다. 프레임당 tag 토글로 인한
+  //   퍼펙트·굿·아쉬워 난사 근절.
+  useEffect(() => {
+    const isFitness = activeTemplate?.genre === 'fitness';
+    if (!isFitness) { prevSquatBurstCountRef.current = squatCount; return; }
+    if (squatCount > prevSquatBurstCountRef.current) {
+      const now = performance.now();
+      prevSquatBurstCountRef.current = squatCount;
+      // 500ms 쿨다운 (이미 카운트 자체가 500ms 게이트 통과했으므로 사실상 항상 통과).
+      if (now - lastBurstAtRef.current < 500) return;
+      // 이 rep 의 깊이·템포 기반 tag 계산: currentTag 가 이 시점의 판정 상태.
+      // currentTag 는 fail 일 때도 squat count 는 증가할 수 있으므로 good 을 기본값으로.
+      const tagForRep: JudgementTag = currentTag === 'fail' ? 'good' : currentTag;
+      setBurstTag(tagForRep);
+      setBurstVisible(true);
+      setTagStampTs(now);
+      lastBurstAtRef.current = now;
+      if (tagForRep === 'perfect') { setCharState('perfect'); addParticles(); bounceChar(); }
+      else if (tagForRep === 'good') { setCharState('good'); bounceChar(); }
+      if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = setTimeout(() => setBurstVisible(false), 900);
+    } else if (squatCount < prevSquatBurstCountRef.current) {
+      prevSquatBurstCountRef.current = squatCount;
+    }
+  }, [squatCount, activeTemplate?.genre, currentTag, addParticles, bounceChar]);
 
   useEffect(() => {
     if (state === 'recording') {
