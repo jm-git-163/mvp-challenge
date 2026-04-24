@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { scoreToTag } from './useJudgement';
+import { scoreToTag, shouldAcceptSquatCount, SQUAT_MIN_COUNT_GAP_MS } from './useJudgement';
 import { detectGesture, type NormalizedLandmark } from '../utils/poseUtils';
 
 describe('scoreToTag — 임계값 정직성', () => {
@@ -41,6 +41,79 @@ describe('scoreToTag — 임계값 정직성', () => {
 
   it('점수 1.0 → perfect', () => {
     expect(scoreToTag(1.0)).toBe('perfect');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX-SQUAT-60FPS (2026-04-24): 스쿼트 카운트 전역 시간 게이트.
+//   사용자 제보: "한번 내려갈 때 두번씩 카운트". rAF 60fps 에서 프레임 기반
+//   디바운스가 33ms 로 줄어 같은 rep 에서 카운트 2 회 발생. 500ms 최소 간격.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('shouldAcceptSquatCount — 60fps 중복 카운트 차단', () => {
+  it('기본 상수 = 500ms (2 reps/sec 상한)', () => {
+    expect(SQUAT_MIN_COUNT_GAP_MS).toBe(500);
+  });
+
+  it('첫 카운트는 항상 통과 (lastAccepted = 0)', () => {
+    expect(shouldAcceptSquatCount(1000, 0)).toBe(true);
+  });
+
+  it('60fps 한 rep 안에서 연속 2 카운트 후보 → 두 번째 거부', () => {
+    // 실제 스쿼트 1 rep = 700~1200ms. 60fps rAF 에선 한 rep 안에서 여러 프레임이
+    // 같은 ascending edge 를 본다 — 33ms 차이로 두 번째 카운트 후보가 들어오는
+    // 시나리오. lastAccepted 가 방금 기록됐으면 거부되어야 한다.
+    const firstAt = 1000;
+    const secondAt = firstAt + 33; // 60fps 1 프레임
+    expect(shouldAcceptSquatCount(firstAt, 0)).toBe(true);
+    expect(shouldAcceptSquatCount(secondAt, firstAt)).toBe(false);
+  });
+
+  it('300ms 간격 두 카운트 → 두 번째 거부 (너무 빠른 rep 불가)', () => {
+    // 사람이 300ms 만에 스쿼트 1 rep 은 물리적으로 불가 — 지터 신호.
+    expect(shouldAcceptSquatCount(1300, 1000)).toBe(false);
+  });
+
+  it('500ms 정확히 → 통과 (경계값)', () => {
+    expect(shouldAcceptSquatCount(1500, 1000)).toBe(true);
+  });
+
+  it('700ms 간격 (정상 스쿼트 템포) → 통과', () => {
+    expect(shouldAcceptSquatCount(1700, 1000)).toBe(true);
+  });
+
+  it('60fps 시뮬레이션: 1 초 안에 30 프레임 모두 +1 후보 → 실제 accept = 2 개 이하', () => {
+    // 실제 스쿼트 rep 은 1 초 안에 최대 1~2 개 — 30 프레임 모두 count 후보가 와도
+    // 시간 게이트를 통과한 개수는 2 개를 넘으면 안 된다.
+    let lastAccepted = 0;
+    let accepted = 0;
+    for (let i = 0; i < 30; i++) {
+      const now = 1000 + i * (1000 / 30); // 60fps 와 유사한 촘촘함
+      if (shouldAcceptSquatCount(now, lastAccepted)) {
+        accepted++;
+        lastAccepted = now;
+      }
+    }
+    expect(accepted).toBeLessThanOrEqual(2);
+  });
+
+  it('2 rep 을 300ms 간격으로 시도 → 실제 1 rep 만 통과 (두 번째 거부)', () => {
+    let lastAccepted = 0;
+    const rep1At = 1000;
+    const rep2At = 1300; // 너무 빠름
+    let accepted = 0;
+    if (shouldAcceptSquatCount(rep1At, lastAccepted)) { accepted++; lastAccepted = rep1At; }
+    if (shouldAcceptSquatCount(rep2At, lastAccepted)) { accepted++; lastAccepted = rep2At; }
+    expect(accepted).toBe(1);
+  });
+
+  it('2 rep 을 700ms 간격으로 시도 → 둘 다 통과 (정상 스쿼트)', () => {
+    let lastAccepted = 0;
+    const rep1At = 1000;
+    const rep2At = 1700;
+    let accepted = 0;
+    if (shouldAcceptSquatCount(rep1At, lastAccepted)) { accepted++; lastAccepted = rep1At; }
+    if (shouldAcceptSquatCount(rep2At, lastAccepted)) { accepted++; lastAccepted = rep2At; }
+    expect(accepted).toBe(2);
   });
 });
 

@@ -35,6 +35,27 @@ export function scoreToTag(score: number): JudgementTag {
   return 'fail';
 }
 
+/**
+ * FIX-SQUAT-60FPS (2026-04-24): 스쿼트 카운트 전역 시간 게이트.
+ *
+ * rAF 30~60fps 에서 full-body / HSS / nose / close 4 개 디텍터가 각자
+ * 내부 디바운스(600ms) 만으로는 서로 독립 동작 → 100ms 이내 +2 카운트 가능.
+ * 또한 기존 프레임 기반 디바운스(2 프레임)가 60fps 에선 33ms 로 줄어 같은
+ * rep 에서 2 번 카운트되는 사용자 제보 ("한번 내려갈 때 두번씩") 의 근본 원인.
+ *
+ * 500ms 최소 간격 = 2 reps/sec — 실제 인간 스쿼트(700~1200ms/rep) 상한보다 빠름.
+ *
+ * 순수 함수로 분리 — vitest 단위테스트 용이.
+ */
+export const SQUAT_MIN_COUNT_GAP_MS = 500;
+export function shouldAcceptSquatCount(
+  nowMs: number,
+  lastAcceptedMs: number,
+  minGapMs: number = SQUAT_MIN_COUNT_GAP_MS,
+): boolean {
+  return nowMs - lastAcceptedMs >= minGapMs;
+}
+
 function getCurrentMission(missions: Mission[], elapsedMs: number): Mission | null {
   return missions.find((m) => elapsedMs >= m.start_ms && elapsedMs < m.end_ms) ?? null;
 }
@@ -267,6 +288,19 @@ export function useJudgement(): {
   const [squatCount, setSquatCount]           = useState(0);
   const [squatMode, setSquatMode]             = useState<'full-body' | 'near-mode' | 'idle'>('idle');
 
+  // FIX-SQUAT-60FPS (2026-04-24): rAF 30~60fps 전환 후 사용자 제보 "한 번에 2 카운트".
+  //   이전 로직은 프레임 기반 디바운스(2 프레임) — 10fps 일 땐 200ms, 60fps 일 땐 33ms.
+  //   또한 full-body/HSS/nose/close 4개 디텍터가 각자 내부 600ms 디바운스를 갖지만
+  //   서로는 독립이라 100ms 이내에 2개가 터질 수 있다. 전역 time-gate 로 통합 상한.
+  //   500ms = 2 reps/sec — 실제 스쿼트(700~1200ms/rep) 보다 빠를 수 없는 속도.
+  const lastCountAtMsRef = useRef<number>(0);
+  /** 카운트 후보가 들어오면 시간 게이트를 통과했는지 반환하고 통과 시 타임스탬프 기록. */
+  const acceptCountTick = useCallback((nowMs: number): boolean => {
+    if (!shouldAcceptSquatCount(nowMs, lastCountAtMsRef.current)) return false;
+    lastCountAtMsRef.current = nowMs;
+    return true;
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────────────
   const judge = useCallback(
     (landmarks: NormalizedLandmark[], elapsedMs: number) => {
@@ -488,7 +522,8 @@ export function useJudgement(): {
         //   close 는 absolute count 만 반환하므로 매 프레임 변화를 reject ref 와 비교.
         if (closeState.count > squatCountRef.current + closeRejectedCountRef.current) {
           // 새 rep 1 개가 detector 내부에서 인정됐다.
-          if (hipGate.allow) {
+          // FIX-SQUAT-60FPS (2026-04-24): 전역 500ms 시간 게이트. 통과 실패 시 reject 에 누적.
+          if (hipGate.allow && acceptCountTick(now)) {
             const effective = closeState.count - closeRejectedCountRef.current;
             squatCountRef.current = effective;
             squatCountState.current = effective;
@@ -560,7 +595,9 @@ export function useJudgement(): {
               //   풀바디 경로에도 게이트 적용. 의자에 앉으면 무릎각이 자연스레 90도 →
               //   detectSquat 가 'down' 으로 판정, 미세한 움직임으로 'up' 토글되면 누적 카운트.
               //   hip 이 실제로 움직이지 않았다면 rep 으로 인정 안 함.
-              if (hipGate.allow) {
+              // FIX-SQUAT-60FPS (2026-04-24): 전역 500ms 시간 게이트 — 60fps rAF 에서 2-프레임
+              //   디바운스가 33ms 로 줄어 동일 rep 이 2 번 카운트되는 문제 근본 차단.
+              if (hipGate.allow && acceptCountTick(now)) {
                 squatCountRef.current += 1;
                 squatPhaseRef.current = 'up';
                 squatPhaseOut = 'up';
@@ -594,7 +631,9 @@ export function useJudgement(): {
         //   사용자 제보: 의자에 앉아있는 동안 카운트 12. HSS 는 머리/어깨 신호만 보므로
         //   슬럼프·고개 끄덕임을 스쿼트로 오인식. hipGate.allow=false 면 거부 + reject 누적.
         if (hssRes.justCounted) {
-          if (hipGate.allow) {
+          // FIX-SQUAT-60FPS (2026-04-24): 전역 시간 게이트 — HSS/nose/close/full-body 가
+          //   서로 독립이므로 100ms 이내 서로 다른 디텍터가 연쇄 점화하는 가짜 +2 차단.
+          if (hipGate.allow && acceptCountTick(now)) {
             // HSS 내부 count − 누적 reject = 외부에 반영해야 할 누적 카운트.
             const effective = hssRes.count - hssRejectedCountRef.current;
             if (effective > squatCountRef.current) {
@@ -623,7 +662,8 @@ export function useJudgement(): {
             const noseRes = noseSquatRef.current.update(landmarks, now);
             // TEAM-ACCURACY (2026-04-23): nose-only 디텍터도 hip 진폭 게이트 통과 필수.
             if (noseRes.justCounted) {
-              if (hipGate.allow) {
+              // FIX-SQUAT-60FPS (2026-04-24): 전역 시간 게이트.
+              if (hipGate.allow && acceptCountTick(now)) {
                 const effective = noseRes.count - noseRejectedCountRef.current;
                 if (effective > squatCountRef.current) {
                   squatCountRef.current = effective;
@@ -961,6 +1001,8 @@ export function useJudgement(): {
     squatSourceRef.current = 'idle';
     // FIX-Z20: 다음 녹화용으로 타임아웃 타이머 리셋.
     recordingStartRef.current = null;
+    // FIX-SQUAT-60FPS (2026-04-24): 전역 시간 게이트 리셋 — 다음 세션 첫 rep 이 막히지 않도록.
+    lastCountAtMsRef.current = 0;
     setSquatCount(0);
     setSquatMode('idle');
   }, []);

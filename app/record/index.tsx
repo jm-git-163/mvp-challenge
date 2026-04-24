@@ -2436,19 +2436,30 @@ export default function RecordScreen() {
 
               {isCountdown && <CountdownOverlay count={countdown} templateName={activeTemplate.name} emoji={activeTemplate.theme_emoji} />}
 
-              <TemplateOverlay template={activeTemplate} elapsed={elapsed} isRecording={isRecording && !showIntro} suppressSubtitle={currentMission?.type==='voice_read'} />
-
-              {isRecording && !showIntro && (
-                <View style={r.timingBarWrap}>
-                  {/* FIX-VOICE-READ-TIMINGBAR (2026-04-23): voice_read 미션 중엔 TimingBar 자막 라인 제거.
-                       상단 VoiceTranscriptOverlay 가 이미 대본/transcript 를 크게 표시 → 하단 중복 자막 전면 kill. */}
-                  <TimingBar
-                    template={activeTemplate}
-                    elapsedMs={elapsed}
-                    suppressSubtitle={currentMission?.type === 'voice_read'}
-                  />
-                </View>
-              )}
+              {/* FIX-NEWS-DUP-CAPTION (2026-04-24): 사용자 재제보 — 뉴스 읽기 챌린지에서
+                   seq 1('timing' 미션, 0~5s) 동안 하단 subtitle_timeline 이 "📺 안녕하세요. 뉴스
+                   시작합니다." 한 문장을 표시해, 곧이어 시작되는 voice_read 상단 프롬프터와
+                   충돌해 헷갈린다는 문제. voice_read 미션이 하나라도 포함된 템플릿은 세션 전체
+                   하단 자막을 끈다 (상단 프롬프터가 이미 대본을 크게 표시). */}
+              {(() => {
+                const hasVoiceRead = Array.isArray(activeTemplate?.missions) &&
+                  activeTemplate.missions.some((m: any) => m?.type === 'voice_read');
+                const suppressSub = hasVoiceRead || currentMission?.type === 'voice_read';
+                return (
+                  <>
+                    <TemplateOverlay template={activeTemplate} elapsed={elapsed} isRecording={isRecording && !showIntro} suppressSubtitle={suppressSub} />
+                    {isRecording && !showIntro && (
+                      <View style={r.timingBarWrap}>
+                        <TimingBar
+                          template={activeTemplate}
+                          elapsedMs={elapsed}
+                          suppressSubtitle={suppressSub}
+                        />
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
 
               {isRecording && !showIntro && <JudgementBurst tag={burstTag} combo={combo} visible={burstVisible} />}
 
