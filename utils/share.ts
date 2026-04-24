@@ -429,16 +429,24 @@ export async function sharePlatform(opts: {
   //   this on iOS ONLY. Android Chrome's share sheet routes Kakao through a
   //   path that drops the file MIME and falls back to the Play Store listing,
   //   so on Android we keep the download + toast pattern.
+  //
+  // FIX-KAKAO-PLAYSTORE-v2 (2026-04-24): when `text` contains a URL, some
+  //   iOS share extensions (KakaoTalk in particular) prefer the URL and route
+  //   through their *link* dispatcher, which on an un-installed receiving
+  //   device shows an App Store card that looks identical to the Android Play
+  //   Store redirect users are reporting. We now send **files only** — no
+  //   text, no title with caption — so the extension has nothing to disambig
+  //   away from the mp4.
   if (env.ios && env.canShareFiles(file)) {
     try {
       log('platform.ios.files.attempt', { platform, name: file.name });
       await (navigator as any).share({
         files: [file],
-        text: caption,
-        title: file.name,
       });
       log('platform.ios.files.ok', platform);
-      return { kind: 'web-share', message: '공유 시작됨', downloaded: false, captionCopied: false };
+      // Copy caption silently so the user can paste it after picking a chat.
+      if (caption) { try { await copyToClipboard(caption); } catch {} }
+      return { kind: 'web-share', message: '공유 시작됨', downloaded: false, captionCopied: !!caption };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         log('platform.ios.cancelled', platform);
@@ -460,9 +468,10 @@ export async function sharePlatform(opts: {
     };
   }
 
-  // Deep link must be called in the same task as the tap for iOS.
-  // saveBlobToDevice is synchronous, copyToClipboard we already awaited,
-  // so this still runs from inside the user-gesture callback chain.
+  // NOTE: openDeepLinkFor is a permanent no-op kept only so the symbol can't
+  // be re-wired accidentally. Do NOT replace this with a scheme/intent/https
+  // navigation — every such path has historically landed users on the Play
+  // Store "KakaoTalk 다운로드" listing.
   openDeepLinkFor(platform);
 
   return {
