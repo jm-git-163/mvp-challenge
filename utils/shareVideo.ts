@@ -102,56 +102,21 @@ async function downloadFile(file: File): Promise<boolean> {
 }
 
 // ── Deep links ──────────────────────────────────────────────────────────
-
-/**
- * Open a deep link. Prefers Android intent → iOS custom scheme → https.
- * Uses location.href (same tab) for custom schemes so the OS can hand off,
- * and a new-tab <a> for https fallback so we don't lose the result page.
- */
-function openDeepLink(urls: { androidIntent?: string; iosScheme?: string; https: string }): void {
-  if (typeof window === 'undefined') return;
-
-  // Mobile: fire the app scheme, then schedule https fallback if the app
-  // didn't grab focus in 1.2s (document still visible).
-  const fireScheme = (scheme: string) => {
-    try { window.location.href = scheme; } catch {}
-  };
-  const openHttpsNewTab = () => {
-    try {
-      const a = document.createElement('a');
-      a.href = urls.https;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch {}
-  };
-
-  if (isAndroid() && urls.androidIntent) {
-    fireScheme(urls.androidIntent);
-    return;
-  }
-  if (isIOS() && urls.iosScheme) {
-    fireScheme(urls.iosScheme);
-    // iOS: if user still here after 1.5s, open web fallback.
-    setTimeout(() => {
-      if (typeof document !== 'undefined' && !document.hidden) openHttpsNewTab();
-    }, 1500);
-    return;
-  }
-  openHttpsNewTab();
-}
-
-// FIX-SHARE-CAMERA-FINAL (2026-04-24): legacy path — no-op out to guarantee
-//   no caller can reach a kakaocorp/m.kakao/studio.youtube https fallback.
-//   The active share pipeline is utils/share.ts (sharePlatform); this function
-//   stays only because imports may still reference it.
+//
+// FIX-KAKAO-PLAYSTORE (2026-04-24): **REMOVED.** Previous versions fired
+// `window.location.href = 'intent://…'` / `kakaotalk://…` / `instagram://…`
+// which on Android resolved to the Play Store "KakaoTalk 다운로드" page when
+// the app's scheme didn't register exactly how we expected. Even though this
+// function had become a no-op via `deepLinkFor`, the raw `fireScheme` closure
+// and the https fallback anchor stayed in the bundle and could be re-wired
+// accidentally. The active share pipeline is utils/share.ts `sharePlatform`,
+// which saves the mp4 + copies caption + shows a toast instructing the user
+// to open the target app manually. No scheme, no intent URI, no https
+// marketing fallback — ever.
 function deepLinkFor(_platform: SharePlatform): void {
-  // Intentionally empty. See utils/share.ts openDeepLinkFor comment.
+  // Intentionally empty. Do NOT reintroduce window.location.href = scheme
+  // or any intent:// URI — those routes cause Play Store redirects.
 }
-// Keep openDeepLink reference alive so TS noUnusedLocals passes where relevant.
-void openDeepLink;
 
 // ── Main entry point ────────────────────────────────────────────────────
 
@@ -194,35 +159,16 @@ export async function shareVideoToSns(opts: ShareVideoOptions): Promise<ShareRes
   const downloaded = await downloadFile(file);
   const captionCopied = caption ? await copyToClipboard(caption) : false;
 
-  // FIX-SHARE-AUTOOPEN (2026-04-23): fire deep-link for platform-specific
-  // routes on ALL devices — desktop users still land in the platform's web
-  // upload page (youtube studio, instagram web, etc.), which is what the
-  // user asked for ("다운로드만 되고 아무것도 안 열림"). On mobile we delay
-  // briefly so the <a download> has a chance to commit the file to disk
-  // before the same-tab scheme nav pulls focus away from the browser.
-  if (platform !== 'native') {
-    const fireDeep = () => deepLinkFor(platform);
-    if (isMobile()) {
-      // 700ms: long enough for download toast, short enough to feel instant.
-      setTimeout(fireDeep, 700);
-    } else {
-      // Desktop: new tab opens immediately, download continues in background.
-      fireDeep();
-    }
-  }
-
-  // FIX-SHARE-AUTOOPEN: even for 'native' platform, if Web Share fell through
-  // (canUseWebShareFiles=false) we now have no OS share sheet. Open the
-  // generic system share by firing a lightweight text-only navigator.share
-  // if available — otherwise the user just gets download + clipboard.
-  if (platform === 'native' && typeof navigator !== 'undefined'
-      && typeof navigator.share === 'function') {
-    try {
-      // Best-effort, non-blocking. If the browser blocks this because the
-      // user-gesture was consumed, no-op — user already has the file.
-      navigator.share({ text: caption, title: title || file.name }).catch(() => {});
-    } catch {}
-  }
+  // FIX-KAKAO-PLAYSTORE (2026-04-24): no deep link, no auto-fire text share.
+  // The previous text-only `navigator.share({ text, title })` fallback on
+  // Android Chrome re-opened the system share sheet after download; when the
+  // user tapped Kakao there the intent carried no file and Kakao's dispatcher
+  // bounced to the Play Store "KakaoTalk 다운로드" page. Download-only + toast
+  // is the only reliable behaviour on Android.
+  void deepLinkFor;
+  void title;
+  void platform;
+  void isMobile;
 
   if (!downloaded && !captionCopied) {
     return {

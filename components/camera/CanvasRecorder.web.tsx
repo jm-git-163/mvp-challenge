@@ -45,8 +45,10 @@ async function acquireStream(facing: 'front' | 'back'): Promise<MediaStream> {
   const stream = await ensureMediaSession({
     video: {
       facingMode: { ideal: facingMode } as any,
-      width:  { ideal: 1280 },
-      height: { ideal: 720 },
+      // FIX-CAMERA-ZOOM (2026-04-24): 1080p 16:9 요청 → 센서가 더 넓은 FOV 선택.
+      width:  { ideal: 1920 },
+      height: { ideal: 1080 },
+      aspectRatio: { ideal: 16 / 9 } as any,
     },
     audio: { echoCancellation: true, noiseSuppression: true },
   });
@@ -74,12 +76,33 @@ function getGenreColor(genre: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Camera scale picker
+// ---------------------------------------------------------------------------
+// FIX-CAMERA-ZOOM (2026-04-24): 이전 시도(작은 dest-rect + COVER) 는
+//   COVER 크롭이 같은 AR 로 다시 채워져 "얼굴이 꽉 찬" 느낌이 그대로 남음.
+//   진짜 축소는 (a) 더 넓은 FOV 를 받아오고 (b) CONTAIN fit 으로 전체 프레임이
+//   작은 박스 안에 들어가게 그려야 한다. fitness/squat/dance 는 전신 운동
+//   피드백이 중요하므로 1.0 유지. 나머지 모든 장르는 0.62 로 축소.
+function pickCameraScale(template: any): number {
+  const g = String(template?.genre ?? '').toLowerCase();
+  const type = String(template?.mission_type ?? '').toLowerCase();
+  const isFitness =
+    g === 'fitness' ||
+    g === 'dance' ||
+    type === 'squat' ||
+    type === 'dance';
+  return isFitness ? 1.0 : 0.62;
+}
+
+// ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
   facing: 'front' | 'back',
+  scale: number = 1.0,
+  state?: { cameraRect?: { x: number; y: number; w: number; h: number } },
 ) {
   if (video.readyState < 2) return; // HAVE_CURRENT_DATA
   const vw = video.videoWidth;
@@ -89,6 +112,42 @@ function drawCamera(
   const videoAR  = vw / vh;
   const canvasAR = CW / CH; // 9/16
 
+  if (scale < 1.0) {
+    // CONTAIN fit — whole video fits inside a centered box (scale*CW × scale*CH).
+    // 박스 안에서 또 videoAR 에 맞춰 letterbox/pillarbox → 얼굴이 절대 크기로 축소됨.
+    const boxW = CW * scale;
+    const boxH = CH * scale;
+    const boxX = (CW - boxW) / 2;
+    const boxY = (CH - boxH) / 2;
+
+    // fit videoAR inside boxW×boxH (CONTAIN)
+    let dw: number, dh: number;
+    if (videoAR > boxW / boxH) {
+      dw = boxW;
+      dh = boxW / videoAR;
+    } else {
+      dh = boxH;
+      dw = boxH * videoAR;
+    }
+    const dx = boxX + (boxW - dw) / 2;
+    const dy = boxY + (boxH - dh) / 2;
+
+    if (facing === 'front') {
+      ctx.save();
+      ctx.translate(CW, 0);
+      ctx.scale(-1, 1);
+      // mirrored dx: right-edge flips to (CW - dx - dw)
+      ctx.drawImage(video, 0, 0, vw, vh, CW - dx - dw, dy, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(video, 0, 0, vw, vh, dx, dy, dw, dh);
+    }
+
+    if (state) state.cameraRect = { x: dx, y: dy, w: dw, h: dh };
+    return;
+  }
+
+  // Legacy COVER path (scale == 1.0, e.g. fitness)
   if (facing === 'front') {
     ctx.save();
     ctx.translate(CW, 0);
@@ -112,6 +171,8 @@ function drawCamera(
   if (facing === 'front') {
     ctx.restore();
   }
+
+  if (state) state.cameraRect = { x: 0, y: 0, w: CW, h: CH };
 }
 
 function drawHeader(
@@ -534,7 +595,8 @@ const CanvasRecorder = forwardRef<CanvasRecorderHandle, CanvasRecorderProps>(
         const face    = facingRef.current;
 
         // 1. Camera (center-cropped, 9:16)
-        drawCamera(ctx, video, face);
+        // FIX-CAMERA-ZOOM (2026-04-24): 장르별 scale 적용.
+        drawCamera(ctx, video, face, pickCameraScale(tmpl));
 
         // 2. Genre effect (border glow / news bar / fitness bar)
         // FIX-VOICE-READ-BOTTOM (2026-04-23): news 장르 'LIVE NEWS' 하단 바가

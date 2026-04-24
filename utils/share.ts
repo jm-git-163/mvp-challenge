@@ -416,10 +416,37 @@ export async function sharePlatform(opts: {
   platform: TargetPlatform;
 }): Promise<ShareResult> {
   const { file, caption, platform } = opts;
-  log('platform.start', { platform, size: file?.size });
+  const env = detectEnv();
+  log('platform.start', { platform, size: file?.size, env });
 
   if (!file || file.size < 10 * 1024) {
     return { kind: 'unsupported', message: '영상 파일이 준비되지 않았어요.' };
+  }
+
+  // FIX-KAKAO-PLAYSTORE (2026-04-24): iOS Safari's native share sheet reliably
+  //   hands mp4 files to KakaoTalk/Instagram/TikTok and opens the in-app
+  //   chat/upload picker directly — no Play Store, no download step. We try
+  //   this on iOS ONLY. Android Chrome's share sheet routes Kakao through a
+  //   path that drops the file MIME and falls back to the Play Store listing,
+  //   so on Android we keep the download + toast pattern.
+  if (env.ios && env.canShareFiles(file)) {
+    try {
+      log('platform.ios.files.attempt', { platform, name: file.name });
+      await (navigator as any).share({
+        files: [file],
+        text: caption,
+        title: file.name,
+      });
+      log('platform.ios.files.ok', platform);
+      return { kind: 'web-share', message: '공유 시작됨', downloaded: false, captionCopied: false };
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        log('platform.ios.cancelled', platform);
+        return { kind: 'cancelled', message: '공유가 취소됐어요.', error: e };
+      }
+      log('platform.ios.files.fail', e);
+      // fall through to download + toast
+    }
   }
 
   const downloaded = saveBlobToDevice(file);

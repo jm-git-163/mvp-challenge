@@ -64,8 +64,13 @@ function classifyError(err: unknown): MediaSessionError['kind'] {
 export const DEFAULT_CONSTRAINTS: MediaStreamConstraints = {
   video: {
     facingMode: 'user',
-    width: { ideal: 720, max: 1080 },
-    height: { ideal: 1280, max: 1920 },
+    // FIX-CAMERA-ZOOM (2026-04-24): 사용자 피드백 "얼굴이 너무 크게 찍힌다".
+    //   원인 중 하나는 getUserMedia 가 720p 세로(9:16) 트랙을 요청해 센서가
+    //   좁은 FOV crop 모드로 동작하는 것. 1080p 가로(16:9) 로 요청하면 대부분의
+    //   모바일 카메라가 더 넓은 FOV 로 전환 → 피사체가 상대적으로 작게 들어옴.
+    width:  { ideal: 1920, max: 1920 },
+    height: { ideal: 1080, max: 1080 },
+    aspectRatio: { ideal: 16 / 9 },
     frameRate: { ideal: 30, max: 30 },
   },
   audio: {
