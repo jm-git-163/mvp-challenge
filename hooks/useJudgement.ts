@@ -96,6 +96,24 @@ export function prewarmSpeech(): void {
   //   실패 경로에서도 이 플래그가 남을 수 있어 이후 재시도가 막히는 버그가 있었다.
   if (_voiceActive && _voiceStopFn) return;
 
+  // FIX-INVITE-POPUP-FINAL (2026-04-24): 현재 세션 템플릿에 voice_read 미션이
+  //   **없으면** SpeechRecognition 을 절대 시작하지 않는다. 이전엔 모든 챌린지
+  //   (스쿼트·댄스 등) 진입 시에도 prewarmSpeech 가 sr.listen() 을 호출했고
+  //   Chrome 이 "mic in use" 신호를 주면서 카카오 in-app / 일부 Chromium 에서
+  //   두번째 권한 팝업을 띄우는 원인이 됐다. voice_read 미션이 없으면 Speech API
+  //   를 건드릴 이유 자체가 없다.
+  try {
+    const tpl = (require('../store/sessionStore') as any).useSessionStore?.getState?.()?.activeTemplate;
+    const missions = Array.isArray(tpl?.missions) ? tpl.missions : [];
+    const hasVoiceRead = missions.some((m: any) => m?.type === 'voice_read');
+    if (!hasVoiceRead) {
+      if (typeof console !== 'undefined') {
+        console.info('[prewarmSpeech] skipped — template has no voice_read missions');
+      }
+      return;
+    }
+  } catch { /* fall-through: if we can't inspect, be conservative and proceed */ }
+
   // FIX-F (2026-04-21): 모바일 크롬 대응 — user gesture 스택 안에서 바로 start() 호출.
   // FIX-Z11: listen() 이 내부 start() 실패해도 우리가 플래그를 미리 true 로 세워버리면
   //   judge() / 다음 gesture 재호출이 모두 no-op 이 되어 음성 인식이 "아예 안 되는"

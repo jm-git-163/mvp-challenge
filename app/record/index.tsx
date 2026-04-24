@@ -1543,19 +1543,11 @@ export default function RecordScreen() {
     setCalibrating(false);
   }, [sessionKey]); // eslint-disable-line
 
-  // 화면 진입 시 음성 인식 권한 미리 요청 (녹화 중 팝업 방지)
-  // FIX-Z11 (2026-04-22): 모바일은 mount-path prewarm 스킵.
-  //   모바일 Chrome 은 webkitSpeechRecognition.start() 가 user-gesture 스택
-  //   안에서만 허용. setTimeout(800) 은 이미 gesture context 를 벗어났으므로
-  //   실패. 과거엔 실패해도 _voiceActive=true 로 오염되어 이후 gesture path 도 no-op.
-  //   따라서 데스크톱만 mount 시 prewarm, 모바일은 beginStartFlow 의 gesture path 에 의존.
-  useEffect(() => {
-    if (typeof navigator === 'undefined') return;
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-    if (isMobile) return;
-    const t = setTimeout(prewarmSpeech, 800);
-    return () => clearTimeout(t);
-  }, []); // eslint-disable-line
+  // FIX-INVITE-POPUP-FINAL (2026-04-24): mount-time setTimeout(800) prewarm 제거.
+  //   setTimeout 은 user-gesture 스택을 이탈해 Chrome 이 SpeechRecognition.start()
+  //   를 "프로그래밍적 요청" 으로 분류하고 2차 권한 팝업을 띄우는 원인이었다.
+  //   음성 인식 워밍업은 오직 beginStartFlow (진짜 tap 이벤트 안) 에서만 수행한다.
+  //   또한 prewarmSpeech 자체에 voice_read 미션이 없으면 no-op 하는 가드가 추가됨.
 
   // Focused Commit C-4: activeTemplate 없이 진입 시 router.back() 은 이력 없을 때 실패.
   // router.replace 로 홈 리다이렉트 (Edge/새 탭 직접 링크 대응).

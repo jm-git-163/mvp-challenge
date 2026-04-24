@@ -20,6 +20,7 @@ import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import { useInviteStore } from '../../../store/inviteStore';
 import { parseInviteUrl, buildInviteBannerText, type InviteContext } from '../../../utils/inviteLinks';
+import { pickOfficialSlug } from '../../../utils/officialSlug';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../../services/supabaseThumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
@@ -93,12 +94,25 @@ export default function ChallengeInviteScreen() {
       && typeof t.duration_sec === 'number'
       && Array.isArray(t.missions);
 
+    // FIX-INVITE-SLUG-ROUTING (2026-04-24): 프로덕션 Supabase 템플릿은 id 가 UUID
+    //   ('e2d9cc60-...') 라서 기존 `id.startsWith('fitness-squat')` 등 레거시 접두
+    //   매칭이 **단 한 건도** 성립하지 않는다. 결과적으로 `dbHit === undefined` 가
+    //   되어 아래 `firstValid` 폴백 (Supabase 가 created_at DESC 로 내려주는 첫
+    //   row = 보통 daily-vlog) 이 리턴 → 사용자가 squat 도전장을 보냈는데 수신자는
+    //   브이로그를 받는 버그. pickOfficialSlug(t) 는 UUID/레거시 id 양쪽 다 공식
+    //   slug 로 정규화하므로, 송신측(pickOfficialSlug 로 slug 결정)과 **동일한 함수**
+    //   로 수신측에서도 매칭해 왕복 라운드트립을 보장한다.
     const dbHit = templates.find(t => {
       if (!isValidDb(t)) return false;
       const id = String((t as any).id ?? '').toLowerCase();
       const slug = String((t as any).slug ?? '').toLowerCase();
       const themeId = String((t as any).theme_id ?? '').toLowerCase();
       const genre = String((t as any).genre ?? '').toLowerCase();
+      // 1) 송수신 대칭 매칭 — pickOfficialSlug 라운드트립
+      try {
+        if (pickOfficialSlug(t as any).toLowerCase() === slugLc) return true;
+      } catch { /* ignore */ }
+      // 2) 직접·레거시 접두 매칭 (fallback)
       return id === slugLc
         || slug === slugLc
         || themeId === slugLc
@@ -107,9 +121,10 @@ export default function ChallengeInviteScreen() {
     });
     if (dbHit) return dbHit;
 
-    // 마지막 폴백: 첫 유효 DB 템플릿.
-    const firstValid = templates.find(isValidDb);
-    return firstValid ?? null;
+    // 마지막 폴백: **없음**. 잘못된 slug 를 첫 DB 템플릿으로 둔갑시키면 사용자가
+    // "다른 챌린지가 뜬다" 는 버그로 본다. null 을 반환해 "챌린지를 찾을 수 없어요"
+    // 에러 화면을 정직하게 노출하는 편이 훨씬 낫다 (CLAUDE.md §3 FORBIDDEN #20).
+    return null;
   }, [templates, ctx]);
 
   const [accepting, setAccepting] = useState(false);
