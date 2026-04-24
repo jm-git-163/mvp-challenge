@@ -81,10 +81,11 @@ async function doAcquire(facing: 'front' | 'back'): Promise<MediaStream> {
   const stream = await ensureMediaSession({
     video: {
       facingMode: { ideal: facingMode } as any,
-      // FIX-CAMERA-ZOOM (2026-04-24): 1080p 16:9 요청 → 센서가 더 넓은 FOV 선택.
-      width:  { ideal: 1920 },
-      height: { ideal: 1080 },
-      aspectRatio: { ideal: 16 / 9 } as any,
+      // FIX-CAMERA-ZOOM (2026-04-24, v2): 캔버스(720×1280, 9:16) 와 동일한 세로
+      //   비율로 요청. 전면 카메라 네이티브 포맷이라 COVER 가 crop 0 이 된다.
+      width:  { ideal: 720, max: 1080 },
+      height: { ideal: 1280, max: 1920 },
+      aspectRatio: { ideal: 9 / 16 } as any,
     },
     audio: { echoCancellation: true, noiseSuppression: true },
   });
@@ -118,30 +119,15 @@ const GENRE_COLORS: Record<string, string> = {
 const genreColor = (g: string) => GENRE_COLORS[g] ?? '#7c3aed';
 
 // ---------------------------------------------------------------------------
-// Camera scale picker
-// ---------------------------------------------------------------------------
-// FIX-CAMERA-ZOOM (2026-04-24): COVER 축소는 같은 AR 로 다시 채워져
-//   얼굴 상대 크기가 유지됨 → 사용자 체감 무변화. 진짜 축소는 CONTAIN.
-//   fitness/dance 처럼 전신 피드백이 필요한 장르만 1.0, 나머지는 0.62.
-function pickCameraScale(template: any): number {
-  const g = String(template?.genre ?? '').toLowerCase();
-  const type = String(template?.mission_type ?? '').toLowerCase();
-  const isFitness =
-    g === 'fitness' ||
-    g === 'dance' ||
-    type === 'squat' ||
-    type === 'dance';
-  return isFitness ? 1.0 : 0.62;
-}
-
-// ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
+// FIX-CAMERA-ZOOM (2026-04-24, v2): CONTAIN 분기와 pickCameraScale 제거.
+//   사용자가 "창 구조로 할 필요없음" 으로 명시 거부. 해결책은 getUserMedia 에서
+//   9:16 세로 트랙을 요청하는 것이고, 여기선 평범한 COVER fit 만 수행한다.
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
   facing: 'front' | 'back',
-  scale: number = 1.0,
   state?: { cameraRect?: { x: number; y: number; w: number; h: number } },
 ) {
   if (video.readyState < 2) return;
@@ -152,39 +138,6 @@ function drawCamera(
   const videoAR  = vw / vh;
   const canvasAR = CW / CH;
 
-  if (scale < 1.0) {
-    // CONTAIN fit: 전체 비디오 프레임이 scale*CW × scale*CH 박스 안에 들어가도록.
-    const boxW = CW * scale;
-    const boxH = CH * scale;
-    const boxX = (CW - boxW) / 2;
-    const boxY = (CH - boxH) / 2;
-
-    let dw: number, dh: number;
-    if (videoAR > boxW / boxH) {
-      dw = boxW;
-      dh = boxW / videoAR;
-    } else {
-      dh = boxH;
-      dw = boxH * videoAR;
-    }
-    const dx = boxX + (boxW - dw) / 2;
-    const dy = boxY + (boxH - dh) / 2;
-
-    if (facing === 'front') {
-      ctx.save();
-      ctx.translate(CW, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, vw, vh, CW - dx - dw, dy, dw, dh);
-      ctx.restore();
-    } else {
-      ctx.drawImage(video, 0, 0, vw, vh, dx, dy, dw, dh);
-    }
-
-    if (state) state.cameraRect = { x: dx, y: dy, w: dw, h: dh };
-    return;
-  }
-
-  // Legacy COVER path (scale == 1.0)
   if (facing === 'front') {
     ctx.save();
     ctx.translate(CW, 0);
@@ -1381,8 +1334,8 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               CW / 2, CH / 2 + 110,
             );
           } else {
-            // FIX-CAMERA-ZOOM (2026-04-24): 장르별 scale 적용 (fitness=1.0, 그 외=0.62).
-            try { drawCamera(ctx, video, face, pickCameraScale(tmpl)); } catch (e) { /* silent */ }
+            // FIX-CAMERA-ZOOM (2026-04-24, v2): COVER fullscreen, 세로 소스 요청으로 crop 0.
+            try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
           }
 
           // CAMERA-SWAP (2026-04-23): 전환 중 오버레이. 캔버스 captureStream 은 계속

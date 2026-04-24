@@ -64,13 +64,16 @@ function classifyError(err: unknown): MediaSessionError['kind'] {
 export const DEFAULT_CONSTRAINTS: MediaStreamConstraints = {
   video: {
     facingMode: 'user',
-    // FIX-CAMERA-ZOOM (2026-04-24): 사용자 피드백 "얼굴이 너무 크게 찍힌다".
-    //   원인 중 하나는 getUserMedia 가 720p 세로(9:16) 트랙을 요청해 센서가
-    //   좁은 FOV crop 모드로 동작하는 것. 1080p 가로(16:9) 로 요청하면 대부분의
-    //   모바일 카메라가 더 넓은 FOV 로 전환 → 피사체가 상대적으로 작게 들어옴.
-    width:  { ideal: 1920, max: 1920 },
-    height: { ideal: 1080, max: 1080 },
-    aspectRatio: { ideal: 16 / 9 },
+    // FIX-CAMERA-ZOOM (2026-04-24, v2): 이전 시도(1080p 16:9 가로 요청 + CONTAIN 박스)
+    //   는 (a) 가로 트랙을 9:16 세로 캔버스에 COVER 하며 중앙 세로 스트립만 잘라내
+    //   오히려 얼굴이 더 확대되거나, (b) 검은 레터박스로 둘러싸인 "창" UI 가 되어
+    //   사용자가 명시적으로 거부했다 ("창 구조로 이렇게 할 필요없음").
+    //   정답: 캔버스 비율과 일치하는 **세로 9:16** 을 요청한다. 모바일 전면
+    //   카메라는 9:16 포맷을 네이티브로 지원하므로 COVER 가 1:1 매핑 → crop 0,
+    //   자연스러운 셀피 프레이밍이 캔버스에 그대로 전달된다.
+    width:  { ideal: 720, max: 1080 },
+    height: { ideal: 1280, max: 1920 },
+    aspectRatio: { ideal: 9 / 16 },
     frameRate: { ideal: 30, max: 30 },
   },
   audio: {
