@@ -45,17 +45,32 @@ describe('HipMotionGate', () => {
     expect(lastResult?.reason).toBe('no-amplitude');
   });
 
-  it('hip visibility 낮음 → allow=true (v4 폴백, 다른 디텍터가 판단하도록 양보)', () => {
+  it('hip visibility 낮음 + 머리도 정지 → allow=false (앉은 셀피 가짜 카운트 차단)', () => {
+    // FIX-SQUAT-QUALITY (2026-04-24): hip 안 보이고 머리도 거의 안 움직이면 reject.
+    //   기존 v4 의 무조건 allow 폴백이 사용자 버그("앉아있는데 카운트 12") 의 직접 원인.
     let t = 0;
     let last: ReturnType<HipMotionGate['update']> | null = null;
     for (let i = 0; i < 60; i++) {
       const y = 0.5 + Math.sin(i * 0.5) * 0.15;
+      // noseY 는 기본값(0.2) 고정 — 머리가 안 움직임.
       last = gate.update(lm({ hipY: y, hipVis: 0.2 }), t);
       t += 50;
     }
-    // v4: hip 관측 불가 프레임은 allow 폴백 — 근접 셀피 케이스 살리기 위해.
+    expect(last?.allow).toBe(false);
+    expect(last?.reason).toBe('no-amplitude');
+  });
+
+  it('hip visibility 낮음 + 머리 크게 움직임(진짜 스쿼트) → allow=true', () => {
+    // 진짜 스쿼트 셀피 케이스 — hip 프레임 밖이지만 머리가 크게 오르내림.
+    let t = 0;
+    let last: ReturnType<HipMotionGate['update']> | null = null;
+    for (let i = 0; i < 60; i++) {
+      const phase = (i / 60) * Math.PI * 4;
+      const noseY = 0.2 + (1 - Math.cos(phase)) * 0.10; // 0~0.20 진폭
+      last = gate.update(lm({ noseY, hipY: 0.95, hipVis: 0.2 }), t);
+      t += 50;
+    }
     expect(last?.allow).toBe(true);
-    expect(['low-visibility', 'too-few-samples']).toContain(last?.reason);
   });
 
   it('미세 노이즈 (±0.02) + 평균 visibility 0.5 → allow=false (앉아서 살짝 들썩)', () => {

@@ -48,7 +48,15 @@ interface HipSample {
   t: number;
   y: number;
   visible: boolean;
+  // FIX-SQUAT-QUALITY (2026-04-24): 얼굴(nose) y 도 함께 추적. hip 이 안 보일 때 fallback 신호.
+  noseY: number | null;
 }
+
+// FIX-SQUAT-QUALITY: hip 가 안 보일 때 얼굴(nose) y 진폭도 검사.
+//   진짜 스쿼트(셀피 근접)의 nose y 진폭은 0.15~0.25. 앉아서 고개 까딱/흔들기는 ≤0.12.
+//   0.13 cut-off — 실제 스쿼트 못 잡는 경우 없도록 squat real test(hip 0.55→0.75 왕복,
+//   nose drop *0.6 ≒ 0.12) 와 비교해 마진 있는 값 선택.
+const NEAR_MODE_NOSE_AMPL_CUTOFF = 0.13;
 
 export interface HipGateResult {
   /** rep 카운트 허용 여부 (false 면 카운트 거부). */
@@ -84,15 +92,13 @@ export class HipMotionGate {
    */
   update(landmarks: NormalizedLandmark[] | undefined | null, nowMs: number): HipGateResult {
     if (!landmarks || landmarks.length < 13) {
-      // TEAM-ACCURACY v4 (2026-04-23): 사용자 재제보 "카운트 0 고정, 아예 안 올라감".
-      //   landmark 가 없는 프레임(=근접 셀피로 hip 이 프레임 밖)을 무조건 reject 하면
-      //   HSS/nose 디텍터가 '머리로 인식한 진짜 rep' 도 전부 차단됨.
-      //   게이트의 목적은 "가만히 앉아있는데 카운트" 막기지 "모든 rep 차단" 아님.
-      //   → hip 관측 불가 프레임은 **allow** 로 폴백 (다른 디텍터가 진짜 움직임으로 판단하면 통과).
       return {
         allow: true, amplitude: 0, visibility: 0, samples: 0, reason: 'no-landmarks',
       };
     }
+    const nose = landmarks[0];
+    const noseVis = (nose?.score ?? nose?.visibility ?? 0);
+    const noseY = (noseVis >= 0.3 && Number.isFinite(nose?.y)) ? (nose!.y as number) : null;
     const lh = landmarks[11];
     const rh = landmarks[12];
     const lhVis = (lh?.score ?? lh?.visibility ?? 0);
@@ -110,17 +116,33 @@ export class HipMotionGate {
     }
 
     const visible = hipY !== null;
-    this.history.push({ t: nowMs, y: hipY ?? 0, visible });
+    this.history.push({ t: nowMs, y: hipY ?? 0, visible, noseY });
     // 윈도 슬라이드
     while (this.history.length > 0 && this.history[0].t < nowMs - WINDOW_MS) {
       this.history.shift();
     }
 
     const visibleSamples = this.history.filter(s => s.visible);
+    // FIX-SQUAT-QUALITY (2026-04-24): hip 관측 부족 → nose 진폭으로 대체 판정.
+    //   (1) nose 샘플이 충분하고 진폭이 NEAR_MODE_NOSE_AMPL_CUTOFF 미만이면 앉아있는 것 → reject.
+    //   (2) 그 외엔 fail-open (HSS/nose 자체 로직 신뢰).
     if (visibleSamples.length < MIN_SAMPLES) {
-      // TEAM-ACCURACY v4: 관측 부족 → allow 폴백 (위 'no-landmarks' 와 동일 근거).
-      //   근접 촬영에서 hip visibility 가 계속 낮아 샘플이 안 쌓이는 경우,
-      //   이를 "가짜 카운트" 로 간주하면 HSS/nose 경로가 전부 죽는다.
+      const noseSamples = this.history.filter(s => s.noseY !== null);
+      if (noseSamples.length >= MIN_SAMPLES) {
+        let nMin = Infinity, nMax = -Infinity;
+        for (const s of noseSamples) {
+          const ny = s.noseY as number;
+          if (ny < nMin) nMin = ny;
+          if (ny > nMax) nMax = ny;
+        }
+        const noseAmpl = nMax - nMin;
+        if (noseAmpl < NEAR_MODE_NOSE_AMPL_CUTOFF) {
+          return {
+            allow: false, amplitude: 0, visibility,
+            samples: visibleSamples.length, reason: 'no-amplitude',
+          };
+        }
+      }
       return {
         allow: true, amplitude: 0, visibility,
         samples: visibleSamples.length, reason: 'too-few-samples',
@@ -135,7 +157,23 @@ export class HipMotionGate {
     const amplitude = maxY - minY;
 
     if (visibility < MIN_VIS) {
-      // TEAM-ACCURACY v4: visibility 낮으면 amplitude 판단이 신뢰 불가 → allow 폴백.
+      // FIX-SQUAT-QUALITY (2026-04-24): low-visibility — nose 진폭으로 판정.
+      const noseSamples = this.history.filter(s => s.noseY !== null);
+      if (noseSamples.length >= MIN_SAMPLES) {
+        let nMin = Infinity, nMax = -Infinity;
+        for (const s of noseSamples) {
+          const ny = s.noseY as number;
+          if (ny < nMin) nMin = ny;
+          if (ny > nMax) nMax = ny;
+        }
+        const noseAmpl = nMax - nMin;
+        if (noseAmpl < NEAR_MODE_NOSE_AMPL_CUTOFF) {
+          return {
+            allow: false, amplitude, visibility,
+            samples: visibleSamples.length, reason: 'no-amplitude',
+          };
+        }
+      }
       return {
         allow: true, amplitude, visibility,
         samples: visibleSamples.length, reason: 'low-visibility',

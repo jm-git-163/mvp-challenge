@@ -515,7 +515,11 @@ export function useJudgement(): {
       const faceOk = conf(0) > 0.35 || conf(1) > 0.35 || conf(2) > 0.35;
       const allowCloseMode = faceOk && !squatLmOk;
       let lastCloseState: ReturnType<typeof closeSquatRef.current.update> | null = null;
-      if (template && template.genre === 'fitness' && allowCloseMode) {
+      // FIX-SQUAT-QUALITY (2026-04-24): close-detector 는 HSS 가 완전히 죽었을 때만 작동.
+      //   HSS 가 calibrated 이면 HSS 에 위임 (중복 점화로 false +1/+2 방지).
+      //   HSS calibration 이 실패/지연 중일 때만 close-proximity 가 폴백.
+      const hssCalibrated = hssRef.current.isCalibrated();
+      if (template && template.genre === 'fitness' && allowCloseMode && !hssCalibrated) {
         const closeState = closeSquatRef.current.update(landmarks);
         lastCloseState = closeState;
         // TEAM-ACCURACY (2026-04-23): close-detector 도 hip 진폭 게이트 통과 필수.
@@ -654,36 +658,40 @@ export function useJudgement(): {
           }
         }
 
-        // HSS 가 여전히 캘리브레이션 중이고, 다른 detector 도 3초 이상 스톨이면
-        // 최후의 안전망으로 기존 nose-only detector 도 굴린다.
-        if (!hssRef.current.isCalibrated()) {
-          const stalled = (noseSquatRef.current.msSinceLastChange(now) > 3_000) || squatCountRef.current === 0;
-          if (stalled) {
-            const noseRes = noseSquatRef.current.update(landmarks, now);
-            // TEAM-ACCURACY (2026-04-23): nose-only 디텍터도 hip 진폭 게이트 통과 필수.
-            if (noseRes.justCounted) {
-              // FIX-SQUAT-60FPS (2026-04-24): 전역 시간 게이트.
-              if (hipGate.allow && acceptCountTick(now)) {
-                const effective = noseRes.count - noseRejectedCountRef.current;
-                if (effective > squatCountRef.current) {
-                  squatCountRef.current = effective;
-                  squatCountState.current = effective;
-                  setSquatCount(effective);
-                  squatPhaseOut = noseRes.phase;
-                  lastSquatCountAtRef.current = now;
-                  hipGateRef.current.consume();
-                  if (squatSourceRef.current !== 'full-body') {
-                    squatSourceRef.current = 'near-mode';
-                    setSquatMode('near-mode');
-                  }
+        // FIX-SQUAT-QUALITY (2026-04-24): nose-only 는 극한의 안전망.
+        //   이전: HSS 미캘 && (3초 스톨 || count=0) → 거의 항상 켜져 HSS 와 경쟁 → 2중 카운트.
+        //   이후: HSS 미캘 && 녹화 시작 8초 경과 && 아직 1 rep 도 없음.
+        //   즉 HSS 가 정말로 못 잡은 경우에만 나선다.
+        const recordingElapsed = now - (recordingStartRef.current ?? now);
+        const hssFailed = !hssRef.current.isCalibrated()
+          && recordingElapsed > 8_000
+          && squatCountRef.current === 0;
+        if (hssFailed) {
+          const noseRes = noseSquatRef.current.update(landmarks, now);
+          // TEAM-ACCURACY (2026-04-23): nose-only 디텍터도 hip 진폭 게이트 통과 필수.
+          if (noseRes.justCounted) {
+            // FIX-SQUAT-60FPS (2026-04-24): 전역 시간 게이트.
+            if (hipGate.allow && acceptCountTick(now)) {
+              const effective = noseRes.count - noseRejectedCountRef.current;
+              if (effective > squatCountRef.current) {
+                squatCountRef.current = effective;
+                squatCountState.current = effective;
+                setSquatCount(effective);
+                squatPhaseOut = noseRes.phase;
+                lastSquatCountAtRef.current = now;
+                hipGateRef.current.consume();
+                if (squatSourceRef.current !== 'full-body') {
+                  squatSourceRef.current = 'near-mode';
+                  setSquatMode('near-mode');
                 }
-              } else {
-                noseRejectedCountRef.current += 1;
               }
+            } else {
+              noseRejectedCountRef.current += 1;
             }
-          } else {
-            noseSquatRef.current.update(landmarks, now);
           }
+        } else {
+          // baseline 학습은 계속 (혹시 hssFailed 진입 시 즉시 무장 가능하도록).
+          noseSquatRef.current.update(landmarks, now);
         }
       }
 
