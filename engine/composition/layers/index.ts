@@ -35,6 +35,8 @@ import score_hud         from './score_hud';
 import mission_prompt    from './mission_prompt';
 import lens_flare        from './lens_flare';
 import chromatic_pulse   from './chromatic_pulse';
+// ── 2026-04-24 wave1: pulse_circle (squat-master 등에서 참조되나 미등록이었음)
+import pulse_circle      from './pulse_circle';
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -74,6 +76,7 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   mission_prompt,
   lens_flare,
   chromatic_pulse,
+  pulse_circle,
 };
 
 /**
