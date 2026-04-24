@@ -28,6 +28,7 @@ import {
   isInAppBrowserWithBrokenShare,
 } from './inviteShareCard';
 import { blobToShareFile } from './shareVideo';
+import { kakaoSizeWarning } from './share.debug';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -459,6 +460,14 @@ export async function sharePlatform(opts: {
     };
   }
 
+  // FIX-KAKAO-HANG (2026-04-24): Kakao-specific soft warning for >50MB files.
+  //   User reported "업로드가 멈춘다" — most common cause on cellular is the
+  //   blob being large enough that KakaoTalk's uploader times out. We don't
+  //   block the share — just log and let the toast include the advisory in
+  //   the success path.
+  const sizeWarning = platform === 'kakao' ? kakaoSizeWarning(file.size) : null;
+  if (sizeWarning) log('platform.kakao.size-warning', sizeWarning);
+
   // FIX-SHARE-HONEST (2026-04-24): "자동 다운로드 + 공유 시트 동시 오픈" 패턴.
   //   사용자 요청: "SNS공유 누르면 자동 다운로드되어 해당 SNS에 파일 전송이 끊김없이
   //   끝까지 이어지면 좋겠어". 순수 웹앱은 YouTube/TikTok/Instagram API 업로드를
@@ -583,7 +592,9 @@ export async function sharePlatform(opts: {
 
   return {
     kind: 'fallback',
-    message: PLATFORM_TOAST[platform],
+    message: sizeWarning
+      ? `${PLATFORM_TOAST[platform]}\n\n⚠ ${sizeWarning}`
+      : PLATFORM_TOAST[platform],
     downloaded, captionCopied,
   };
 }

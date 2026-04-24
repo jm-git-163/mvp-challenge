@@ -10,6 +10,7 @@ import {
   ClipArea,
 } from './videoTemplates';
 import type { Template as LayeredTemplate, BaseLayer } from '../engine/templates/schema';
+import { pickRecordingMimeType } from '../engine/recording/codecNegotiator';
 import { dispatchLayer } from '../engine/composition/layers';
 import { applyTemplatePostProcess } from '../engine/composition/postProcessHook';
 import { mergeLiveIntoState } from '../engine/composition/liveState';
@@ -3115,21 +3116,54 @@ export async function composeVideo(
         const canvasStream = canvas.captureStream(FPS);
         dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
 
-        const mimeTypes = ['video/mp4;codecs=h264,aac', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
-        let chosenMime = '';
-        for (const mt of mimeTypes) { if (MediaRecorder.isTypeSupported(mt)) { chosenMime = mt; break; } }
+        // FIX-KAKAO-HANG (2026-04-24): route through the canonical MIME picker
+        //   (engine/recording/codecNegotiator.pickRecordingMimeType), which uses
+        //   MIME_CANDIDATES order — mp4/H.264 first, webm last. The previous
+        //   inline list drifted out of sync and produced webm on newer Android
+        //   Chrome builds that *do* support mp4.
+        const chosenMime = pickRecordingMimeType() || '';
 
-        mediaRecorder = new MediaRecorder(canvasStream, { 
-          mimeType: chosenMime || undefined, 
-          videoBitsPerSecond: 3500000 
+        mediaRecorder = new MediaRecorder(canvasStream, {
+          mimeType: chosenMime || undefined,
+          videoBitsPerSecond: 3500000
         });
+
+        // Surface what the MediaRecorder actually chose — this is the most
+        // reliable signal for field debugging (mediaRecorder.mimeType may
+        // differ from `chosenMime` if the browser renegotiates).
+        try {
+          // eslint-disable-next-line no-console
+          console.info('[compositor] recorder started', {
+            requested: chosenMime,
+            actual: mediaRecorder.mimeType,
+            videoBitsPerSecond: 3500000,
+          });
+        } catch {}
 
         mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
         mediaRecorder.onstop = () => {
           finished = true;
           cleanup();
           onProgress({ phase: '완료!', percent: 100 });
-          resolve(new Blob(chunks, { type: chosenMime || 'video/webm' }));
+          const actualMime = mediaRecorder?.mimeType || chosenMime || 'video/webm';
+          const blob = new Blob(chunks, { type: actualMime });
+          try {
+            // eslint-disable-next-line no-console
+            console.info('[compositor] compose done', {
+              mime: actualMime,
+              size: blob.size,
+              sizeMB: (blob.size / (1024 * 1024)).toFixed(2),
+              chunkCount: chunks.length,
+            });
+            // Expose for /debug/share — lets user test their ACTUAL composed
+            // file without re-recording.
+            if (typeof window !== 'undefined') {
+              (window as any).__lastComposedVideo = blob;
+              (window as any).__lastComposedMime = actualMime;
+              (window as any).__lastComposedAt = Date.now();
+            }
+          } catch {}
+          resolve(blob);
         };
 
         mediaRecorder.start(100);

@@ -196,6 +196,107 @@ export function diagnoseShare(file: File | null): ShareDiagnostic {
 }
 
 /**
+ * Probe a blob/file for playback metadata. Loads it into a hidden <video> and
+ * reports duration + dimensions. Used by /debug/share to diagnose "Kakao hangs
+ * mid-send" — MediaRecorder output often has duration=Infinity because the
+ * container's duration box is written after recording starts. Most apps handle
+ * this; some (Kakao over cellular) hang on it.
+ *
+ * Returns a plain object — safe to JSON.stringify and copy.
+ */
+export interface BlobMetadata {
+  ok: boolean;
+  duration: number | null;        // seconds; Infinity/NaN → null
+  durationRaw: string;            // stringified raw value for inspection
+  durationBroken: boolean;        // true if Infinity/NaN/<=0
+  videoWidth: number | null;
+  videoHeight: number | null;
+  seekable: boolean;              // can we seek to end? (faststart proxy)
+  elapsedMs: number;
+  error: string | null;
+}
+
+export function probeBlobMetadata(blob: Blob, timeoutMs = 3500): Promise<BlobMetadata> {
+  const t0 = Date.now();
+  return new Promise((resolve) => {
+    const base: BlobMetadata = {
+      ok: false,
+      duration: null,
+      durationRaw: 'n/a',
+      durationBroken: false,
+      videoWidth: null,
+      videoHeight: null,
+      seekable: false,
+      elapsedMs: 0,
+      error: null,
+    };
+    if (typeof document === 'undefined') {
+      resolve({ ...base, error: 'no document (SSR/RN)' });
+      return;
+    }
+    let url: string;
+    try { url = URL.createObjectURL(blob); } catch (e: any) {
+      resolve({ ...base, error: `createObjectURL: ${e?.message || e}`, elapsedMs: Date.now() - t0 });
+      return;
+    }
+    const v = document.createElement('video');
+    v.muted = true;
+    v.preload = 'metadata';
+    v.playsInline = true;
+    v.style.position = 'fixed';
+    v.style.left = '-9999px';
+    let settled = false;
+    const cleanup = () => {
+      try { v.remove(); } catch {}
+      try { URL.revokeObjectURL(url); } catch {}
+    };
+    const done = (m: BlobMetadata) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({ ...m, elapsedMs: Date.now() - t0 });
+    };
+    v.onloadedmetadata = () => {
+      const d = v.duration;
+      const raw = String(d);
+      const broken = !isFinite(d) || isNaN(d) || d <= 0;
+      done({
+        ok: true,
+        duration: broken ? null : d,
+        durationRaw: raw,
+        durationBroken: broken,
+        videoWidth: v.videoWidth || null,
+        videoHeight: v.videoHeight || null,
+        seekable: v.seekable?.length > 0,
+        elapsedMs: 0,
+        error: null,
+      });
+    };
+    v.onerror = () => {
+      done({ ...base, error: `video element error code=${(v.error?.code ?? 'n/a')}` });
+    };
+    setTimeout(() => done({ ...base, error: `timeout ${timeoutMs}ms` }), timeoutMs);
+    document.body.appendChild(v);
+    v.src = url;
+  });
+}
+
+/**
+ * Human-readable file-size-warning for Kakao. Kakao tolerates ~300MB in chat
+ * but cellular uploads stall above ~50MB. Returns a Korean toast line or null.
+ */
+export function kakaoSizeWarning(bytes: number): string | null {
+  const mb = bytes / (1024 * 1024);
+  if (mb > 300) {
+    return `영상이 ${mb.toFixed(0)}MB 로 너무 큽니다. 카톡 전송 실패 가능성이 높아요 — 다시 짧게 촬영해주세요.`;
+  }
+  if (mb > 50) {
+    return `영상이 ${mb.toFixed(0)}MB 입니다. 카톡 전송이 느리거나 중간에 멈출 수 있어요 — WiFi 사용을 권장합니다.`;
+  }
+  return null;
+}
+
+/**
  * One-line summary for toasts. Caller appends raw JSON via a copy button.
  */
 export function summarizeDiagnostic(d: ShareDiagnostic): string {

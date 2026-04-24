@@ -1154,11 +1154,15 @@ export default function ResultScreen() {
                 // @ts-ignore web gradient
                 backgroundImage: `linear-gradient(135deg, ${accentColor} 0%, #ec4899 100%)`,
                 boxShadow: `0 8px 22px ${accentColor}66, inset 0 1px 0 rgba(255,255,255,0.25)`,
+                opacity: (composing || (!composedUri && !rawVideoUri)) ? 0.55 : 1,
               } as any]}
               onPress={() => setShowShareModal(true)}
+              disabled={composing || (!composedUri && !rawVideoUri)}
               activeOpacity={0.88}
             >
-              <Text style={st.shareText}>📤 SNS 공유</Text>
+              <Text style={st.shareText}>
+                {composing ? '⏳ 영상 준비 중...' : '📤 SNS 공유'}
+              </Text>
             </TouchableOpacity>
           </View>
 
