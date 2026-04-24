@@ -31,7 +31,15 @@ interface UsePoseDetectionReturn {
   dispose: () => void;
 }
 
+// TEAM-ACCURACY (2026-04-24): 라이브 챌린지 스쿼트 카운트 정확도 → 진단(/selftest) 동등화.
+//   기존 100ms (= 10fps) 는 스쿼트 1 rep(700~1200ms) 당 7~12 프레임만 발생 → HSS·squatCounter
+//   상태기계 디바운스(2~4 frame) 가 거의 모든 신호를 흡수해 카운트가 누락되는 주범.
+//   /selftest 페이지가 정확한 이유는 requestAnimationFrame 으로 30~60fps 를 굴리기 때문.
+//   이제 라이브 챌린지도 rAF 기반으로 굴려 동일한 샘플 밀도 확보.
+//   mock 모드(useMockRef.current=true) 에서는 기존 100ms 유지 — 가짜 포즈 트레이스 사용 시
+//   주기 무관하게 동일 결과.
 const DETECT_INTERVAL_MS = 100;
+const MOCK_INTERVAL_MS   = 100;
 
 // __DEV__ 는 RN 런타임 전역. 웹 번들에서는 process.env.NODE_ENV 로 판정.
 function detectIsDev(): boolean {
@@ -298,13 +306,45 @@ export function usePoseDetection(): UsePoseDetectionReturn {
   }, [status, retry]);
 
   // ── Detection loop ───────────────────────────────────────────────────────
+  // TEAM-ACCURACY (2026-04-24): real 모드는 rAF 로 30~60fps. mock 모드는 기존 setInterval.
+  //   rAF 사용 이유는 위 DETECT_INTERVAL_MS 주석 참고.
+  const rafLoopRef = useRef<number | null>(null);
   useEffect(() => {
     if (status !== 'ready-real' && status !== 'ready-mock') return;
-    intervalRef.current = setInterval(runDetection, DETECT_INTERVAL_MS);
+
+    if (status === 'ready-mock') {
+      intervalRef.current = setInterval(runDetection, MOCK_INTERVAL_MS);
+      return () => {
+        if (intervalRef.current !== null) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    }
+
+    // ready-real: rAF 루프
+    if (typeof requestAnimationFrame !== 'function') {
+      // 비-브라우저 환경(테스트 등) 폴백.
+      intervalRef.current = setInterval(runDetection, DETECT_INTERVAL_MS);
+      return () => {
+        if (intervalRef.current !== null) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    }
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      runDetection();
+      rafLoopRef.current = requestAnimationFrame(tick);
+    };
+    rafLoopRef.current = requestAnimationFrame(tick);
     return () => {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      stopped = true;
+      if (rafLoopRef.current !== null) {
+        try { cancelAnimationFrame(rafLoopRef.current); } catch {}
+        rafLoopRef.current = null;
       }
     };
   }, [status, runDetection]);
@@ -322,6 +362,10 @@ export function usePoseDetection(): UsePoseDetectionReturn {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
+      }
+      if (rafLoopRef.current !== null) {
+        try { cancelAnimationFrame(rafLoopRef.current); } catch {}
+        rafLoopRef.current = null;
       }
       if (landmarkerRef.current) {
         try { landmarkerRef.current.close(); } catch {}
