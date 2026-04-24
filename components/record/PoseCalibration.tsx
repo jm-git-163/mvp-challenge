@@ -474,7 +474,7 @@ function HeadShoulderCalibration({ landmarks, onCalibrated, onSkip }: Props) {
         <Text style={styles.hint}>
           {status === 'done'
             ? `기준 d0 = ${d0Display.toFixed(3)} · 촬영을 시작합니다`
-            : '폰은 가슴~얼굴 높이에 두고 전신이 다 안 보여도 괜찮습니다'}
+            : '폰은 의자·식탁 위(허리~가슴 높이)에 세워두면 충분해요. 전신이 다 안 보여도 괜찮습니다'}
         </Text>
       </View>
 
