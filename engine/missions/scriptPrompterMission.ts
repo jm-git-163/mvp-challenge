@@ -157,6 +157,46 @@ export class ScriptPrompterMission {
 }
 
 /**
+ * FIX-PROMPTER-PACING (2026-04-24): 자막/프롬프터 표시 시간 계산.
+ *
+ * 사용자 제보: "자막 나오는 주기나 양이 사용자가 읽을 수 있는 양으로 해줘.
+ *  어떤 땐 너무 짧아서 한참 기다리고 어떨 땐 너무 길어서 다 못 읽어."
+ *
+ * 원인: voice_read 미션의 시간창(end_ms - start_ms) 은 템플릿에 고정값으로 박혀
+ *  있는데, 실제로 표시되는 read_text 는 풀(SCRIPT_POOLS_BY_THEME) 에서 매 세션
+ *  랜덤 선택되어 길이 편차가 큼. 짧은 문장이 6초 슬롯에 걸리면 무료, 긴 문장이
+ *  4초 슬롯에 걸리면 다 못 읽음.
+ *
+ * 해법: 글자 수 기반으로 적정 표시 시간을 계산해 슬롯을 동적으로 늘리거나
+ *  줄인다. useJudgement.ts 에서 read_text 가 결정된 직후 호출.
+ *
+ * 공식: chars * 200ms, [2500ms, 8000ms] 로 클램프.
+ *  - 200ms/char ≈ 분당 300자 ≈ 한국어 자연 낭독 속도 (research §1).
+ *  - 하한 2500ms: "등장→인지→발화 시작" 최소 시간.
+ *  - 상한 8000ms: 한 호흡 한도. 더 긴 문장은 사실상 두 단위 분할이 옳지만,
+ *    풀의 어떤 항목도 40 글자를 크게 넘지 않으므로 8초 상한으로 충분.
+ *
+ * 결정론. 길이만 본다 — 공백/구두점도 1 글자.
+ */
+export interface LineDurationOpts {
+  /** 글자당 ms. 기본 200. */
+  msPerChar?: number;
+  /** 하한 ms. 기본 2500. */
+  minMs?: number;
+  /** 상한 ms. 기본 8000. */
+  maxMs?: number;
+}
+
+export function computeLineDuration(text: string, opts: LineDurationOpts = {}): number {
+  const msPerChar = opts.msPerChar ?? 200;
+  const minMs = opts.minMs ?? 2500;
+  const maxMs = opts.maxMs ?? 8000;
+  const len = (text ?? '').length;
+  const raw = Math.round(len * msPerChar);
+  return Math.max(minMs, Math.min(maxMs, raw));
+}
+
+/**
  * 세션별 스크립트 선택 (재시도마다 다른 대본).
  * pool 이 string 배열이면 랜덤 선택. 단일 string 이면 그대로.
  * FIX-SCRIPT-POOL (2026-04-22) 연결 유틸.

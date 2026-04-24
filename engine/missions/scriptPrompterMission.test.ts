@@ -2,7 +2,30 @@
  * scriptPrompterMission.test.ts — STT-free script mission.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ScriptPrompterMission, pickScript, pickScriptWithHistory } from './scriptPrompterMission';
+import { ScriptPrompterMission, pickScript, pickScriptWithHistory, computeLineDuration } from './scriptPrompterMission';
+
+describe('computeLineDuration (FIX-PROMPTER-PACING 2026-04-24)', () => {
+  it('짧은 문장(5자)은 하한 2500ms 로 클램프', () => {
+    // 5 * 200 = 1000 → 2500 floor.
+    expect(computeLineDuration('안녕하세요')).toBe(2500);
+  });
+  it('중간 길이(30자)는 선형 (chars*200)', () => {
+    const t = '가'.repeat(30);
+    // 30 * 200 = 6000 (in [2500, 8000])
+    expect(computeLineDuration(t)).toBe(6000);
+  });
+  it('긴 문장(100자)은 상한 8000ms 로 클램프', () => {
+    const t = '가'.repeat(100);
+    // 100 * 200 = 20000 → 8000 ceiling.
+    expect(computeLineDuration(t)).toBe(8000);
+  });
+  it('빈 문자열도 하한 (defensive)', () => {
+    expect(computeLineDuration('')).toBe(2500);
+  });
+  it('opts override 가능', () => {
+    expect(computeLineDuration('가'.repeat(10), { msPerChar: 100, minMs: 0, maxMs: 100000 })).toBe(1000);
+  });
+});
 
 describe('ScriptPrompterMission', () => {
   it('begin → finish 없으면 점수 0 베이스라인', () => {

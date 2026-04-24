@@ -19,7 +19,7 @@ import { HipMotionGate }               from '../engine/missions/hipMotionGate';
 import { textSimilarity } from '../utils/speechUtils';
 import { getRecognizer as getGlobalSpeechRecognizer } from '../utils/sttFactory';
 import { wrapInterimCallback, wrapFinalCallback } from '../engine/composition/speechBridge';
-import { pickScriptWithHistory } from '../engine/missions/scriptPrompterMission';
+import { pickScriptWithHistory, computeLineDuration } from '../engine/missions/scriptPrompterMission';
 import { SCRIPT_POOLS_BY_THEME, pickSubPoolForText, getScriptText, getScriptTranslation, type ScriptPoolItem } from '../services/mockData';
 import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
@@ -387,6 +387,35 @@ export function useJudgement(): {
         resolvedReadTextRef.current = resolvedText;
         setResolvedReadText(resolvedText);
 
+        // FIX-PROMPTER-PACING (2026-04-24): 선택된 대본 길이에 맞춰 미션 시간창 재조정.
+        //   풀에서 뽑힌 문장 길이가 들쭉날쭉 → 짧은 문장 6초 슬롯에서 사용자 무료, 긴
+        //   문장 4초 슬롯에서 다 못 읽음. 이 자리에서 mission.end_ms 를 in-place 로
+        //   재계산해 표시·판정 모두 적정 길이로 맞춘다.
+        //   - 기준: computeLineDuration(text) (200ms/char, [2.5s, 8s])
+        //   - 위 슬롯과 max() — 템플릿이 더 길게 잡았으면 그대로 둠 (UX 여유).
+        //   - 다음 미션 start_ms 보다는 절대 넘지 않게 클램프 (간섭 방지).
+        if (mission?.type === 'voice_read' && resolvedText && template) {
+          const desired = computeLineDuration(resolvedText);
+          const desiredEnd = mission.start_ms + desired;
+          // 다음 미션 시작점 (없으면 템플릿 끝 + 5초 여유).
+          const sortedMissions = [...template.missions].sort((a, b) => a.start_ms - b.start_ms);
+          const myIdx = sortedMissions.findIndex((m) => m.seq === mission.seq);
+          const nextStart = (myIdx >= 0 && myIdx < sortedMissions.length - 1)
+            ? sortedMissions[myIdx + 1].start_ms
+            : ((template.duration_sec ?? 60) * 1000 + 5000);
+          // 새 end: 원래 end_ms 와 desiredEnd 중 큰 쪽 (긴 문장 우선) — 단, nextStart 미만.
+          const newEnd = Math.min(nextStart, Math.max(mission.end_ms, desiredEnd));
+          // 너무 짧은 슬롯이 길어진 케이스: end_ms 도 desiredEnd 까지 줄임 (짧은 문장에 6초 무료 시간 X).
+          // 짧은 문장이고 슬롯이 너무 길면 줄여준다 (short text + long slot → trim).
+          const slotMs = mission.end_ms - mission.start_ms;
+          if (desired < slotMs && desiredEnd >= mission.start_ms + 2500) {
+            // 짧은 문장 → 슬롯을 desired 길이로 줄임 (다음 미션은 그대로, 사이 공백은 그냥 둠).
+            mission.end_ms = desiredEnd;
+          } else {
+            mission.end_ms = newEnd;
+          }
+        }
+
         if (mission?.type === 'voice_read' && resolvedText) {
           _currentTarget = resolvedText;
           sr.setTargetText(resolvedText);
@@ -649,6 +678,22 @@ export function useJudgement(): {
 
           case 'voice_read': {
             score = voiceScoreRef.current;
+
+            // FIX-PROMPTER-PACING (2026-04-24): 조기 종료 — transcript 가 목표의 80%
+            //   이상 유사도에 도달했고 최소 표시시간(60%) 은 지났으면 미션 슬롯을
+            //   강제로 종료시켜 다음 미션으로 넘어간다.
+            //   사용자 제보 "긴 문장 다 못 읽음" 과 정반대로, 빨리 다 읽었는데도
+            //   슬롯이 안 끝나서 멍하니 기다리는 케이스 방지.
+            const lineMs = mission.end_ms - mission.start_ms;
+            const elapsedInMission = elapsedMs - mission.start_ms;
+            const minHoldMs = Math.max(2000, lineMs * 0.6);
+            if (
+              voiceAccuracyRef.current >= 0.80 &&
+              elapsedInMission >= minHoldMs &&
+              mission.end_ms > elapsedMs + 300
+            ) {
+              mission.end_ms = elapsedMs + 300;
+            }
 
             // Web Audio 볼륨: 점수에는 영향 없음, "발화 중" 감지 UI용
             setupAudioAnalyser();
