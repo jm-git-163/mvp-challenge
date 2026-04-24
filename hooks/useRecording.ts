@@ -82,7 +82,15 @@ export function useRecording(): UseRecordingReturn {
     const activeTemplate = useSessionStore.getState().activeTemplate;
     if (!activeTemplate) return;
 
-    durationRef.current = activeTemplate.duration_sec * 1000;
+    // FIX-INVITE-KAKAO-LOOP (2026-04-24): 초대 경로에서 layered/비규격 템플릿이
+    //   흘러들어와 duration_sec 가 undefined 면 NaN → 타이머 무한루프 / 즉시 종료.
+    //   최소 15초 / 최대 120초 범위로 clamp. `duration` (legacy) 도 수용.
+    const rawDur = (typeof activeTemplate.duration_sec === 'number' ? activeTemplate.duration_sec : undefined)
+      ?? (typeof (activeTemplate as any).duration === 'number' ? (activeTemplate as any).duration : undefined);
+    const safeDurSec = typeof rawDur === 'number' && isFinite(rawDur) && rawDur > 0
+      ? Math.min(120, Math.max(5, rawDur))
+      : 20; // fallback — 20s 기본 촬영
+    durationRef.current = safeDurSec * 1000;
     setState('countdown');
     setCountdown(COUNTDOWN_SEC);
     let cdRemain = COUNTDOWN_SEC;

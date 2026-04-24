@@ -20,10 +20,13 @@ import { useTemplates } from '../../../hooks/useTemplates';
 import { useSessionStore } from '../../../store/sessionStore';
 import { useInviteStore } from '../../../store/inviteStore';
 import { parseInviteUrl, buildInviteBannerText, type InviteContext } from '../../../utils/inviteLinks';
-import { resolveLayeredTemplate } from '../../../services/challengeTemplateMap';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../../services/supabaseThumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
 import { getThumbnailUrl } from '../../../utils/thumbnails';
+// FIX-INVITE-KAKAO-LOOP (2026-04-24): 정적 import — accept() 의 dynamic import() 는
+//   user-gesture 스택을 이탈시켜 Kakao in-app / Chrome 에서 getUserMedia 가 조용히
+//   재프롬프트되는 원인. 모듈을 번들에 동봉해 await 없이 바로 호출 가능하게 한다.
+import { ensureMediaSession } from '../../../engine/session/mediaSession';
 import type { Template } from '../../../types/template';
 
 export default function ChallengeInviteScreen() {
@@ -62,12 +65,11 @@ export default function ChallengeInviteScreen() {
   const { templates, loading } = useTemplates();
   const template: Template | null = useMemo(() => {
     if (!ctx) return null;
-    // FIX-INVITE-E2E-V2 (2026-04-23): **DB 템플릿(missions/genre/duration_sec 보유) 우선**.
-    //   이전엔 layered 템플릿(레이어 합성 전용 스키마, missions 필드 없음)을 먼저 반환해
-    //   accept → record 페이지에서 `activeTemplate.missions.length` 가
-    //   "Cannot read properties of undefined (reading 'length')" 로 터졌다.
-    //   record/result 등 React UI 는 production template 스키마(types/template.ts)를
-    //   가정하므로 반드시 DB 쪽 객체를 우선 사용.
+    // FIX-INVITE-E2E-V2 (2026-04-23) · FIX-INVITE-KAKAO-LOOP (2026-04-24):
+    //   **DB 템플릿(missions/genre/duration_sec 보유) 만 허용**. Layered 스키마는
+    //   record/useRecording 이 가정하는 production 필드(duration_sec, missions[])
+    //   가 없어 countdown 에서 `NaN * 1000` / `.missions.some is not a function` 로
+    //   터진다. 매칭 실패 시 layered fallback 대신 첫 DB 템플릿 또는 null.
     const slugLc = (ctx.slug || '').toLowerCase();
 
     // 슬러그 → DB id 변환 후보 (UUID 매핑 + legacy 접두 매핑).
@@ -86,7 +88,13 @@ export default function ChallengeInviteScreen() {
     };
     const dbPrefix = SLUG_TO_DB_PREFIX[slugLc] ?? slugLc;
 
+    const isValidDb = (t: any): boolean =>
+      t
+      && typeof t.duration_sec === 'number'
+      && Array.isArray(t.missions);
+
     const dbHit = templates.find(t => {
+      if (!isValidDb(t)) return false;
       const id = String((t as any).id ?? '').toLowerCase();
       const slug = String((t as any).slug ?? '').toLowerCase();
       const themeId = String((t as any).theme_id ?? '').toLowerCase();
@@ -99,12 +107,9 @@ export default function ChallengeInviteScreen() {
     });
     if (dbHit) return dbHit;
 
-    // DB 매칭 실패 시 layered 템플릿(시각 미리보기 용도) — accept 시 missions 누락 가능.
-    const layered = resolveLayeredTemplate(slugLc);
-    if (layered) return (layered as any);
-
-    // 마지막 폴백: 첫 DB 템플릿.
-    return templates[0] ?? null;
+    // 마지막 폴백: 첫 유효 DB 템플릿.
+    const firstValid = templates.find(isValidDb);
+    return firstValid ?? null;
   }, [templates, ctx]);
 
   const [accepting, setAccepting] = useState(false);
@@ -211,22 +216,33 @@ export default function ChallengeInviteScreen() {
     || (template as any).thumbnail_url
     || getThumbnailUrl(tplGenre, tplId, 960);
 
-  const accept = async () => {
+  const accept = () => {
     if (accepting) return;
+    if (!template) return;
     setAccepting(true);
-    // 권한 선행 확보 (홈과 동일 패턴)
-    // FIX-MIC-SINGLETON (2026-04-23): 도전장 수락 → 녹화 경로도 단일 세션 재사용.
-    //   ensureMediaSession 이 살아있는 스트림을 발견하면 팝업 없이 즉시 반환.
-    try {
-      if (typeof window !== 'undefined') {
-        const { ensureMediaSession } = await import('../../../engine/session/mediaSession');
-        const stream = await ensureMediaSession();
-        (window as any).__permissionGranted = true;
-        (window as any).__permissionStream = stream;
-      }
-    } catch {}
-    startSession(template);
-    router.replace('/record' as any);
+    // FIX-INVITE-KAKAO-LOOP (2026-04-24): **정적 import + 동기 호출**.
+    //   이전엔 dynamic import() 의 네트워크/파싱 지연이 user-gesture 스택을
+    //   이탈시켜, Kakao in-app 및 Android Chrome 에서 getUserMedia 가 조용히
+    //   재프롬프트되는 루프를 유발했다. 모듈은 정적으로 번들되어 즉시 실행 가능.
+    //   홈과 동일하게: ensureMediaSession() 이 살아있는 스트림을 발견하면
+    //   팝업 없이 캐시를 반환. 최초 1회만 브라우저 권한 다이얼로그.
+    if (typeof window !== 'undefined') {
+      ensureMediaSession()
+        .then(stream => {
+          (window as any).__permissionGranted = true;
+          (window as any).__permissionStream = stream;
+        })
+        .catch((e) => {
+          if (typeof console !== 'undefined') console.warn('[invite-accept] permission failed:', e);
+        })
+        .finally(() => {
+          startSession(template);
+          router.replace('/record' as any);
+        });
+    } else {
+      startSession(template);
+      router.replace('/record' as any);
+    }
   };
 
   return (
