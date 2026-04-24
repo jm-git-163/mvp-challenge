@@ -356,14 +356,18 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
     };
   }
 
-  // Desktop / browser without Web Share API — silently clipboard, explicit error.
-  try { await copyToClipboard(url); } catch {}
-  if ((env.ios || env.android) && typeof window !== 'undefined') {
-    try { window.location.href = `sms:?body=${encodeURIComponent(caption)}`; } catch {}
-  }
+  // Desktop / browser without Web Share API — clipboard copy + clear instruction.
+  // FIX-SHARE-NO-REDIRECT (2026-04-24): 이전엔 `window.location.href = sms:?body=…`
+  //   로 문자 앱을 열었으나 일부 Android 브라우저에서 이 스킴이 잘못된 https 페이지
+  //   (예: 통신사 안내·마케팅 페이지) 로 리다이렉트되는 사례가 보고됨. 어떤 경우에도
+  //   현재 페이지를 이탈시키는 스킴 이동은 하지 않는다.
+  const copied = await copyToClipboard(url);
   return {
-    kind: 'unsupported',
-    message: '이 브라우저는 공유 API 를 지원하지 않아요. 모바일 Safari/Chrome 에서 다시 시도해주세요.',
+    kind: copied ? 'fallback' : 'unsupported',
+    message: copied
+      ? '✓ 링크가 복사됐어요. 카카오톡/문자/메일 등 원하는 앱에 직접 붙여넣어주세요.'
+      : '공유 API 와 클립보드 모두 실패했어요. 브라우저 권한을 확인하고 다시 시도해주세요.',
+    captionCopied: copied,
   };
 }
 
