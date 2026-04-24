@@ -80,8 +80,10 @@ function getGenreColor(genre: string): string {
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
-// FIX-CAMERA-ZOOM (2026-04-24, v3): CONTAIN + 블러 배경. 상세 설명은
-//   RecordingCamera.web.tsx 의 drawCamera 주석 참조. 두 파일을 동일 로직으로 유지.
+// FIX-CAMERA-PORTRAIT (2026-04-24, v4): COVER + 블러 안전망.
+//   상세 설명은 RecordingCamera.web.tsx 의 drawCamera 주석 참조.
+//   두 파일 동일 로직 유지 — CONTAIN 은 가로 웹캠에서 영상이 캔버스
+//   중앙에 띠처럼 박히는 회귀를 일으킴 (사용자 보고 2026-04-24 PM).
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
@@ -118,14 +120,15 @@ function drawCamera(
   }
   ctx.restore();
 
-  // 2) 전경 CONTAIN
-  let dw: number, dh: number, dx: number, dy: number;
+  // 2) 전경 COVER — 캔버스를 가득 채움
+  let sx: number, sy: number, sw: number, sh: number;
   if (srcAR > dstAR) {
-    dw = CW; dh = CW / srcAR; dx = 0; dy = (CH - dh) / 2;
+    sh = vh; sw = vh * dstAR; sx = (vw - sw) / 2; sy = 0;
   } else {
-    dh = CH; dw = CH * srcAR; dy = 0; dx = (CW - dw) / 2;
+    sw = vw; sh = vw / dstAR; sx = 0; sy = (vh - sh) / 2;
   }
-  ctx.drawImage(video, 0, 0, vw, vh, dx, dy, dw, dh);
+  const dx = 0, dy = 0, dw = CW, dh = CH;
+  ctx.drawImage(video, sx, sy, sw, sh, dx, dy, dw, dh);
 
   if (facing === 'front') ctx.restore();
 

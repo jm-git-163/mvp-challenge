@@ -122,12 +122,15 @@ const genreColor = (g: string) => GENRE_COLORS[g] ?? '#7c3aed';
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
-// FIX-CAMERA-ZOOM (2026-04-24, v3): CONTAIN + 블러 레터박스.
-//   이전 COVER 는 landscape 웹캠 트랙(1280×720) 을 portrait 캔버스(9:16) 에
-//   center-crop → 얼굴이 꽉 차서 과도 확대되는 문제. 사용자는 "창 구조 금지"
-//   라고 했지만, 검은 레터박스가 아니라 **같은 영상을 블러 처리해서 배경으로
-//   깐** 인스타/틱톡 표준 스타일이면 "창" 이 아니라 씨네마틱 프레이밍.
-//   전체 FOV 가 선명하게 보이므로 스쿼트·전신 포즈가 프레임 안에 정상 크기로.
+// FIX-CAMERA-PORTRAIT (2026-04-24, v4): COVER + 블러 안전망.
+//   v3 의 CONTAIN 은 landscape 웹캠(1280×720) 을 9:16 캔버스에 fit 시키면
+//   전경 draw 가 1080×607 짜리 가로 영상이 캔버스 중앙에 띠처럼 박히고
+//   위·아래 656px 가 블러 배경만 보이는 결과 → 사용자: "쇼츠 중간에
+//   가로로 조그만 영상이 생기고". 사용자는 명시적으로 "창 구조 금지,
+//   화면을 채워달라" 라고 요구. 정답은 COVER (양쪽 살짝 crop, 가로 웹캠은
+//   어쩔 수 없음. 모바일 전면 카메라는 portrait 으로 들어오므로 crop 0).
+//   블러 배경은 COVER 가 캔버스를 가득 채우므로 사실상 보이지 않지만,
+//   readyState 경계나 일시적 타이밍 케이스의 안전망으로 유지.
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
@@ -163,21 +166,24 @@ function drawCamera(
   }
   ctx.restore();
 
-  // 2) 전경: CONTAIN fit — 전체 FOV 가 보이도록 letterbox/pillarbox.
-  let dw: number, dh: number, dx: number, dy: number;
+  // 2) 전경: COVER fit — 캔버스를 가득 채움. 가로 웹캠은 좌우 crop, 세로
+  //    소스는 crop 0. dx/dy/dw/dh 는 항상 캔버스 전면.
+  let sx: number, sy: number, sw: number, sh: number;
   if (srcAR > dstAR) {
-    // landscape → pillarbox (위아래 검정 없음, 블러 배경 위에 얹힘)
-    dw = CW;
-    dh = CW / srcAR;
-    dx = 0;
-    dy = (CH - dh) / 2;
+    // landscape: 좌우 crop
+    sh = vh;
+    sw = vh * dstAR;
+    sx = (vw - sw) / 2;
+    sy = 0;
   } else {
-    dh = CH;
-    dw = CH * srcAR;
-    dy = 0;
-    dx = (CW - dw) / 2;
+    // portrait: 상하 crop (세로 폰 소스에서는 거의 0)
+    sw = vw;
+    sh = vw / dstAR;
+    sx = 0;
+    sy = (vh - sh) / 2;
   }
-  ctx.drawImage(video, 0, 0, vw, vh, dx, dy, dw, dh);
+  const dx = 0, dy = 0, dw = CW, dh = CH;
+  ctx.drawImage(video, sx, sy, sw, sh, dx, dy, dw, dh);
 
   if (facing === 'front') ctx.restore();
 

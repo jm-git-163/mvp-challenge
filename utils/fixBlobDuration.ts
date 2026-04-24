@@ -193,6 +193,24 @@ export async function fixBlobDuration(blob: Blob, durationMs?: number): Promise<
   const type = (blob.type || '').toLowerCase();
   if (!/webm/.test(type)) return blob;              // only WebM is patchable here
 
+  // FIX-KAKAO-HANG (2026-04-24, v6): MIME truth check. A blob whose .type says
+  //   "video/webm" but whose bytes start with ftyp/moov (mp4) would otherwise
+  //   be misparsed by the EBML walker below — findDurationSlot returning null
+  //   is the benign outcome, but a partial/garbled parse could (in rare codec
+  //   variants) find a spurious slot and the float64 write would corrupt the
+  //   file. Sniff the EBML magic (0x1A 0x45 0xDF 0xA3) before touching bytes.
+  let header: Uint8Array;
+  try {
+    const slice = blob.slice(0, 4);
+    header = new Uint8Array(await slice.arrayBuffer());
+  } catch { return blob; }
+  if (header.length < 4
+      || header[0] !== 0x1A || header[1] !== 0x45
+      || header[2] !== 0xDF || header[3] !== 0xA3) {
+    // Not actually EBML/WebM — pass through untouched.
+    return blob;
+  }
+
   let ms = durationMs;
   if (typeof ms !== 'number' || !isFinite(ms) || ms <= 0) {
     const seconds = await probeBlobDuration(blob);

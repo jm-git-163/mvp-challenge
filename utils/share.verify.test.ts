@@ -89,13 +89,22 @@ describe('Bug 2: camera getUserMedia constraints', () => {
     expect((v.height as any)?.ideal).toBe(720);
   });
 
-  it('drawCamera source uses CONTAIN + blurred background (no COVER center-crop)', () => {
+  it('drawCamera foreground uses COVER (fills canvas edge-to-edge, no dead bands)', () => {
+    // v4 (2026-04-24 PM): CONTAIN was producing a tiny landscape band in
+    // the middle of the 9:16 portrait canvas when webcam source was
+    // landscape (user: "쇼츠 중간에 가로로 조그만 영상"). We went back
+    // to COVER — slight horizontal crop on landscape sources, zero crop
+    // on mobile portrait cams. Blur layer kept as safety net.
     const recFile = fs.readFileSync(path.resolve(__dirname, '../components/camera/RecordingCamera.web.tsx'), 'utf-8');
     const canFile = fs.readFileSync(path.resolve(__dirname, '../components/camera/CanvasRecorder.web.tsx'), 'utf-8');
     for (const src of [recFile, canFile]) {
+      // Blur safety net still present
       expect(src).toMatch(/blur\(30px\)/);
-      // CONTAIN keyword: srcAR/dstAR compare present
-      expect(src).toMatch(/srcAR\s*>\s*dstAR/);
+      // COVER foreground: full-canvas destination (dx=0, dy=0, dw=CW, dh=CH).
+      expect(src).toMatch(/const\s+dx\s*=\s*0\s*,\s*dy\s*=\s*0\s*,\s*dw\s*=\s*CW\s*,\s*dh\s*=\s*CH/);
+      // Must not regress to CONTAIN math (dw = CW / srcAR).
+      expect(src).not.toMatch(/dw\s*=\s*CW\s*;\s*dh\s*=\s*CW\s*\/\s*srcAR/);
+      expect(src).not.toMatch(/dw\s*=\s*CW;\s*dh\s*=\s*CW\s*\/\s*srcAR/);
     }
   });
 });
