@@ -41,18 +41,33 @@ export default function Root({ children }: PropsWithChildren) {
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css"
         />
 
-        {/* Open Graph */}
+        {/* Open Graph
+            FIX-SHARE-CARD (2026-04-24): 카톡/페북/트위터 등에서 링크를 붙이면 간판 이미지가 뜨도록
+            og:image 를 절대 URL 로 지정. PNG 가 가장 호환성 좋지만, SVG 도 Kakao 2023+, FB, Twitter,
+            Discord, Slack 등 현대 스크래퍼는 모두 처리. PNG 교체를 원하면 public/og-cover.png 를 추가.
+            크롤러는 og:image 를 위→아래 순으로 시도하므로 PNG 가 있으면 먼저 선택됨. */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="챌린지 스튜디오" />
         <meta property="og:title" content={TITLE} />
         <meta property="og:description" content={DESC} />
         <meta property="og:url" content={URL} />
         <meta property="og:locale" content="ko_KR" />
+        <meta property="og:image" content={`${URL}/og-cover.png`} />
+        <meta property="og:image" content={`${URL}/og-cover.svg`} />
+        <meta property="og:image:type" content="image/svg+xml" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="챌린지 스튜디오 — AI 챌린지 숏폼 제작" />
 
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={TITLE} />
         <meta name="twitter:description" content={DESC} />
+        <meta name="twitter:image" content={`${URL}/og-cover.png`} />
+        <meta name="twitter:image" content={`${URL}/og-cover.svg`} />
+
+        {/* Kakao — 표준 og: 태그를 읽지만, 일부 환경에서 링크 미리보기 캐시가 오래 남아 갱신이 늦을 수 있음.
+            갱신 강제: kakaotalk 스크래퍼에 새 URL (쿼리 스트링) 로 한 번 공유하면 즉시 재크롤. */}
 
         {/* PWA hints */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
