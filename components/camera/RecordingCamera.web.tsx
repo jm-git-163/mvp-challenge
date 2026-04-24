@@ -1600,17 +1600,28 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
 
           // FIX-KAKAO-MP4 (2026-04-24): mp4 우선 probe. 기존엔 webm 만 검사해서
           //   Android Chrome 에서 항상 webm 녹화 → 카톡 공유 시 Play Store 리다이렉트.
-          const mimeType = pickRecordingMimeType() || '';
+          const requestedMime = pickRecordingMimeType() || '';
 
           const recorder = new MediaRecorder(
             canvasStream,
-            mimeType
-              ? { mimeType, videoBitsPerSecond: 2_500_000 }
+            requestedMime
+              ? { mimeType: requestedMime, videoBitsPerSecond: 2_500_000 }
               : { videoBitsPerSecond: 2_500_000 },
           );
           recRef.current = recorder;
           recStateRef.current = true;
           try { resourceTracker.inc('mediaRecorder'); } catch {}
+
+          // FIX-KAKAO-HANG (2026-04-24, v5): see CanvasRecorder.web.tsx note —
+          //   trust `recorder.mimeType` (post-negotiation), not the requested
+          //   one. Mislabeled blobs were a key Kakao "stuck mid-send" cause.
+          try {
+            // eslint-disable-next-line no-console
+            console.info('[RecordingCameraWeb] started', {
+              requested: requestedMime,
+              actual: recorder.mimeType,
+            });
+          } catch {}
 
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
@@ -1618,7 +1629,17 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           recorder.onstop = () => {
             recStateRef.current = false;
             try { resourceTracker.dec('mediaRecorder'); } catch {}
-            const blob = new Blob(chunksRef.current, { type: mimeType || 'video/mp4' });
+            const actualMime =
+              (recorder.mimeType || requestedMime || 'video/webm').toLowerCase();
+            const blob = new Blob(chunksRef.current, { type: actualMime });
+            try {
+              // eslint-disable-next-line no-console
+              console.info('[RecordingCameraWeb] stopped', {
+                actualMime,
+                size: blob.size,
+                chunkCount: chunksRef.current.length,
+              });
+            } catch {}
             resolve(URL.createObjectURL(blob));
           };
           recorder.onerror = (e) => {

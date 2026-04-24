@@ -29,6 +29,7 @@ import {
 } from './inviteShareCard';
 import { blobToShareFile } from './shareVideo';
 import { kakaoSizeWarning } from './share.debug';
+import { fixBlobDuration, probeBlobDuration } from './fixBlobDuration';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -186,7 +187,24 @@ export async function prepareVideoFile(
       log('prepare.fail', `tiny-blob:${blob?.size ?? 0}`);
       return null;
     }
-    const file = blobToShareFile(blob, name);
+    // FIX-KAKAO-HANG (2026-04-24, v5): MediaRecorder WebM blobs ship with
+    //   `Duration=0` or the field absent. KakaoTalk's uploader hangs mid-send
+    //   when validating those — it's the single most common cause behind the
+    //   user's "친구 골라 보내기 눌렀는데 끝나지 않음" report. We patch the
+    //   EBML Duration element before the blob is ever shared. No-op for mp4
+    //   (Chrome 110+ writes correct mvhd duration) and for already-valid webm.
+    let patched = blob;
+    try {
+      const probed = await probeBlobDuration(blob, 3500);
+      if (probed && isFinite(probed) && probed > 0) {
+        patched = await fixBlobDuration(blob, probed * 1000);
+        log('prepare.duration', { seconds: probed, patched: patched !== blob });
+      } else {
+        log('prepare.duration.unknown', 'probe-failed-or-infinite');
+      }
+    } catch (e) { log('prepare.duration.error', e); }
+
+    const file = blobToShareFile(patched, name);
     log('prepare.ok', { name: file.name, size: file.size, type: file.type });
     return file;
   } catch (e) {
@@ -217,6 +235,13 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
     return { kind: 'unsupported', message: '영상 파일이 손상된 것 같아요. 다시 촬영해주세요.' };
   }
 
+  // FIX-KAKAO-HANG (2026-04-24, v5): >50MB advisory for ANY share path, not
+  //   just sharePlatform('kakao'). When the user picks Kakao from the OS
+  //   share sheet (Path A below), we have no way to interpose, but we can at
+  //   least pre-warn so they pick Wi-Fi.
+  const sizeWarn = kakaoSizeWarning(file.size);
+  if (sizeWarn) log('video.size-warning', sizeWarn);
+
   // Path A: Web Share with files — iOS + Android.
   // FIX-SHARE-SHEET (2026-04-24, v3): 이전엔 iOS 만 files 경로를 탔기 때문에
   //   Android 사용자는 "SNS 전송 누르면 다운만 되고 공유창이 안 열린다" 를 보았음.
@@ -232,7 +257,10 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
       log('result.web-share', 'ok');
       // 캡션은 클립보드로 조용히 넘겨, 사용자가 공유 시트에서 앱 선택 후 붙여넣기 가능.
       if (caption) { try { await copyToClipboard(caption); } catch {} }
-      return { kind: 'web-share', message: '공유 시작됨' };
+      const okMsg = sizeWarn
+        ? `공유 시작됨\n\n⚠ ${sizeWarn}`
+        : '공유 시작됨';
+      return { kind: 'web-share', message: okMsg };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         log('result.cancelled', 'user-abort');
