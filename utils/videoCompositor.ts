@@ -3161,6 +3161,12 @@ export async function composeVideo(
               (window as any).__lastComposedVideo = blob;
               (window as any).__lastComposedMime = actualMime;
               (window as any).__lastComposedAt = Date.now();
+              // Also persist to IndexedDB so /debug/share survives tab/reload.
+              try {
+                import('./composedVideoStash').then((m) => {
+                  m.stashComposedVideo(blob, actualMime).catch(() => {});
+                }).catch(() => {});
+              } catch {}
             }
           } catch {}
           resolve(blob);

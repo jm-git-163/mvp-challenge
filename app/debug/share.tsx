@@ -21,6 +21,7 @@ import {
 } from '../../utils/share.debug';
 import { sharePlatform, type ShareResult } from '../../utils/share';
 import { blobToShareFile } from '../../utils/shareVideo';
+import { loadComposedVideo } from '../../utils/composedVideoStash';
 
 function makeTestFile(mime: string, name: string): File | null {
   try {
@@ -74,7 +75,12 @@ export default function DebugSharePage() {
 
   const loadReal = useCallback(async () => {
     if (Platform.OS !== 'web') return;
-    const src = pickLastComposed();
+    // Try memory first (same-tab after /result), then IndexedDB (cross-tab / post-reload).
+    let src = pickLastComposed();
+    if (!src) {
+      const persisted = await loadComposedVideo();
+      if (persisted) src = persisted;
+    }
     if (!src) {
       setRealDiag(null); setRealMeta(null); setRealFile(null); setRealWarning('합성된 영상이 없어요. 먼저 /record 에서 챌린지를 완료해 /result 화면까지 가야 해요.');
       return;
