@@ -216,33 +216,34 @@ export default function ChallengeInviteScreen() {
     || (template as any).thumbnail_url
     || getThumbnailUrl(tplGenre, tplId, 960);
 
-  const accept = () => {
+  const accept = async () => {
     if (accepting) return;
     if (!template) return;
     setAccepting(true);
-    // FIX-INVITE-KAKAO-LOOP (2026-04-24): **정적 import + 동기 호출**.
-    //   이전엔 dynamic import() 의 네트워크/파싱 지연이 user-gesture 스택을
-    //   이탈시켜, Kakao in-app 및 Android Chrome 에서 getUserMedia 가 조용히
-    //   재프롬프트되는 루프를 유발했다. 모듈은 정적으로 번들되어 즉시 실행 가능.
-    //   홈과 동일하게: ensureMediaSession() 이 살아있는 스트림을 발견하면
-    //   팝업 없이 캐시를 반환. 최초 1회만 브라우저 권한 다이얼로그.
+    // FIX-INVITE-KAKAO-LOOP (2026-04-24) · FIX-INVITE-KEEP-ALIVE (2026-04-24):
+    //   **정적 import + await** — 홈 경로(handleSelect)와 완전히 동일한 패턴.
+    //   dynamic import() 의 네트워크/파싱 지연이 user-gesture 스택을 이탈시켜
+    //   Kakao in-app / Chrome 에서 getUserMedia 가 조용히 재프롬프트되는 루프를
+    //   유발했다. 모듈은 정적으로 번들되어 즉시 실행 가능.
+    //
+    //   이전엔 .then/.finally 체인으로 네비게이션했지만, 스트림이 resolve 되기
+    //   전에 __permissionStream 이 세팅되지 않은 채 /record 가 마운트될 수 있어
+    //   RecordingCamera 의 acquireStream 이 mediaSession 싱글톤을 재확인하면서
+    //   드물게 재프롬프트가 발생. await 로 단일 흐름 보장.
+    //
+    //   ensureMediaSession() 이 살아있는 스트림을 발견하면 팝업 없이 캐시 반환.
+    //   최초 1회만 브라우저 권한 다이얼로그 (이 click 핸들러 안에서 동기 호출).
     if (typeof window !== 'undefined') {
-      ensureMediaSession()
-        .then(stream => {
-          (window as any).__permissionGranted = true;
-          (window as any).__permissionStream = stream;
-        })
-        .catch((e) => {
-          if (typeof console !== 'undefined') console.warn('[invite-accept] permission failed:', e);
-        })
-        .finally(() => {
-          startSession(template);
-          router.replace('/record' as any);
-        });
-    } else {
-      startSession(template);
-      router.replace('/record' as any);
+      try {
+        const stream = await ensureMediaSession();
+        (window as any).__permissionGranted = true;
+        (window as any).__permissionStream = stream;
+      } catch (e) {
+        if (typeof console !== 'undefined') console.warn('[invite-accept] permission failed:', e);
+      }
     }
+    startSession(template);
+    router.replace('/record' as any);
   };
 
   return (

@@ -724,13 +724,13 @@ export default function ResultScreen() {
     } catch (e) { console.warn('[result] unmount cleanup: revokeObjectURL', e); }
     if (typeof window !== 'undefined') {
       const w = window as any;
-      try {
-        const pre = w.__permissionStream as MediaStream | undefined;
-        if (pre && pre.getTracks) pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
-      } catch (e) { console.warn('[result] unmount cleanup: __permissionStream stop', e); }
+      // FIX-INVITE-KEEP-ALIVE (2026-04-24): /record unmount 와 동일하게, 싱글톤 스트림을
+      //   **stop 하지 않는다**. 초대 경로→/record→/result→다시 챌린지 재도전
+      //   시 스트림이 살아있어야 다음 ensureMediaSession() 이 팝업 없이 재사용.
+      //   stream 수명주기는 mediaSession 싱글톤이 소유 (앱 종료 시 release).
       try { w.__poseVideoEl = undefined; } catch {}
-      try { w.__permissionStream = undefined; } catch {}
       try { w.__compositorCanvas = undefined; } catch {}
+      // __permissionStream 도 그대로 둔다 — 다음 세션 재사용.
     }
   }, []);
 

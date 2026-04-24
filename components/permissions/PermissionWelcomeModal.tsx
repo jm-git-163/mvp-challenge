@@ -80,7 +80,7 @@ export default function PermissionWelcomeModal(
       //   **stop 하지 않는다**. 싱글톤이 세션 동안 스트림을 소유하며,
       //   이후 record/challenge 진입 시 ensureMediaSession() 이 그대로 재사용 →
       //   브라우저 권한 팝업 0회.
-      const { ensureMediaSession } = await import('../../../engine/session/mediaSession');
+      const { ensureMediaSession } = await import('../../engine/session/mediaSession');
       const stream = await ensureMediaSession();
       (window as any).__permissionGranted = true;
       (window as any).__permissionStream = stream;

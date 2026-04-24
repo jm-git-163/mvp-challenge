@@ -90,12 +90,14 @@ export class ErrorBoundary extends React.Component<
    */
   private _forceHome() {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // FIX-INVITE-KEEP-ALIVE (2026-04-24): 에러 복구 홈 이동 시에도 싱글톤 스트림을
+      //   **stop 하지 않는다**. window.location.href 전체 리로드가 뒤따르므로
+      //   브라우저가 페이지 컨텍스트를 파괴할 때 트랙도 함께 정리된다.
+      //   여기서 수동 stop 하면 리로드 전 찰나에 다른 핸들러가 싱글톤을 관찰할 때
+      //   stale 로 보고 재acquire → 리로드 직전 불필요한 팝업 트리거 가능.
       try {
         const w = window as any;
-        const pre = w.__permissionStream as MediaStream | undefined;
-        if (pre?.getTracks) pre.getTracks().forEach((t: MediaStreamTrack) => { try { t.stop(); } catch {} });
         w.__poseVideoEl = undefined;
-        w.__permissionStream = undefined;
         w.__compositorCanvas = undefined;
       } catch {}
       try { window.location.href = '/?_b=' + Date.now(); }
