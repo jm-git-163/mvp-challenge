@@ -51,26 +51,38 @@ function resolveHands(layer: BaseLayer, state: any): Array<{ x: number; y: numbe
   const anchors = state?.handAnchors;
   const tracked = state?.__trackedPoint?.[layer.id];
 
+  // FIX-SHARE-CAMERA-FINAL (2026-04-24): camera_feed scale 시 dest rect 정렬.
+  const rect = state?.cameraRect;
+  const rx = rect && Number.isFinite(rect.x) ? rect.x : 0;
+  const ry = rect && Number.isFinite(rect.y) ? rect.y : 0;
+  const rw = rect && Number.isFinite(rect.w) && rect.w > 0 ? rect.w : null;
+  const rh = rect && Number.isFinite(rect.h) && rect.h > 0 ? rect.h : null;
+  const map = (p: { x: number; y: number }): { x: number; y: number } => {
+    const isNorm = Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
+    if (!isNorm || rw == null || rh == null) return { x: p.x, y: p.y };
+    return { x: rx + p.x * rw, y: ry + p.y * rh };
+  };
+
   if (tracked && Number.isFinite(tracked.x) && Number.isFinite(tracked.y)) {
-    return [{ x: tracked.x, y: tracked.y }];
+    return [map({ x: tracked.x, y: tracked.y })];
   }
 
   if (lm === 'left_hand' && anchors?.left && Number.isFinite(anchors.left.x)) {
-    return [{ x: anchors.left.x, y: anchors.left.y }];
+    return [map({ x: anchors.left.x, y: anchors.left.y })];
   }
   if (lm === 'right_hand' && anchors?.right && Number.isFinite(anchors.right.x)) {
-    return [{ x: anchors.right.x, y: anchors.right.y }];
+    return [map({ x: anchors.right.x, y: anchors.right.y })];
   }
 
   // 전체 손
   const out: Array<{ x: number; y: number }> = [];
   if (Array.isArray(anchors)) {
     for (const h of anchors) {
-      if (h && Number.isFinite(h.x) && Number.isFinite(h.y)) out.push({ x: h.x, y: h.y });
+      if (h && Number.isFinite(h.x) && Number.isFinite(h.y)) out.push(map(h));
     }
   } else if (anchors && typeof anchors === 'object') {
-    if (anchors.left && Number.isFinite(anchors.left.x)) out.push(anchors.left);
-    if (anchors.right && Number.isFinite(anchors.right.x)) out.push(anchors.right);
+    if (anchors.left && Number.isFinite(anchors.left.x)) out.push(map(anchors.left));
+    if (anchors.right && Number.isFinite(anchors.right.x)) out.push(map(anchors.right));
   }
   return out;
 }

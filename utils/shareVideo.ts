@@ -143,39 +143,15 @@ function openDeepLink(urls: { androidIntent?: string; iosScheme?: string; https:
   openHttpsNewTab();
 }
 
-function deepLinkFor(platform: SharePlatform): void {
-  switch (platform) {
-    case 'kakao':
-      // KakaoTalk has no "open with file" scheme on web — just open the app;
-      // user picks the chat and attaches the just-downloaded video manually.
-      openDeepLink({
-        androidIntent:
-          'intent://#Intent;scheme=kakaotalk;package=com.kakao.talk;S.browser_fallback_url=https%3A%2F%2Fwww.kakaocorp.com%2Fservice%2FKakaoTalk;end',
-        iosScheme: 'kakaotalk://',
-        https: 'https://www.kakaocorp.com/service/KakaoTalk',
-      });
-      return;
-    case 'instagram':
-      openDeepLink({
-        androidIntent:
-          'intent://library#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com%2F;end',
-        iosScheme: 'instagram://library',
-        https: 'https://www.instagram.com/',
-      });
-      return;
-    case 'youtube':
-      openDeepLink({
-        androidIntent:
-          'intent://upload#Intent;scheme=vnd.youtube;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fstudio.youtube.com%2F;end',
-        iosScheme: 'vnd.youtube://upload',
-        https: 'https://studio.youtube.com/',
-      });
-      return;
-    case 'native':
-    default:
-      return;
-  }
+// FIX-SHARE-CAMERA-FINAL (2026-04-24): legacy path — no-op out to guarantee
+//   no caller can reach a kakaocorp/m.kakao/studio.youtube https fallback.
+//   The active share pipeline is utils/share.ts (sharePlatform); this function
+//   stays only because imports may still reference it.
+function deepLinkFor(_platform: SharePlatform): void {
+  // Intentionally empty. See utils/share.ts openDeepLinkFor comment.
 }
+// Keep openDeepLink reference alive so TS noUnusedLocals passes where relevant.
+void openDeepLink;
 
 // ── Main entry point ────────────────────────────────────────────────────
 

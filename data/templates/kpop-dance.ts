@@ -46,7 +46,7 @@ export const kpopDance: Template = {
     { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4,  opacity: 0.35, enabled: true, props: { shapes: ['heart', 'star'], yBand: [100, 400], tint: PINK, sizeJitter: 0.4 } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true, props: { scale: 1.0 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.22, enabled: true, props: { ringColor: PINK, ringWidth: 2, glowBlur: 14 },
       reactive: { onBeat: { every: 2, property: 'glow', amount: 0.35, easing: 'overshoot', durationMs: 130 } } },
 

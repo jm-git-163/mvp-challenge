@@ -60,7 +60,7 @@ export const neonArena: Template = {
     { id: 'intro_ticker',   type: 'news_ticker',      zIndex: 14, opacity: 1,    enabled: true, props: { texts: ['READY', 'SET', 'CHALLENGE STARTS'], speedPxPerSec: 320, fontSize: 42, bgColor: '#FF2D95', color: '#FFFFFF', accentColor: '#00E0FF', position: 'top', labelText: 'LIVE', labelBg: '#00E0FF', labelColor: '#000000' }, activeRange: { startSec: 0.3, endSec: 2.8 } },
 
     // 카메라 (zIndex 20~25)
-    { id: 'cam_feed',       type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true },
+    { id: 'cam_feed',       type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true, props: { scale: 1.0 } },
     { id: 'cam_frame',      type: 'camera_frame',     zIndex: 21, opacity: 1,    enabled: true,
       props: { ringColor: '#FF2D95', ringWidth: 2, glowBlur: 12 },
       reactive: { onBeat: { every: 1, property: 'glow', amount: 0.5, easing: 'overshoot', durationMs: 120 } } },

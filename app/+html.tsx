@@ -63,6 +63,29 @@ export default function Root({ children }: PropsWithChildren) {
 
         <ScrollViewStyleReset />
 
+        {/* FIX-SHARE-CAMERA-FINAL (2026-04-24): 옛 service worker / 캐시 강제 폐기.
+            과거 PWA 플러그인 사용 시점에 등록된 SW 가 새 코드를 가로채 사용자에게
+            구버전 share/camera 로직이 그대로 전송되는 가능성을 차단.
+            매 페이지 로드마다 1회만 실행, 비동기·실패 무시. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations()
+                    .then(function (rs) { rs.forEach(function (r) { try { r.unregister(); } catch (e) {} }); })
+                    .catch(function () {});
+                }
+                if (typeof caches !== 'undefined' && caches && caches.keys) {
+                  caches.keys()
+                    .then(function (keys) { keys.forEach(function (k) { try { caches.delete(k); } catch (e) {} }); })
+                    .catch(function () {});
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+
         {/* Global web styles: no bounce/overflow, dark body bg for above-fold flashes */}
         <style dangerouslySetInnerHTML={{ __html: responsiveCss }} />
       </head>

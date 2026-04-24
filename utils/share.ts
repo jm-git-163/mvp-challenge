@@ -266,13 +266,11 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
     };
   }
 
-  const msg = env.inAppBrowser
-    ? '영상이 저장됐어요. 카톡 채팅창 → + 버튼 → 최근 영상에서 선택해주세요.'
-    : env.android
-      ? '영상 저장됨. 카톡 채팅창 → + 버튼 → 최근 영상에서 선택해주세요.'
-      : captionCopied
-        ? '영상 저장 · 캡션 복사 완료. 메신저 앱에서 저장된 영상을 직접 첨부해주세요.'
-        : '영상 저장 완료. 메신저 앱에서 저장된 영상을 직접 첨부해주세요.';
+  // FIX-SHARE-CAMERA-FINAL (2026-04-24): 모든 fallback 토스트 통일.
+  //   "다운로드 완료 → 사용자가 직접 앱 열어 갤러리에서 선택" 패턴.
+  const msg = captionCopied
+    ? '✓ 영상 저장 · 캡션 복사 완료. 카카오톡/인스타그램을 직접 열어 채팅방 → + 버튼 → 갤러리에서 방금 저장된 영상을 선택해주세요.'
+    : '✓ 영상 저장 완료. 카카오톡/인스타그램을 직접 열어 채팅방 → + 버튼 → 갤러리에서 방금 저장된 영상을 선택해주세요.';
 
   return { kind: 'fallback', message: msg, downloaded, captionCopied };
 }
@@ -382,74 +380,30 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
 
 export type TargetPlatform = 'kakao' | 'instagram-story' | 'instagram-feed' | 'tiktok' | 'youtube';
 
-function openSchemeHref(href: string): void {
-  try { (window as any).location.href = href; } catch {}
-}
-
-function openDeepLinkFor(platform: TargetPlatform): void {
-  if (typeof window === 'undefined') return;
-  const ua = navigator.userAgent || '';
-  const android = /Android/i.test(ua);
-  const ios = /iPhone|iPad|iPod/i.test(ua);
-
-  type LinkSet = { androidIntent?: string; iosScheme?: string; https: string };
-  const LINKS: Record<TargetPlatform, LinkSet> = {
-    'kakao': {
-      androidIntent: 'intent://#Intent;scheme=kakaotalk;package=com.kakao.talk;S.browser_fallback_url=https%3A%2F%2Fm.kakao.com;end',
-      iosScheme: 'kakaotalk://',
-      https: 'https://m.kakao.com',
-    },
-    'instagram-story': {
-      androidIntent: 'intent://story-camera#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com%2F;end',
-      iosScheme: 'instagram://story-camera',
-      https: 'https://www.instagram.com/',
-    },
-    'instagram-feed': {
-      androidIntent: 'intent://library#Intent;scheme=instagram;package=com.instagram.android;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com%2F;end',
-      iosScheme: 'instagram://library',
-      https: 'https://www.instagram.com/',
-    },
-    'tiktok': {
-      androidIntent: 'intent://upload#Intent;scheme=snssdk1233;package=com.zhiliaoapp.musically;S.browser_fallback_url=https%3A%2F%2Fwww.tiktok.com%2Fupload;end',
-      iosScheme: 'snssdk1233://',
-      https: 'https://www.tiktok.com/upload',
-    },
-    'youtube': {
-      androidIntent: 'intent://upload#Intent;scheme=vnd.youtube;package=com.google.android.youtube;S.browser_fallback_url=https%3A%2F%2Fstudio.youtube.com%2F;end',
-      iosScheme: 'vnd.youtube://upload',
-      https: 'https://studio.youtube.com/',
-    },
-  };
-  const link = LINKS[platform];
-
-  if (android && link.androidIntent) { openSchemeHref(link.androidIntent); return; }
-  if (ios && link.iosScheme) {
-    openSchemeHref(link.iosScheme);
-    setTimeout(() => {
-      if (!document.hidden) {
-        try {
-          const a = document.createElement('a');
-          a.href = link.https; a.target = '_blank'; a.rel = 'noopener noreferrer';
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        } catch {}
-      }
-    }, 1500);
-    return;
-  }
-  // Desktop: open web fallback in new tab.
-  try {
-    const a = document.createElement('a');
-    a.href = link.https; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  } catch {}
+// FIX-SHARE-CAMERA-FINAL (2026-04-24): 모든 https 폴백 · OS 스킴 호출 제거.
+//   이전에는 intent://…S.browser_fallback_url=https%3A%2F%2Fm.kakao.com 처럼
+//   앱이 설치되지 않았거나 intent 가 인식되지 않을 때 **카카오 가입/마케팅
+//   페이지**로 튕기는 문제가 있었다. iOS setTimeout 웹 폴백도 동일.
+//   딥링크가 카톡 채팅창으로 정확히 떨어진다는 보장이 없는 한 어떤 스킴도
+//   호출하지 않는다. 사용자가 직접 앱을 열어 갤러리에서 선택하도록 안내.
+function openDeepLinkFor(_platform: TargetPlatform): void {
+  // No-op. Platform buttons only save the file + copy caption + show guidance toast.
+  // DO NOT reintroduce https/scheme navigation — any fallback risks landing on
+  // a marketing/signup page (kakaocorp, m.kakao, etc.), which users cannot
+  // distinguish from a crash.
 }
 
 const PLATFORM_TOAST: Record<TargetPlatform, string> = {
-  'kakao': '영상 저장됨. 카카오톡이 열리면 채팅창 → + 버튼 → 최근 영상에서 선택해주세요.',
-  'instagram-story': '영상 저장됨. 인스타그램 스토리에서 갤러리를 열고 방금 저장된 영상을 선택하세요.',
-  'instagram-feed': '영상 저장됨. 인스타그램에서 + 버튼 → 갤러리로 업로드하세요.',
-  'tiktok': '영상 저장됨. 틱톡 앱에서 + 버튼 → 갤러리로 업로드하세요.',
-  'youtube': '영상 저장됨. 유튜브 스튜디오가 열리면 방금 저장된 영상을 업로드하세요.',
+  'kakao':
+    '✓ 영상 저장 완료. 카카오톡을 직접 열어 채팅방 → + 버튼 → 갤러리에서 방금 저장된 영상을 선택해주세요.',
+  'instagram-story':
+    '✓ 영상 저장 완료. 인스타그램을 열어 스토리 → 갤러리에서 방금 저장된 영상을 선택해주세요.',
+  'instagram-feed':
+    '✓ 영상 저장 완료. 인스타그램을 열어 + 버튼 → 게시물 → 갤러리에서 방금 저장된 영상을 선택해주세요.',
+  'tiktok':
+    '✓ 영상 저장 완료. 틱톡을 열어 + 버튼 → 갤러리에서 방금 저장된 영상을 선택해주세요.',
+  'youtube':
+    '✓ 영상 저장 완료. 유튜브 앱을 열어 + 버튼 → 쇼츠/동영상 → 갤러리에서 방금 저장된 영상을 선택해주세요.',
 };
 
 export async function sharePlatform(opts: {

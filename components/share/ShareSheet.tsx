@@ -217,11 +217,14 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
 
   // FIX-KAKAO (2026-04-23): 모드별 안내 문구. primary 버튼 위에 한 줄로 표시해
   //   사용자가 어떻게 동작할지 미리 알게 한다.
+  // FIX-SHARE-CAMERA-FINAL (2026-04-24): 사용자 혼동 방지를 위해 명확한 안내.
+  //   "앱이 자동으로 안 열려요. 영상을 저장한 뒤 카톡/인스타에서 갤러리로 직접 선택"
+  //   이라는 사실을 가장 위에 노출.
   const helpText =
     payload.mode === 'invite'
       ? '버튼을 누르면 카카오톡에서 썸네일 카드가 자동으로 떠요'
       : payload.mode === 'video'
-        ? '영상을 기기에 저장한 뒤 메신저에서 직접 첨부해 주세요'
+        ? '영상이 기기에 먼저 저장돼요. 그 다음 카톡/인스타 등 원하는 앱을 직접 열어 채팅창의 + 버튼 → 갤러리에서 방금 저장된 영상을 선택해 주세요.'
         : null;
 
   const canTap = machine.phase === 'ready';
@@ -271,7 +274,7 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
 
           {payload.mode === 'video' ? (
             <View style={st.platformSection}>
-              <Text style={st.platformHeader}>앱으로 바로 공유 · 업로드</Text>
+              <Text style={st.platformHeader}>저장 후 앱에서 첨부</Text>
               <View style={st.platformGrid}>
                 {[
                   { key: 'kakao' as const, label: '카카오톡', emoji: '💬', bg: '#FEE500', fg: '#191919' },
@@ -292,8 +295,9 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
                 ))}
               </View>
               <Text style={st.platformHint}>
-                각 앱을 누르면 영상이 기기에 저장되고 해당 앱이 열려요.{'\n'}
-                앱에서 "갤러리" 또는 "최근 영상"을 열어 방금 저장된 영상을 선택해주세요.
+                각 버튼을 누르면 영상이 기기에 저장돼요.{'\n'}
+                해당 앱을 직접 열어 채팅창 또는 업로드 화면의 + 버튼 → 갤러리에서{'\n'}
+                방금 저장된 영상을 선택해 주세요. (앱 자동 실행은 보안상 차단돼 있어요)
               </Text>
             </View>
           ) : null}

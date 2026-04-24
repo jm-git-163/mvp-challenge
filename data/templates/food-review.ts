@@ -41,7 +41,7 @@ export const foodReview: Template = {
     { id: 'bg_steam',      type: 'particle_ambient', zIndex: 4, opacity: 0.55, enabled: true, props: { preset: 'electric_blue_rise', count: 22, tint: CREAM } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true, props: { scale: 0.90 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.26, enabled: true, props: { borderColor: MUSTARD, borderWidth: 4, softShadow: true, glowBlur: 12 },
       reactive: { onBeat: { every: 4, property: 'glow', amount: 0.3, easing: 'easeOut', durationMs: 240 } } },
 

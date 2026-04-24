@@ -45,7 +45,7 @@ export const englishSpeaking: Template = {
     { id: 'bg_dust',       type: 'particle_ambient', zIndex: 4, opacity: 0.4, enabled: true, props: { preset: 'glitter_down', count: 18, tint: GOLD } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true, props: { scale: 0.90 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.28, enabled: true, props: { borderColor: GOLD, borderWidth: 2, softShadow: true, glowBlur: 14 },
       reactive: { onBeat: { every: 4, property: 'glow', amount: 0.3, easing: 'easeOut', durationMs: 220 } } },
 

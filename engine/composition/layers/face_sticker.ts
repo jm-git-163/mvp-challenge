@@ -36,22 +36,39 @@ function getImage(url: string): { img: HTMLImageElement; ok: boolean; failed: bo
 }
 
 function resolvePoint(layer: BaseLayer, state: any, W: number, H: number): { x: number; y: number; rot: number; scale: number } {
+  // FIX-SHARE-CAMERA-FINAL (2026-04-24): camera_feed 가 축소 렌더될 경우
+  //   state.cameraRect = {x,y,w,h} 가 설정돼 있음. AR 스티커는 이 dest rect
+  //   기준으로 랜드마크를 매핑해야 얼굴 위에 정확히 뜬다. rect 없으면 풀스크린.
+  const rect = state?.cameraRect;
+  const rx = rect && Number.isFinite(rect.x) ? rect.x : 0;
+  const ry = rect && Number.isFinite(rect.y) ? rect.y : 0;
+  const rw = rect && Number.isFinite(rect.w) && rect.w > 0 ? rect.w : W;
+  const rh = rect && Number.isFinite(rect.h) && rect.h > 0 ? rect.h : H;
+
   const tracked = state?.__trackedPoint?.[layer.id];
   if (tracked && Number.isFinite(tracked.x) && Number.isFinite(tracked.y)) {
+    // tracked 는 normalized(0..1) 일 수도, px 일 수도. 휴리스틱: |x|<=1 이면 normalized.
+    const isNorm = Math.abs(tracked.x) <= 1 && Math.abs(tracked.y) <= 1;
+    const px = isNorm ? rx + tracked.x * rw : tracked.x;
+    const py = isNorm ? ry + tracked.y * rh : tracked.y;
     return {
-      x: tracked.x, y: tracked.y,
+      x: px, y: py,
       rot: Number.isFinite(tracked.rot) ? tracked.rot : 0,
       scale: Number.isFinite(tracked.scale) ? tracked.scale : 1,
     };
   }
-  // faceAnchor 랜드마크 직접 조회
+  // faceAnchor 랜드마크 직접 조회 — normalized(0..1) → camera rect 내 px.
   const anchor = state?.faceAnchor;
   const lm = (layer as any).reactive?.track?.landmark;
   if (anchor && lm && anchor[lm] && Number.isFinite(anchor[lm].x)) {
-    return { x: anchor[lm].x, y: anchor[lm].y, rot: anchor.roll ?? 0, scale: anchor.size ?? 1 };
+    const nx = anchor[lm].x, ny = anchor[lm].y;
+    const isNorm = Math.abs(nx) <= 1 && Math.abs(ny) <= 1;
+    const px = isNorm ? rx + nx * rw : nx;
+    const py = isNorm ? ry + ny * rh : ny;
+    return { x: px, y: py, rot: anchor.roll ?? 0, scale: anchor.size ?? 1 };
   }
-  // 폴백: 상단 중앙
-  return { x: W / 2, y: H * 0.25, rot: 0, scale: 1 };
+  // 폴백: 카메라 rect 상단 중앙.
+  return { x: rx + rw / 2, y: ry + rh * 0.25, rot: 0, scale: 1 };
 }
 
 function isEmojiLike(s: string): boolean {

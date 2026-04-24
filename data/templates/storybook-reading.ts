@@ -44,7 +44,7 @@ export const storybookReading: Template = {
     { id: 'bg_petals',     type: 'particle_ambient', zIndex: 5, opacity: 0.55, enabled: true, props: { preset: 'petals_drift', count: 22, tint: ROSE } },
     { id: 'bg_flowers',    type: 'floating_shapes',  zIndex: 6, opacity: 0.6, enabled: true, props: { shapes: ['star', 'heart', 'cloud'], yBand: [60, 380], tint: LILAC, sizeJitter: 0.3 }, reactive: { onBeat: { every: 8, property: 'scale', amount: 0.06, easing: 'easeOut', durationMs: 320 } } },
 
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true, props: { scale: 0.90 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.28, enabled: true, props: { borderColor: GOLD, borderWidth: 4, softShadow: true, innerGlowColor: LILAC } },
     { id: 'cam_trail',     type: 'particle_trail',   zIndex: 22, opacity: 0.35, enabled: true, props: { tint: GOLD, length: 18 }, reactive: { track: { landmark: 'forehead', offset: { x: 0, y: 0 }, rotateWith: 'none', scaleWith: 'none' } } },
 

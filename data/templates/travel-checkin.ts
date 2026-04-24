@@ -42,7 +42,7 @@ export const travelCheckin: Template = {
     { id: 'bg_clouds_bot', type: 'floating_shapes',  zIndex: 4, opacity: 0.65, enabled: true, props: { shapes: ['cloud', 'cloud'], yBand: [1500, 1800], tint: '#FFFFFF' } },
     { id: 'orbit_ring',    type: 'orbiting_ring',    zIndex: 5, opacity: 0.35, enabled: true, props: { cx: 540, cy: 960, radius: 420, thickness: 3, color: CORAL, dashed: true, rotateSpeedDegPerSec: 18 } },
 
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true, props: { scale: 0.90 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.22, enabled: true, props: { borderColor: CORAL, borderWidth: 3, softShadow: true } },
 
     { id: 'beat_flash',    type: 'beat_flash',       zIndex: 25, opacity: 0.25, enabled: true, props: { color: SKY, fadeMs: 180 }, reactive: { onBeat: { every: 8, property: 'opacity', amount: 0.35, easing: 'easeOut', durationMs: 180 } } },

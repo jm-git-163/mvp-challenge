@@ -42,7 +42,7 @@ export const socialViral: Template = {
     { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.4, enabled: true, props: { shapes: ['heart', 'star'], yBand: [80, 380], tint: PINK, sizeJitter: 0.5 } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true, props: { scale: 0.90 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.25, enabled: true, props: { borderColor: PINK, borderWidth: 2, glowBlur: 16 },
       reactive: { onBeat: { every: 2, property: 'glow', amount: 0.4, easing: 'overshoot', durationMs: 130 } } },
 

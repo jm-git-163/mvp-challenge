@@ -48,7 +48,7 @@ export const squatMaster: Template = {
     { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.20, enabled: true, props: { shapes: ['star'], yBand: [120, 420], tint: YELLOW, sizeJitter: 0.4 } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
-    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true },
+    { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true, props: { scale: 1.0 } },
     { id: 'cam_frame',     type: 'camera_frame',     zIndex: 21, opacity: 0.18, enabled: true, props: { ringColor: YELLOW, ringWidth: 3, glowBlur: 12 },
       reactive: { onBeat: { every: 2, property: 'glow', amount: 0.2, easing: 'overshoot', durationMs: 130 } } },
 
