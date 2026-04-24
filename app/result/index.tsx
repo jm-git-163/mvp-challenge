@@ -23,9 +23,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionStore } from '../../store/sessionStore';
 import { useUserStore }    from '../../store/userStore';
 import { useInviteStore }  from '../../store/inviteStore';
-import { buildReplyCaption } from '../../utils/inviteLinks';
 import { pickOfficialSlug } from '../../utils/officialSlug';
-import { shareInvite, shareReply, prepareVideoFile } from '../../utils/share';
+import { shareInvite } from '../../utils/share';
 import ShareSheet from '../../components/share/ShareSheet';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../services/supabaseThumbnails';
 import { TEMPLATE_THUMBNAILS } from '../../services/templateThumbnails';
@@ -737,7 +736,11 @@ export default function ResultScreen() {
   // FIX-V (2026-04-22): 자동 합성 제거.
   //   기존엔 /result 진입 즉시 handleCompose() 실행 → videoCompositor 가
   //   source video 를 speaker 로 재생하며 "시킨적도 없는데 촬영 음성이 자동 재생"되는
-  //   유저 보고 버그 발생. 이제는 "✨ 완성 영상 만들기" 버튼을 눌러야만 합성 시작.
+  //   유저 보고 버그 발생.
+  // FIX-AUTO-COMPOSE (2026-04-24): 사용자 요청 "완성 영상 만들기 안눌러도 자동으로
+  //   완성 영상 진행했으면 좋겠어". 버튼 탭 대신 마운트 시 1회 자동 실행.
+  //   videoCompositor 의 source 오디오는 이미 muted 로 처리되므로 §FIX-V 원인은 해소됐고,
+  //   실패 시 "다시 시도" 버튼은 기존대로 노출되어 재생성 가능.
   const autoComposedRef = useRef(false);
 
   // Handlers
@@ -768,6 +771,19 @@ export default function ResultScreen() {
       setComposing(false);
     }
   }, [videoTemplate, rawVideoUri, activeTemplate]);
+
+  // FIX-AUTO-COMPOSE (2026-04-24): /result 진입 직후 합성을 자동 실행.
+  //   - autoComposedRef 로 멱등 보장 (StrictMode 중복 실행·리렌더 재실행 차단).
+  //   - 템플릿/원본 영상 준비가 안 된 시점엔 handleCompose 가 조용히 early-return.
+  //   - 합성 실패 시 composeError UI + "다시 시도" 버튼이 기존대로 살아있어 사용자가 재시도 가능.
+  useEffect(() => {
+    if (autoComposedRef.current) return;
+    const t = layeredTemplate || videoTemplate;
+    if (!t || !rawVideoUri) return;
+    if (composing || composedUri) return;
+    autoComposedRef.current = true;
+    handleCompose();
+  }, [layeredTemplate, videoTemplate, rawVideoUri, composing, composedUri, handleCompose]);
 
   const handleSave = useCallback(async () => {
     if (!userId || !activeTemplate) { Alert.alert('오류', '로그인이 필요합니다.'); return; }
@@ -870,29 +886,8 @@ export default function ResultScreen() {
     }
   }, [activeTemplate, templateSlug, mySenderName, scoreNum]);
 
-  /** "답장 보내기" — 완료된 챌린지 영상 + 답장 캡션을 원 초대자에게. */
-  const handleReplyBack = useCallback(async () => {
-    if (!inviteContext || !activeTemplate) return;
-    const caption = buildReplyCaption({
-      toName: inviteContext.fromName,
-      templateName: activeTemplate.name,
-      score: scoreNum,
-      originalInviteUrl: inviteContext.originalInviteUrl,
-    });
-    setInviteToast('💌 답장 준비 중...');
-    try {
-      // shareReply 가 File 준비(비동기 fetch)를 내부에서 하므로 user-gesture 가
-      // 유실되지만, 답장은 실패 시 클립보드 폴백이 즉시 성공하므로 수용 가능.
-      const src: Blob | string | null = composedBlob ?? composedUri ?? rawVideoUri ?? null;
-      const file = src ? await prepareVideoFile(src, activeTemplate.name) : null;
-      const res = await shareReply({ file, caption, templateName: activeTemplate.name });
-      setInviteToast(res.message);
-      setTimeout(() => setInviteToast(''), 3200);
-    } catch (e: any) {
-      setInviteToast(`답장 실패: ${e?.message || e?.name || 'Unknown'}`);
-      setTimeout(() => setInviteToast(''), 4500);
-    }
-  }, [inviteContext, activeTemplate, scoreNum, composedUri, rawVideoUri, composedBlob]);
+  // handleReplyBack 제거됨 — 답장(reply) 기능은 back-channel 보장 불가로 삭제.
+  // 상세는 utils/share.ts 의 NOTE 참조.
 
   const hPad = Math.min(20, (width - 360) / 2 + 16);
 

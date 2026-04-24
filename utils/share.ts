@@ -411,6 +411,32 @@ const PLATFORM_TOAST: Record<TargetPlatform, string> = {
     '✓ 영상 저장 완료. 유튜브 앱을 열어 + 버튼 → 쇼츠/동영상 → 갤러리에서 방금 저장된 영상을 선택해주세요.',
 };
 
+// FIX-SHARE-HONEST (2026-04-24): 데스크톱 환경(공유 시트 없음)에서 "어디로 올려야 하는지"
+//   명확히 안내하기 위해 각 플랫폼 업로드 페이지를 새 탭으로 오픈한다. 현재 페이지는
+//   그대로 두고 (window.open), 다운로드된 파일을 사용자가 직접 파일 선택창에서 고르게 함.
+//   Instagram 은 공식 웹 업로드 URL 이 없으므로 홈으로 이동 + 토스트로 "모바일 앱을
+//   이용해주세요" 안내.
+const PLATFORM_UPLOAD_URL: Record<TargetPlatform, string> = {
+  'kakao': '',                                            // 카카오: 웹 업로드 없음
+  'instagram-story': 'https://www.instagram.com/',
+  'instagram-feed': 'https://www.instagram.com/',
+  'tiktok': 'https://www.tiktok.com/upload',
+  'youtube': 'https://www.youtube.com/upload',
+};
+
+const DESKTOP_TOAST: Record<TargetPlatform, string> = {
+  'kakao':
+    '✓ 영상 저장 완료. 카카오톡 PC/모바일 앱에서 채팅방 → + → 갤러리/파일에서 방금 저장된 영상을 선택해주세요.',
+  'instagram-story':
+    '✓ 영상 저장 · 인스타그램 새 탭 오픈. 인스타그램 스토리 업로드는 모바일 앱에서만 지원돼요. 저장된 영상을 모바일로 옮긴 뒤 올려주세요.',
+  'instagram-feed':
+    '✓ 영상 저장 · 인스타그램 새 탭 오픈. 데스크톱 웹에서 + 새 게시물 → 저장된 영상을 선택하세요.',
+  'tiktok':
+    '✓ 영상 저장 · 틱톡 업로드 페이지 새 탭 오픈. 업로드 창에서 방금 저장된 영상을 선택해주세요.',
+  'youtube':
+    '✓ 영상 저장 · 유튜브 업로드 페이지 새 탭 오픈. 업로드 창에서 방금 저장된 영상을 선택해주세요.',
+};
+
 export async function sharePlatform(opts: {
   file: File;
   caption: string;
@@ -424,37 +450,23 @@ export async function sharePlatform(opts: {
     return { kind: 'unsupported', message: '영상 파일이 준비되지 않았어요.' };
   }
 
-  // FIX-SHARE-SHEET (2026-04-24, v3): 사용자 불만 "SNS 전송 누르면 영상 다운만
-  //   하고 전송할 수 있는 SNS 창이 안 열린다". iOS 만 files API 로 공유하고
-  //   Android 는 다운로드만 했기 때문. Web Share Level 2 (files) 는 Android
-  //   Chrome 75+ 에서 정식 지원되며 시스템 공유 시트가 열린다 (카카오/인스타/
-  //   라인 등 설치된 앱이 모두 리스트에 표시). 이전의 "Play Store 리다이렉트"
-  //   이슈는 `text` 에 URL 을 넣을 때 특정 extension 이 link dispatcher 로
-  //   라우팅하는 문제였으므로, **files 만** 넘기면 그 문제는 재발하지 않는다.
+  // FIX-SHARE-HONEST (2026-04-24): "자동 다운로드 + 공유 시트 동시 오픈" 패턴.
+  //   사용자 요청: "SNS공유 누르면 자동 다운로드되어 해당 SNS에 파일 전송이 끊김없이
+  //   끝까지 이어지면 좋겠어". 순수 웹앱은 YouTube/TikTok/Instagram API 업로드를
+  //   할 수 없음 (OAuth+서버 필요, CLAUDE.md §12 금지). 가능한 최선:
+  //     1) 무조건 기기에 다운로드 — 사용자가 파일을 반드시 확보 (안전망).
+  //     2) navigator.canShare({files}) true → **동시에** navigator.share 호출해
+  //        시스템 공유 시트 오픈. 사용자가 카톡/IG/TT/YT 선택 → 첨부된 상태로
+  //        해당 앱이 열림 → 사용자가 게시.
+  //     3) 데스크톱/공유 시트 미지원 → 플랫폼 업로드 페이지를 새 탭으로 오픈.
+  //     4) 토스트로 현재 상황을 명확히 안내.
   //
-  //   iOS/Android 공통 경로. in-app 브라우저(카톡 내부 웹뷰)는 canShareFiles 가
-  //   false 를 반환하므로 자동으로 아래 fallback 으로 떨어짐.
-  if (env.canShareFiles(file)) {
-    try {
-      log('platform.webshare.files.attempt', { platform, name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
-      await (navigator as any).share({
-        files: [file],
-      });
-      log('platform.webshare.files.ok', platform);
-      if (caption) { try { await copyToClipboard(caption); } catch {} }
-      return { kind: 'web-share', message: '공유 시작됨', downloaded: false, captionCopied: !!caption };
-    } catch (e: any) {
-      if (e?.name === 'AbortError') {
-        log('platform.webshare.cancelled', platform);
-        return { kind: 'cancelled', message: '공유가 취소됐어요.', error: e };
-      }
-      log('platform.webshare.files.fail', e);
-      // fall through to download + toast
-    }
-  }
+  //   클립보드는 캡션이 있을 때 조용히 복사 (share 시트나 업로드 페이지에서 붙여넣기용).
 
+  // (1) 항상 먼저 다운로드를 띄운다. 공유 시트 취소해도 파일은 확보.
   const downloaded = saveBlobToDevice(file);
   const captionCopied = caption ? await copyToClipboard(caption) : false;
+  log('platform.download', { platform, downloaded, captionCopied });
 
   if (!downloaded) {
     return {
@@ -464,12 +476,46 @@ export async function sharePlatform(opts: {
     };
   }
 
-  // NOTE: openDeepLinkFor is a permanent no-op kept only so the symbol can't
-  // be re-wired accidentally. Do NOT replace this with a scheme/intent/https
-  // navigation — every such path has historically landed users on the Play
-  // Store "KakaoTalk 다운로드" listing.
-  openDeepLinkFor(platform);
+  // (2) Web Share Level 2 지원 (iOS/Android Chrome 75+) — 공유 시트 동시 오픈.
+  //     await 하지 않는다. 사용자가 시트를 취소해도 다운로드는 이미 완료됐고,
+  //     share Promise 는 fire-and-forget 으로 둬 토스트가 즉시 뜨게 함.
+  if (env.canShareFiles(file)) {
+    try {
+      log('platform.webshare.files.attempt', { platform, name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
+      // Intentionally not awaited — download already happened, share sheet is a bonus.
+      (navigator as any).share({ files: [file] }).catch((e: any) => {
+        if (e?.name === 'AbortError') log('platform.webshare.cancelled', platform);
+        else log('platform.webshare.files.fail', e);
+      });
+      return {
+        kind: 'web-share',
+        message: `✓ 영상 저장됨 + 공유 시트 열림. 목록에서 ${platformLabel(platform)} 를 선택해 첨부하고 게시해주세요.`,
+        downloaded, captionCopied,
+      };
+    } catch (e: any) {
+      log('platform.webshare.files.sync-fail', e);
+      // fall through
+    }
+  }
 
+  // (3) 데스크톱 / 공유 시트 미지원. 플랫폼 업로드 페이지를 새 탭에 오픈.
+  const uploadUrl = PLATFORM_UPLOAD_URL[platform];
+  if (uploadUrl && typeof window !== 'undefined') {
+    try {
+      window.open(uploadUrl, '_blank', 'noopener,noreferrer');
+      log('platform.upload-url.open', { platform, uploadUrl });
+      return {
+        kind: 'fallback',
+        message: DESKTOP_TOAST[platform],
+        downloaded, captionCopied,
+      };
+    } catch (e) {
+      log('platform.upload-url.fail', e);
+    }
+  }
+
+  // (4) 최후 fallback — 원래 안내 토스트.
+  openDeepLinkFor(platform); // no-op, intentionally kept.
   return {
     kind: 'fallback',
     message: PLATFORM_TOAST[platform],
@@ -477,36 +523,18 @@ export async function sharePlatform(opts: {
   };
 }
 
-// ─── shareReply — convenience wrapper for "답장 보내기" on result page ──
-
-export async function shareReply(opts: {
-  file: File | null;
-  caption: string;
-  templateName: string;
-}): Promise<ShareResult> {
-  const { file, caption, templateName } = opts;
-  // If we have a file, it's the same pipeline as shareVideo with reply caption.
-  if (file) {
-    return shareVideo({ file, caption, title: `${templateName} 답장` });
+function platformLabel(p: TargetPlatform): string {
+  switch (p) {
+    case 'kakao': return '카카오톡';
+    case 'instagram-story':
+    case 'instagram-feed': return '인스타그램';
+    case 'tiktok': return '틱톡';
+    case 'youtube': return '유튜브';
   }
-  // No file — text-only share + clipboard.
-  const env = detectEnv();
-  const copied = await copyToClipboard(caption);
-  if (env.canShareText) {
-    try {
-      await (navigator as any).share({ title: `${templateName} 답장`, text: caption });
-      return { kind: 'web-share-text', message: '답장을 보냈어요!', captionCopied: copied };
-    } catch (e: any) {
-      if (e?.name === 'AbortError') {
-        return { kind: 'cancelled', message: '답장이 취소됐어요.', captionCopied: copied };
-      }
-    }
-  }
-  return {
-    kind: copied ? 'fallback' : 'unsupported',
-    message: copied
-      ? '✓ 답장 캡션이 복사됐어요. 친구에게 붙여넣어주세요.'
-      : '공유할 수 없었어요. 브라우저를 바꿔주세요.',
-    captionCopied: copied,
-  };
 }
+
+// NOTE: shareReply (답장 보내기) was removed. Without a server there is no
+// back-channel to the original sender if they invited from a non-messenger
+// environment (e.g. desktop Chrome). Users instead share their completed
+// video via shareVideo / sharePlatform, or send a fresh invite via
+// shareInvite.
