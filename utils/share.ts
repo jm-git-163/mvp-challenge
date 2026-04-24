@@ -417,7 +417,7 @@ const PLATFORM_TOAST: Record<TargetPlatform, string> = {
 //   Instagram 은 공식 웹 업로드 URL 이 없으므로 홈으로 이동 + 토스트로 "모바일 앱을
 //   이용해주세요" 안내.
 const PLATFORM_UPLOAD_URL: Record<TargetPlatform, string> = {
-  'kakao': '',                                            // 카카오: 웹 업로드 없음
+  'kakao': '',                                            // 카카오: 웹 업로드 없음 (PC앱/모바일 직접 첨부 안내)
   'instagram-story': 'https://www.instagram.com/',
   'instagram-feed': 'https://www.instagram.com/',
   'tiktok': 'https://www.tiktok.com/upload',
@@ -463,58 +463,93 @@ export async function sharePlatform(opts: {
   //
   //   클립보드는 캡션이 있을 때 조용히 복사 (share 시트나 업로드 페이지에서 붙여넣기용).
 
-  // (1) 항상 먼저 다운로드를 띄운다. 공유 시트 취소해도 파일은 확보.
-  const downloaded = saveBlobToDevice(file);
-  const captionCopied = caption ? await copyToClipboard(caption) : false;
-  log('platform.download', { platform, downloaded, captionCopied });
+  // FIX-SHARE-GESTURE (2026-04-24): user-gesture chain MUST be preserved.
+  //   Old code awaited copyToClipboard BEFORE navigator.share — on iOS Safari
+  //   that consumes the user activation token and the next navigator.share()
+  //   throws NotAllowedError. Worse, share was fire-and-forget so the toast
+  //   said "공유 시트 열림" while nothing actually appeared.
+  //
+  //   New order (all done synchronously inside the click handler that called us):
+  //     1) If canShareFiles → call navigator.share({files}) IMMEDIATELY (no await
+  //        on anything before it). Capture the Promise and await it after.
+  //     2) Else if uploadUrl → window.open(url) IMMEDIATELY (popup blocker also
+  //        requires user gesture).
+  //     3) Trigger download (synchronous via anchor click).
+  //     4) Copy caption to clipboard (async, but gesture no longer needed).
+  //     5) Await the share promise → real success/cancel result.
 
-  if (!downloaded) {
+  let sharePromise: Promise<void> | null = null;
+  let openedTab = false;
+  const supportsFiles = env.canShareFiles(file);
+
+  if (supportsFiles) {
+    try {
+      log('platform.webshare.files.attempt', { platform, name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
+      // Synchronous — preserves user activation. Returns a Promise we await later.
+      sharePromise = (navigator as any).share({ files: [file] });
+    } catch (e: any) {
+      log('platform.webshare.files.sync-fail', e);
+      sharePromise = null;
+    }
+  } else {
+    const uploadUrl = PLATFORM_UPLOAD_URL[platform];
+    if (uploadUrl && typeof window !== 'undefined') {
+      try {
+        const w = window.open(uploadUrl, '_blank', 'noopener,noreferrer');
+        openedTab = !!w;
+        log('platform.upload-url.open', { platform, uploadUrl, opened: openedTab });
+      } catch (e) {
+        log('platform.upload-url.fail', e);
+      }
+    }
+  }
+
+  // (3) Now do the download — gesture no longer needed for anchor.click().
+  const downloaded = saveBlobToDevice(file);
+  // (4) Clipboard — fully async, no longer blocking the gesture chain.
+  const captionCopied = caption ? await copyToClipboard(caption) : false;
+  log('platform.download', { platform, downloaded, captionCopied, supportsFiles, openedTab });
+
+  // (5) Now resolve the share Promise (if any).
+  if (sharePromise) {
+    try {
+      await sharePromise;
+      log('platform.webshare.ok', platform);
+      return {
+        kind: 'web-share',
+        message: `✓ ${platformLabel(platform)} 공유 시트 열림 + 영상 저장됨. 시트에서 ${platformLabel(platform)} 를 선택해 게시해주세요.`,
+        downloaded, captionCopied,
+      };
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        log('platform.webshare.cancelled', platform);
+        return {
+          kind: 'cancelled',
+          message: `공유가 취소됐어요. 영상은 기기에 저장됐어요 (${platformLabel(platform)} 직접 열어 갤러리에서 선택 가능).`,
+          downloaded, captionCopied,
+        };
+      }
+      log('platform.webshare.files.fail', e);
+      // Fall through to platform toast.
+    }
+  }
+
+  if (openedTab) {
     return {
-      kind: 'error',
-      message: '영상 저장에 실패했어요. 브라우저 다운로드 권한을 확인해주세요.',
+      kind: 'fallback',
+      message: DESKTOP_TOAST[platform],
       downloaded, captionCopied,
     };
   }
 
-  // (2) Web Share Level 2 지원 (iOS/Android Chrome 75+) — 공유 시트 동시 오픈.
-  //     await 하지 않는다. 사용자가 시트를 취소해도 다운로드는 이미 완료됐고,
-  //     share Promise 는 fire-and-forget 으로 둬 토스트가 즉시 뜨게 함.
-  if (env.canShareFiles(file)) {
-    try {
-      log('platform.webshare.files.attempt', { platform, name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
-      // Intentionally not awaited — download already happened, share sheet is a bonus.
-      (navigator as any).share({ files: [file] }).catch((e: any) => {
-        if (e?.name === 'AbortError') log('platform.webshare.cancelled', platform);
-        else log('platform.webshare.files.fail', e);
-      });
-      return {
-        kind: 'web-share',
-        message: `✓ 영상 저장됨 + 공유 시트 열림. 목록에서 ${platformLabel(platform)} 를 선택해 첨부하고 게시해주세요.`,
-        downloaded, captionCopied,
-      };
-    } catch (e: any) {
-      log('platform.webshare.files.sync-fail', e);
-      // fall through
-    }
+  if (!downloaded) {
+    return {
+      kind: 'error',
+      message: '영상 저장과 공유 모두 실패했어요. 브라우저 권한을 확인해주세요.',
+      downloaded, captionCopied,
+    };
   }
 
-  // (3) 데스크톱 / 공유 시트 미지원. 플랫폼 업로드 페이지를 새 탭에 오픈.
-  const uploadUrl = PLATFORM_UPLOAD_URL[platform];
-  if (uploadUrl && typeof window !== 'undefined') {
-    try {
-      window.open(uploadUrl, '_blank', 'noopener,noreferrer');
-      log('platform.upload-url.open', { platform, uploadUrl });
-      return {
-        kind: 'fallback',
-        message: DESKTOP_TOAST[platform],
-        downloaded, captionCopied,
-      };
-    } catch (e) {
-      log('platform.upload-url.fail', e);
-    }
-  }
-
-  // (4) 최후 fallback — 원래 안내 토스트.
   openDeepLinkFor(platform); // no-op, intentionally kept.
   return {
     kind: 'fallback',
