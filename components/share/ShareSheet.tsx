@@ -24,6 +24,7 @@ import {
   prepareVideoFile, shareVideo, shareInvite, sharePlatform,
   type ShareResult, type TargetPlatform,
 } from '../../utils/share';
+import { diagnoseShare, summarizeDiagnostic, type ShareDiagnostic } from '../../utils/share.debug';
 
 // ─── Payload types ─────────────────────────────────────────────────────
 
@@ -65,6 +66,16 @@ type MachineState =
 export default function ShareSheet({ visible, onClose, payload }: ShareSheetProps) {
   const [machine, setMachine] = useState<MachineState>({ phase: 'idle' });
   const fileRef = useRef<File | null>(null);
+  // FIX-SHARE-DIAGNOSTIC (2026-04-24): On any failed/error result we surface
+  //   a structured diagnostic block with a "에러 복사" button so the user can
+  //   paste it back to us. Without this, every "share doesn't work" report is
+  //   blind.
+  const [failDiag, setFailDiag] = useState<ShareDiagnostic | null>(null);
+  const [failKind, setFailKind] = useState<string | null>(null);
+  const [diagCopied, setDiagCopied] = useState(false);
+  // Debug overlay — shown when URL has ?debug=1 (web only).
+  const debugMode = typeof window !== 'undefined'
+    && /[?&]debug=1\b/.test(window.location.search || '');
 
   // ── 1) Prepare on mount / payload change. iOS gesture-preservation. ──
   useEffect(() => {
@@ -118,13 +129,19 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
     promise.then((res) => {
       if (res.kind === 'web-share' || res.kind === 'web-share-text' || res.kind === 'fallback') {
         setMachine({ phase: 'success', message: res.message });
+        setFailDiag(null); setFailKind(null);
         setTimeout(onClose, 1400);
       } else if (res.kind === 'cancelled') {
         setMachine({ phase: 'cancelled', message: res.message });
       } else {
+        // FIX-SHARE-DIAGNOSTIC: capture the device state at the moment of failure.
+        setFailDiag(diagnoseShare(fileRef.current));
+        setFailKind(res.kind);
         setMachine({ phase: 'failed', message: res.message });
       }
     }).catch((e: any) => {
+      setFailDiag(diagnoseShare(fileRef.current));
+      setFailKind('exception');
       setMachine({ phase: 'failed', message: `공유 실패: ${e?.message || e?.name || '알 수 없는 오류'}` });
     });
   }, [machine.phase, payload, onClose]);
@@ -173,12 +190,19 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
       .then((res) => {
         if (res.kind === 'fallback' || res.kind === 'web-share' || res.kind === 'web-share-text') {
           setMachine({ phase: 'success', message: res.message });
+          setFailDiag(null); setFailKind(null);
           setTimeout(onClose, 2400);
+        } else if (res.kind === 'cancelled') {
+          setMachine({ phase: 'cancelled', message: res.message });
         } else {
+          setFailDiag(diagnoseShare(fileRef.current));
+          setFailKind(`${res.kind}:${platform}`);
           setMachine({ phase: 'failed', message: res.message });
         }
       })
       .catch((e: any) => {
+        setFailDiag(diagnoseShare(fileRef.current));
+        setFailKind(`exception:${platform}`);
         setMachine({ phase: 'failed', message: `${e?.message || '공유 실패'}` });
       });
   }, [payload, onClose]);
@@ -291,6 +315,46 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
             <View style={[st.statusPill, st[`status_${statusTone}` as const]]}>
               {busy ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} /> : null}
               <Text style={st.statusText}>{statusMessage}</Text>
+            </View>
+          ) : null}
+
+          {/* FIX-SHARE-DIAGNOSTIC: large red banner with structured info + copy button. */}
+          {machine.phase === 'failed' && failDiag ? (
+            <View style={st.failBanner}>
+              <Text style={st.failHeader}>공유 실패 — 진단 정보</Text>
+              <Text style={st.failReason}>[{failKind || 'unknown'}]</Text>
+              <Text style={st.failSummary}>{summarizeDiagnostic(failDiag)}</Text>
+              <Pressable
+                style={st.failCopyBtn}
+                onPress={async () => {
+                  const json = JSON.stringify({
+                    failKind,
+                    message: machine.message,
+                    ...failDiag,
+                  }, null, 2);
+                  let ok = false;
+                  if (typeof navigator !== 'undefined' && (navigator as any).clipboard?.writeText) {
+                    try { await (navigator as any).clipboard.writeText(json); ok = true; } catch {}
+                  }
+                  setDiagCopied(ok);
+                  setTimeout(() => setDiagCopied(false), 2000);
+                }}
+              >
+                <Text style={st.failCopyBtnText}>
+                  {diagCopied ? '✓ 에러 정보 복사됨' : '에러 복사 (개발자에게 붙여넣어주세요)'}
+                </Text>
+              </Pressable>
+              <Text style={st.failHint}>
+                /debug/share 에서 더 자세한 환경 정보를 확인할 수 있어요.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* DEBUG overlay — only with ?debug=1 */}
+          {debugMode && fileRef.current ? (
+            <View style={st.debugOverlay}>
+              <Text style={st.debugHeader}>DEBUG (?debug=1)</Text>
+              <Text style={st.debugText}>{summarizeDiagnostic(diagnoseShare(fileRef.current))}</Text>
             </View>
           ) : null}
 
@@ -434,4 +498,35 @@ const st = StyleSheet.create({
     lineHeight: 15,
     marginTop: 2,
   },
+  failBanner: {
+    marginTop: 8,
+    backgroundColor: '#7F1D1D',
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#B91C1C',
+  },
+  failHeader: { color: '#fff', fontSize: 14, fontWeight: '800', fontFamily: SAN },
+  failReason: { color: '#FCA5A5', fontSize: 12, fontFamily: SAN, fontWeight: '600' },
+  failSummary: { color: '#FEE2E2', fontSize: 11, lineHeight: 15, fontFamily: SAN },
+  failCopyBtn: {
+    marginTop: 4,
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  failCopyBtnText: { color: '#7F1D1D', fontWeight: '700', fontSize: 12, fontFamily: SAN },
+  failHint: { color: '#FECACA', fontSize: 10, fontFamily: SAN },
+  debugOverlay: {
+    marginTop: 6,
+    backgroundColor: '#1F2937',
+    borderRadius: 8,
+    padding: 10,
+    gap: 4,
+  },
+  debugHeader: { color: '#FBBF24', fontSize: 11, fontWeight: '800', fontFamily: SAN },
+  debugText: { color: '#E5E7EB', fontSize: 11, fontFamily: SAN },
 });

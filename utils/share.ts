@@ -449,6 +449,15 @@ export async function sharePlatform(opts: {
   if (!file || file.size < 10 * 1024) {
     return { kind: 'unsupported', message: '영상 파일이 준비되지 않았어요.' };
   }
+  // FIX-SHARE-DIAGNOSTIC (2026-04-24): Web Share API rejects very large files
+  //   on some Android devices (~500MB). Guard explicitly so the error surface
+  //   is honest rather than a silent fail inside navigator.share.
+  if (file.size > 500 * 1024 * 1024) {
+    return {
+      kind: 'error',
+      message: `영상이 너무 커요 (${Math.round(file.size / (1024 * 1024))}MB). 500MB 이하로 다시 촬영해주세요.`,
+    };
+  }
 
   // FIX-SHARE-HONEST (2026-04-24): "자동 다운로드 + 공유 시트 동시 오픈" 패턴.
   //   사용자 요청: "SNS공유 누르면 자동 다운로드되어 해당 SNS에 파일 전송이 끊김없이
