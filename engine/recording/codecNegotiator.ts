@@ -85,6 +85,33 @@ export function negotiateCodec(deps: NegotiateDeps = {}): NegotiateResult | Nego
  *   - deviceMemory (Chrome) + hardwareConcurrency 기반
  *   - iOS는 정보 제공 안 함 → 기본 mid, iOS 16.4+ 이면서 최신 iPhone 가정 시 high 가능
  */
+/**
+ * FIX-KAKAO-MP4 (2026-04-24): MediaRecorder 직접 생성 경로용 간결 헬퍼.
+ *
+ * 기존 `components/camera/{CanvasRecorder,RecordingCamera}.web.tsx` 는
+ * `MediaRecorder.isTypeSupported('video/webm;codecs=vp9')` 만 먼저 확인하고
+ * webm 을 택하는 식이었다 — 결과 Android Chrome 에서 항상 webm 녹화.
+ * 이후 SNS 공유 시 카카오톡이 mp4 가 아닌 blob 을 거부하고 Play Store 로
+ * 리다이렉트되는 핵심 버그였다.
+ *
+ * 이 헬퍼는 `MIME_CANDIDATES` 순서 (mp4 우선) 를 그대로 probe 해 브라우저가
+ * 지원하는 가장 첫 번째 MIME 을 반환한다. 지원되는 게 없으면 `null`.
+ *
+ * 호출부는 반드시 이 함수를 통해 mimeType 을 선택해야 하며,
+ * 하드코딩 (webm-only) 은 CLAUDE §3 #16 위반이다.
+ */
+export function pickRecordingMimeType(
+  isTypeSupported: (t: string) => boolean
+    = (typeof MediaRecorder !== 'undefined'
+        ? MediaRecorder.isTypeSupported.bind(MediaRecorder)
+        : () => false),
+): string | null {
+  for (const c of MIME_CANDIDATES) {
+    try { if (isTypeSupported(c)) return c; } catch { /* skip */ }
+  }
+  return null;
+}
+
 export function estimateTier(nav: Partial<Navigator> = typeof navigator !== 'undefined' ? navigator : {}): DeviceTier {
   const mem = (nav as { deviceMemory?: number }).deviceMemory;
   const cpu = nav.hardwareConcurrency;

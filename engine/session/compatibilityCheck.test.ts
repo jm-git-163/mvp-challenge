@@ -56,8 +56,8 @@ describe('selectSupportedMime', () => {
   });
 
   it('returns first supported mime', () => {
-    const supported = new Set([MIME_CANDIDATES[1], MIME_CANDIDATES[2]]);
-    const mime = selectSupportedMime(t => supported.has(t as typeof MIME_CANDIDATES[number]));
+    const supported = new Set<string>([MIME_CANDIDATES[1], MIME_CANDIDATES[2]]);
+    const mime = selectSupportedMime(t => supported.has(t));
     expect(mime).toBe(MIME_CANDIDATES[1]);
   });
 

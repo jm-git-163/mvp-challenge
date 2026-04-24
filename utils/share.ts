@@ -489,7 +489,13 @@ export async function sharePlatform(opts: {
 
   let sharePromise: Promise<void> | null = null;
   let openedTab = false;
-  const supportsFiles = env.canShareFiles(file);
+  // FIX-KAKAO-MP4 (2026-04-24): Kakao 는 webm 을 거부하고 Android 공유 시트가
+  //   Play Store "카카오톡 설치" 페이지로 튕긴다. 파일 실제 MIME 이 mp4 계열이
+  //   아니면 navigator.share 를 아예 우회하고 download + 안내 토스트로 간다.
+  const fileMime = (file.type || '').toLowerCase();
+  const isMp4 = /mp4|quicktime/.test(fileMime);
+  const kakaoNeedsFallback = platform === 'kakao' && !isMp4;
+  const supportsFiles = env.canShareFiles(file) && !kakaoNeedsFallback;
 
   if (supportsFiles) {
     try {
@@ -560,6 +566,21 @@ export async function sharePlatform(opts: {
   }
 
   openDeepLinkFor(platform); // no-op, intentionally kept.
+
+  // FIX-KAKAO-MP4 (2026-04-24): Kakao + webm 조합은 공유 시트 자체를 우회했으므로
+  //   사용자에게 **왜** 직접 첨부해야 하는지 명확히 알린다 (현 기기가 mp4 녹화를
+  //   지원하지 않음 → Chrome 업데이트 권장).
+  if (kakaoNeedsFallback) {
+    return {
+      kind: 'fallback',
+      message:
+        `✓ 영상 저장 완료 (형식: ${fileMime || 'webm'}). 현재 기기에서는 mp4 녹화가 지원되지 않아 ` +
+        `카카오톡 자동 공유가 막혀 있어요. 카톡을 직접 열어 채팅방 → + → 갤러리에서 방금 저장된 ` +
+        `영상을 선택해주세요. (Chrome 을 최신 버전으로 업데이트하면 다음 녹화부터 자동 공유돼요.)`,
+      downloaded, captionCopied,
+    };
+  }
+
   return {
     kind: 'fallback',
     message: PLATFORM_TOAST[platform],

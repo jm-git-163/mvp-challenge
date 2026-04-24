@@ -201,7 +201,13 @@ export function diagnoseShare(file: File | null): ShareDiagnostic {
 export function summarizeDiagnostic(d: ShareDiagnostic): string {
   const flags: string[] = [];
   flags.push(`파일:${d.file.present ? 'YES' : 'NO'}`);
-  if (d.file.present) flags.push(`(${d.file.ext}/${Math.round((d.file.size || 0) / 1024)}KB)`);
+  if (d.file.present) {
+    // FIX-KAKAO-MP4 (2026-04-24): 실제 blob MIME 을 toast 요약에 노출. Kakao 는
+    //   webm 을 거부하고 Play Store 로 튕기기 때문에, 사용자가 "왜 안되는지"
+    //   눈으로 확인할 수 있어야 함.
+    flags.push(`(${d.file.ext}/${Math.round((d.file.size || 0) / 1024)}KB)`);
+    flags.push(`MIME:${d.file.mime || 'unknown'}`);
+  }
   flags.push(`canShare:${d.api.canShareFiles === null ? '-' : d.api.canShareFiles ? 'YES' : 'NO'}`);
   flags.push(`플랫폼:${d.platform}`);
   if (d.inApp.detected) {
@@ -213,6 +219,10 @@ export function summarizeDiagnostic(d: ShareDiagnostic): string {
       d.inApp.naver && 'naver',
     ].filter(Boolean).join('+');
     flags.push(`인앱:${which}`);
+  }
+  // FIX-KAKAO-MP4: webm 안내 힌트. 사용자에게 왜 Kakao 가 실패했는지 설명.
+  if (d.file.present && d.file.ext === 'webm') {
+    flags.push('⚠ webm — 카카오톡이 거부해요. 다운로드된 영상을 앱에서 직접 첨부해주세요.');
   }
   return flags.join(' · ');
 }

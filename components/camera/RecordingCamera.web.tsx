@@ -27,6 +27,7 @@ import type { RecordingCameraHandle } from './RecordingCamera';
 import type { NormalizedLandmark } from '../../utils/poseUtils';
 import { swapCameraStream } from '../../engine/session/cameraSwap';
 import { ensureMediaSession, getMediaSession } from '../../engine/session/mediaSession';
+import { pickRecordingMimeType } from '../../engine/recording/codecNegotiator';
 import { getBgmPlayer } from '../../utils/bgmLibrary';
 import { resourceTracker } from '../../utils/resourceTracker';
 import { drawDiagnosticsOverlay } from '../../utils/diagnosticsOverlay';
@@ -1597,11 +1598,9 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
             try { canvasStream.addTrack(t); } catch { /* ignore */ }
           });
 
-          const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-            ? 'video/webm;codecs=vp9'
-            : MediaRecorder.isTypeSupported('video/webm')
-            ? 'video/webm'
-            : '';
+          // FIX-KAKAO-MP4 (2026-04-24): mp4 우선 probe. 기존엔 webm 만 검사해서
+          //   Android Chrome 에서 항상 webm 녹화 → 카톡 공유 시 Play Store 리다이렉트.
+          const mimeType = pickRecordingMimeType() || '';
 
           const recorder = new MediaRecorder(
             canvasStream,
@@ -1619,7 +1618,7 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
           recorder.onstop = () => {
             recStateRef.current = false;
             try { resourceTracker.dec('mediaRecorder'); } catch {}
-            const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
+            const blob = new Blob(chunksRef.current, { type: mimeType || 'video/mp4' });
             resolve(URL.createObjectURL(blob));
           };
           recorder.onerror = (e) => {

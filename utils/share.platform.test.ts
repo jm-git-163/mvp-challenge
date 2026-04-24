@@ -185,6 +185,32 @@ describe('sharePlatform — user-gesture chain', () => {
     expect(env.openSpy.mock.calls[0][0]).toBe('https://www.youtube.com/upload');
   });
 
+  it('Kakao + webm: skips navigator.share entirely, goes straight to download (FIX-KAKAO-MP4)', async () => {
+    const env = setupAndroidWebShare();
+    const { sharePlatform } = await import('./share');
+    // Android Chrome with only webm support → real blob is webm.
+    const webmBuf = new Uint8Array(50 * 1024);
+    const webmFile = new File([webmBuf], 'clip.webm', { type: 'video/webm' });
+    const res = await sharePlatform({ file: webmFile, caption: 'hi', platform: 'kakao' });
+
+    // CRITICAL: navigator.share must NOT be called for webm+kakao (Play Store redirect).
+    expect(env.shareSpy).not.toHaveBeenCalled();
+    expect(env.callOrder).toContain('anchor.click'); // download still runs
+    expect(res.kind).toBe('fallback');
+    expect(res.downloaded).toBe(true);
+    expect(res.message).toContain('webm');
+    expect(res.message).toMatch(/카카오톡|카톡/);
+  });
+
+  it('Kakao + mp4: DOES call navigator.share (no short-circuit)', async () => {
+    const env = setupAndroidWebShare();
+    const { sharePlatform } = await import('./share');
+    const mp4File = makeFile(); // type: video/mp4
+    const res = await sharePlatform({ file: mp4File, caption: 'hi', platform: 'kakao' });
+    expect(env.shareSpy).toHaveBeenCalledTimes(1);
+    expect(res.kind).toBe('web-share');
+  });
+
   it('rejects undersized file before touching share/download', async () => {
     setupDesktopChrome();
     const { sharePlatform } = await import('./share');

@@ -23,9 +23,19 @@ export interface CompatReport {
   iOSVersion: number | null;
 }
 
-/** docs/COMPATIBILITY §2.1 — 폴백 체인. iOS Safari는 mp4 우선. */
+/** docs/COMPATIBILITY §2.1 — 폴백 체인.
+ *
+ * FIX-KAKAO-MP4 (2026-04-24): mp4/H.264+AAC 를 **맨 앞**에 둔다. iOS Safari
+ *   만이 아니라 Android Chrome 122+ 도 `video/mp4;codecs=avc1.42E01E,mp4a.40.2`
+ *   를 지원하며, 카카오톡/인스타/틱톡/유튜브 모두 mp4 만 수용한다 (webm 은
+ *   카톡 공유 시 Play Store 리다이렉트 발생). 따라서 브라우저가 mp4 를
+ *   지원한다고 주장하면 무조건 mp4 로 녹화한다. webm 은 최후 폴백.
+ */
 export const MIME_CANDIDATES = [
-  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2', // H.264 Baseline + AAC-LC  ★ 1순위
+  'video/mp4;codecs=avc1,mp4a.40.2',        // 관대한 H.264 표기
+  'video/mp4;codecs=h264,aac',              // 느슨한 표기 (Android 초기 빌드)
+  'video/mp4',                               // 컨테이너만 (드물게 지원)
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
   'video/webm',
