@@ -1,9 +1,10 @@
 /**
  * components/share/ShareSheet.tsx
  *
- * **Single share modal used across the app** — result page (video share + reply)
- * and home page (invite share) both mount this. No other modal implements
- * share actions.
+ * **Single share modal used across the app** — result page (video share) and
+ * home page (invite share) both mount this. No other modal implements share
+ * actions. The reply ("답장 보내기") mode was removed: without a server there
+ * is no reliable back-channel to the original sender.
  *
  * Architecture: docs/SHARE_ARCHITECTURE.md.
  *
@@ -20,7 +21,7 @@ import {
   View, Text, Modal, Pressable, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
 import {
-  prepareVideoFile, shareVideo, shareInvite, shareReply, sharePlatform,
+  prepareVideoFile, shareVideo, shareInvite, sharePlatform,
   type ShareResult, type TargetPlatform,
 } from '../../utils/share';
 
@@ -44,14 +45,7 @@ interface InvitePayload {
   message?: string;
 }
 
-interface ReplyPayload {
-  mode: 'reply';
-  source: Blob | string | null;    // may be null if composition failed
-  caption: string;
-  templateName: string;
-}
-
-export type SharePayload = VideoPayload | InvitePayload | ReplyPayload;
+export type SharePayload = VideoPayload | InvitePayload;
 
 export interface ShareSheetProps {
   visible: boolean;
@@ -87,15 +81,11 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
       return;
     }
 
-    // video / reply — may need to fetch a blob: URL.
+    // video — may need to fetch a blob: URL.
     let cancelled = false;
     setMachine({ phase: 'preparing' });
     (async () => {
       const src = payload.source;
-      if (src === null) {                                  // reply with no video
-        setMachine({ phase: 'ready' });
-        return;
-      }
       const file = await prepareVideoFile(src, payload.templateName);
       if (cancelled) return;
       fileRef.current = file;
@@ -114,8 +104,6 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
       const f = fileRef.current;
       if (!f) { setMachine({ phase: 'failed', message: '영상이 준비되지 않았어요.' }); return; }
       promise = shareVideo({ file: f, caption: payload.caption, title: payload.templateName });
-    } else if (payload.mode === 'reply') {
-      promise = shareReply({ file: fileRef.current, caption: payload.caption, templateName: payload.templateName });
     } else {
       promise = shareInvite({
         slug: payload.slug,
@@ -159,7 +147,7 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
       if (res.captionCopied) setTimeout(onClose, 1600);
       return;
     }
-    // video / reply — save only
+    // video — save only
     const f = fileRef.current;
     if (!f) { setMachine({ phase: 'failed', message: '영상이 준비되지 않았어요.' }); return; }
     try {
@@ -201,16 +189,13 @@ export default function ShareSheet({ visible, onClose, payload }: ShareSheetProp
   // ── 5) UI copy ──
   const title =
     payload.mode === 'video' ? '영상 공유'
-    : payload.mode === 'reply' ? '답장 보내기'
     : '도전장 보내기';
   const subtitle =
     payload.mode === 'video' ? `${payload.templateName} · ${payload.scoreNum}점`
-    : payload.mode === 'reply' ? `${payload.templateName}`
     : `${payload.templateName}${typeof payload.score === 'number' ? ` · ${payload.score}점` : ''}`;
 
   const primaryLabel =
     payload.mode === 'video' ? '영상 저장 후 메신저로 보내기'
-    : payload.mode === 'reply' ? '답장 공유하기'
     : '도전장 보내기';
   const secondaryLabel =
     payload.mode === 'invite' ? '링크만 복사하기' : '기기에 저장만 하기';

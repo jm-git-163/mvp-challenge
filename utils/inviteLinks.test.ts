@@ -1,5 +1,5 @@
 /**
- * utils/inviteLinks.test.ts — 챌린지 초대-답장 딥링크 파서/빌더 검증.
+ * utils/inviteLinks.test.ts — 챌린지 초대 딥링크 파서/빌더 검증.
  *
  * v2 컴팩트 포맷 (?c=<base64url>) + v1 레거시 (?from=&msg=&score=) 둘 다 검증.
  */
@@ -10,7 +10,6 @@ import {
   buildInviteBannerText,
   buildInviteShareCaption,
   buildInviteShortCaption,
-  buildReplyCaption,
 } from './inviteLinks';
 
 describe('buildInviteUrl (v2 compact)', () => {
@@ -186,22 +185,4 @@ describe('buildInviteShortCaption', () => {
   });
 });
 
-describe('buildReplyCaption', () => {
-  it('원본 초대 URL 을 꼬리에 붙임', () => {
-    const cap = buildReplyCaption({
-      toName: '지민',
-      templateName: '스쿼트',
-      score: 92,
-      originalInviteUrl: 'https://motiq.app/challenge/squat-master?c=xyz',
-    });
-    expect(cap).toContain('@지민');
-    expect(cap).toContain('92점');
-    expect(cap).toContain('https://motiq.app/challenge/squat-master');
-  });
-
-  it('원본 URL 없으면 생략', () => {
-    const cap = buildReplyCaption({ toName: '지민', templateName: '스쿼트', score: 80 });
-    expect(cap).toContain('@지민');
-    expect(cap.endsWith('🎯')).toBe(true);
-  });
-});
+// buildReplyCaption tests removed — reply feature deleted.

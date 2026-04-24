@@ -522,7 +522,7 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View style={s.listHeader}>
             {/* INVITE-BANNER (2026-04-23): inviteContext 가 살아있으면 홈에도 리본 노출.
-                답장 플로우 미완료 상태를 시각적으로 환기 — 사용자가 도전장 존재를 잊지 않게. */}
+                미완료 도전장 컨텍스트를 시각적으로 환기 — 사용자가 도전장 존재를 잊지 않게. */}
             {inviteContext ? (
               <Pressable
                 style={s.inviteBanner}

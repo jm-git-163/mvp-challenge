@@ -569,10 +569,9 @@ export default function ResultScreen() {
   const fullResetForRetake = useSessionStore(s => s.fullResetForRetake);
   const { userId }     = useUserStore();
 
-  // 초대-답장 시스템 상태 (클라이언트 전용, 서버 호출 없음)
+  // 초대 시스템 상태 (클라이언트 전용, 서버 호출 없음)
   const inviteContext   = useInviteStore(s => s.inviteContext);
   const mySenderName    = useInviteStore(s => s.mySenderName);
-  const clearInvite     = useInviteStore(s => s.clearInvite);
 
   // Composed video state
   const [composedUri,  setComposedUri]  = useState<string | null>(null);
@@ -846,7 +845,7 @@ export default function ResultScreen() {
     router.replace('/record');
   }, [activeTemplate, startSession, fullResetForRetake, composedUri, router]);
 
-  // ── 초대-답장 핸들러 ─────────────────────────────────────────
+  // ── 초대 핸들러 ──────────────────────────────────────────────
   const [inviteToast, setInviteToast] = useState<string>('');
 
   const templateSlug = useMemo(() => {
@@ -1163,43 +1162,26 @@ export default function ResultScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ── 친구 초대 / 답장 ─────────────────────────────────────── */}
+          {/* ── 친구 초대 ────────────────────────────────────────────
+              답장(reply) 버튼은 제거됨 — 서버 없는 환경에서는 원 초대자에게
+              되돌아갈 back-channel 이 보장되지 않는다. 대신 여기서는 항상
+              "도전장 보내기" 로 현재 챌린지를 (또 다른) 친구에게 공유.
+              핸들러는 멱등이므로 탭마다 새 공유 시트가 뜬다. */}
           <View style={st.inviteBlock}>
             {inviteContext ? (
-              <>
-                <Text style={st.inviteHint}>
-                  🥊 {inviteContext.fromName}님이 보낸 도전장을 완료했어요
-                </Text>
-                <TouchableOpacity
-                  style={st.replyBtn}
-                  onPress={handleReplyBack}
-                  activeOpacity={0.85}
-                >
-                  <Text style={st.replyBtnText}>
-                    💌 답장 보내기 ({inviteContext.fromName}님에게)
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={st.inviteBtn}
-                  onPress={() => { clearInvite(); handleSendInvite(); }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={st.inviteBtnText}>
-                    🥊 다른 친구에게도 도전장 보내기
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <TouchableOpacity
-                style={st.inviteBtn}
-                onPress={handleSendInvite}
-                activeOpacity={0.85}
-              >
-                <Text style={st.inviteBtnText}>
-                  🥊 친구에게 챌린지 도전장 보내기
-                </Text>
-              </TouchableOpacity>
-            )}
+              <Text style={st.inviteHint}>
+                🥊 {inviteContext.fromName}님이 보낸 도전장을 완료했어요
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={st.inviteBtn}
+              onPress={handleSendInvite}
+              activeOpacity={0.85}
+            >
+              <Text style={st.inviteBtnText}>
+                🥊 친구에게 챌린지 도전장 보내기
+              </Text>
+            </TouchableOpacity>
             {inviteToast ? (
               <View style={st.inviteToast}>
                 <Text style={st.inviteToastText}>{inviteToast}</Text>
@@ -1403,7 +1385,7 @@ const st = StyleSheet.create({
   retryBtn:     { backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10 },
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Invite block (친구 초대 / 답장)
+  // Invite block (친구 초대)
   inviteBlock: {
     marginTop: 12,
     gap: 8,
@@ -1430,24 +1412,6 @@ const st = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     letterSpacing: 0.4,
-  },
-  replyBtn: {
-    // @ts-ignore web gradient
-    backgroundImage: 'linear-gradient(135deg,#ec4899 0%,#7c3aed 100%)',
-    backgroundColor: '#ec4899',
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-    // @ts-ignore web
-    boxShadow: '0 8px 22px rgba(236,72,153,0.4), inset 0 1px 0 rgba(255,255,255,0.22)',
-  },
-  replyBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.3,
   },
   inviteToast: {
     marginTop: 4,

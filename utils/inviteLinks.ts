@@ -1,7 +1,7 @@
 /**
  * utils/inviteLinks.ts
  *
- * 챌린지 초대-답장 시스템의 **순수 클라이언트 딥링크 인코더/파서**.
+ * 챌린지 초대 시스템의 **순수 클라이언트 딥링크 인코더/파서**.
  * CLAUDE.md §12 준수: 서버·업로드·추적 없음. 모든 컨텍스트는 쿼리스트링에만 담는다.
  *
  * v2 포맷 (컴팩트, 2026-04-23):
@@ -240,16 +240,5 @@ export function buildDisplayUrl(fullUrl: string, maxLen = 54): string {
   }
 }
 
-/**
- * 답장 캡션 — 수신자가 완료 후 초대자에게 보낼 메시지.
- */
-export function buildReplyCaption(opts: {
-  toName: string;
-  templateName: string;
-  score: number;
-  originalInviteUrl?: string;
-}): string {
-  const { toName, templateName, score, originalInviteUrl } = opts;
-  const tail = originalInviteUrl ? ` ${originalInviteUrl}` : '';
-  return `@${toName} 나도 ${templateName} 했어! 점수: ${score}점 🎯${tail}`;
-}
+// NOTE: buildReplyCaption was removed along with the reply feature —
+// see utils/share.ts for rationale.

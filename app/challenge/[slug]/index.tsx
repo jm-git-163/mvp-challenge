@@ -168,8 +168,8 @@ export default function ChallengeInviteScreen() {
 
   // 수신 시 스토어 세팅
   useEffect(() => {
-    if (ctx) setInviteContext(ctx, fullUrl);
-  }, [ctx, fullUrl, setInviteContext]);
+    if (ctx) setInviteContext(ctx);
+  }, [ctx, setInviteContext]);
 
   // FIX-INVITE-KAKAO-PNG (2026-04-23): OG/Twitter 메타를 런타임에 초대자 컨텍스트로
   //   덮어씀. 카톡/라인이 URL 만 포워드한 경우, 링크 미리보기 페처가 이 메타를

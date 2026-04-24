@@ -1388,7 +1388,9 @@ export default function RecordScreen() {
   const activeTemplate = useSessionStore(s => s.activeTemplate);
   const sessionKey     = useSessionStore(s => s.sessionKey);
   // FIX-INVITE-BADGE (2026-04-23): 친구 도전장을 받아 들어온 경우 촬영 중 상단에
-  //   "OOO에게 답장 보내기" 배지 표시 → 답장 문맥 상기.
+  //   "OOO의 도전장 수행 중" 배지 표시 → 초대 컨텍스트 상기.
+  //   답장(reply) 기능은 제거됨 (back-channel 보장 불가). 자세한 내용은
+  //   utils/share.ts 의 NOTE 참조.
   const inviteContext  = useInviteStore(s => s.inviteContext);
   // FIX-K (2026-04-21): 모바일 UX 에서 유저가 자기 자세를 실시간으로 확인해야
   //   스쿼트·표정·포즈 미션을 수행할 수 있다. 템플릿이 'normal' 로 기본 후면
@@ -1958,7 +1960,7 @@ export default function RecordScreen() {
             }}
           >
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>
-              💌 {inviteContext.fromName}님에게 답장 보내는 중
+              🥊 {inviteContext.fromName}님의 도전장 수행 중
             </Text>
           </View>
         ) : null}
