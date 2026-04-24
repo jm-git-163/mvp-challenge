@@ -64,16 +64,17 @@ function classifyError(err: unknown): MediaSessionError['kind'] {
 export const DEFAULT_CONSTRAINTS: MediaStreamConstraints = {
   video: {
     facingMode: 'user',
-    // FIX-CAMERA-ZOOM (2026-04-24, v2): 이전 시도(1080p 16:9 가로 요청 + CONTAIN 박스)
-    //   는 (a) 가로 트랙을 9:16 세로 캔버스에 COVER 하며 중앙 세로 스트립만 잘라내
-    //   오히려 얼굴이 더 확대되거나, (b) 검은 레터박스로 둘러싸인 "창" UI 가 되어
-    //   사용자가 명시적으로 거부했다 ("창 구조로 이렇게 할 필요없음").
-    //   정답: 캔버스 비율과 일치하는 **세로 9:16** 을 요청한다. 모바일 전면
-    //   카메라는 9:16 포맷을 네이티브로 지원하므로 COVER 가 1:1 매핑 → crop 0,
-    //   자연스러운 셀피 프레이밍이 캔버스에 그대로 전달된다.
-    width:  { ideal: 720, max: 1080 },
-    height: { ideal: 1280, max: 1920 },
-    aspectRatio: { ideal: 9 / 16 },
+    // FIX-CAMERA-ZOOM (2026-04-24, v3): aspectRatio 9/16 "ideal" 이 데스크탑/노트북
+    //   웹캠(물리적으로 landscape 센서) 에서는 만족 불가 → 브라우저가 조용히
+    //   센서의 "중앙 세로 스트립" 을 software crop 해서 제공한다. 결과: 얼굴이
+    //   센서 FOV 의 중앙 9:16 영역만 꽉 채워 과도하게 확대돼 보임 (사용자 불만
+    //   "엄청 사람이 크게 잡혀서 챌린지 안되고 스쿼트 카운트도 안됨").
+    //   정답: aspectRatio 제거. width/height 는 힌트로만 전달하고, 네이티브
+    //   센서 비율 그대로 받은 뒤 drawCamera 에서 캔버스(9:16) 에 CONTAIN 으로
+    //   fit + 블러 복사본으로 여백 채움. 전체 FOV 가 보이므로 얼굴이 정상
+    //   크기로 작아지고 스쿼트 등 전신 동작도 프레임 안에 들어감.
+    width:  { ideal: 1280 },
+    height: { ideal: 720 },
     frameRate: { ideal: 30, max: 30 },
   },
   audio: {

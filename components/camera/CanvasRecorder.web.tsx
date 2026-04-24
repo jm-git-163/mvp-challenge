@@ -79,22 +79,18 @@ function getGenreColor(genre: string): string {
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
-// FIX-CAMERA-ZOOM (2026-04-24, v2): CONTAIN 분기와 pickCameraScale 제거.
-//   사용자가 "창 구조로 할 필요없음" 으로 명시 거부. 해결책은 getUserMedia 에서
-//   9:16 세로 트랙을 요청하는 것이고, 여기선 평범한 COVER fit 만 수행한다.
+// FIX-CAMERA-ZOOM (2026-04-24, v3): CONTAIN + 블러 배경. 상세 설명은
+//   RecordingCamera.web.tsx 의 drawCamera 주석 참조. 두 파일을 동일 로직으로 유지.
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
   facing: 'front' | 'back',
   state?: { cameraRect?: { x: number; y: number; w: number; h: number } },
 ) {
-  if (video.readyState < 2) return; // HAVE_CURRENT_DATA
+  if (video.readyState < 2) return;
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (vw === 0 || vh === 0) return;
-
-  const videoAR  = vw / vh;
-  const canvasAR = CW / CH; // 9/16
 
   if (facing === 'front') {
     ctx.save();
@@ -102,25 +98,37 @@ function drawCamera(
     ctx.scale(-1, 1);
   }
 
-  if (videoAR > canvasAR) {
-    // Video wider than canvas → crop left/right
+  const srcAR = vw / vh;
+  const dstAR = CW / CH;
+
+  // 1) 블러 배경 (COVER)
+  ctx.save();
+  try { (ctx as any).filter = 'blur(30px) brightness(0.7)'; } catch { /* ignore */ }
+  if (srcAR > dstAR) {
     const srcH = vh;
-    const srcW = srcH * canvasAR;
+    const srcW = srcH * dstAR;
     const srcX = (vw - srcW) / 2;
     ctx.drawImage(video, srcX, 0, srcW, srcH, 0, 0, CW, CH);
   } else {
-    // Video taller than canvas → crop top/bottom
     const srcW = vw;
-    const srcH = srcW / canvasAR;
+    const srcH = srcW / dstAR;
     const srcY = (vh - srcH) / 2;
     ctx.drawImage(video, 0, srcY, srcW, srcH, 0, 0, CW, CH);
   }
+  ctx.restore();
 
-  if (facing === 'front') {
-    ctx.restore();
+  // 2) 전경 CONTAIN
+  let dw: number, dh: number, dx: number, dy: number;
+  if (srcAR > dstAR) {
+    dw = CW; dh = CW / srcAR; dx = 0; dy = (CH - dh) / 2;
+  } else {
+    dh = CH; dw = CH * srcAR; dy = 0; dx = (CW - dw) / 2;
   }
+  ctx.drawImage(video, 0, 0, vw, vh, dx, dy, dw, dh);
 
-  if (state) state.cameraRect = { x: 0, y: 0, w: CW, h: CH };
+  if (facing === 'front') ctx.restore();
+
+  if (state) state.cameraRect = { x: dx, y: dy, w: dw, h: dh };
 }
 
 function drawHeader(

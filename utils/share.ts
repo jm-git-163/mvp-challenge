@@ -216,20 +216,21 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
     return { kind: 'unsupported', message: '영상 파일이 손상된 것 같아요. 다시 촬영해주세요.' };
   }
 
-  // Path A: Web Share with files — iOS ONLY.
-  // FIX-KAKAO-VIDEO (2026-04-23): Android Chrome + KakaoTalk 에 video file intent 를
-  //   넘기면 Kakao 가 video MIME 을 인식 못하고 **Play Store 다운로드 페이지**로
-  //   폴백한다 (사용자 Kakao 는 이미 설치돼 있음에도). iOS 는 iMessage/AirDrop 와
-  //   정상 동작하므로 iOS 에서만 file share 시도, Android 는 무조건 download-first.
-  if (env.ios && env.canShareFiles(file)) {
+  // Path A: Web Share with files — iOS + Android.
+  // FIX-SHARE-SHEET (2026-04-24, v3): 이전엔 iOS 만 files 경로를 탔기 때문에
+  //   Android 사용자는 "SNS 전송 누르면 다운만 되고 공유창이 안 열린다" 를 보았음.
+  //   files-only share 는 Android Chrome 에서도 OS 공유시트를 정상 오픈한다 —
+  //   `text` 에 URL 을 끼워넣을 때만 Play Store redirect 가 발생하므로 text 없이
+  //   files 만 전달해 해당 회귀 재발 방지.
+  if (env.canShareFiles(file)) {
     try {
-      log('attempt.websrc.files', { name: file.name, platform: 'ios' });
+      log('attempt.websrc.files', { name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
       await (navigator as any).share({
         files: [file],
-        text: caption,
-        title: title || file.name,
       });
       log('result.web-share', 'ok');
+      // 캡션은 클립보드로 조용히 넘겨, 사용자가 공유 시트에서 앱 선택 후 붙여넣기 가능.
+      if (caption) { try { await copyToClipboard(caption); } catch {} }
       return { kind: 'web-share', message: '공유 시작됨' };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
@@ -423,36 +424,31 @@ export async function sharePlatform(opts: {
     return { kind: 'unsupported', message: '영상 파일이 준비되지 않았어요.' };
   }
 
-  // FIX-KAKAO-PLAYSTORE (2026-04-24): iOS Safari's native share sheet reliably
-  //   hands mp4 files to KakaoTalk/Instagram/TikTok and opens the in-app
-  //   chat/upload picker directly — no Play Store, no download step. We try
-  //   this on iOS ONLY. Android Chrome's share sheet routes Kakao through a
-  //   path that drops the file MIME and falls back to the Play Store listing,
-  //   so on Android we keep the download + toast pattern.
+  // FIX-SHARE-SHEET (2026-04-24, v3): 사용자 불만 "SNS 전송 누르면 영상 다운만
+  //   하고 전송할 수 있는 SNS 창이 안 열린다". iOS 만 files API 로 공유하고
+  //   Android 는 다운로드만 했기 때문. Web Share Level 2 (files) 는 Android
+  //   Chrome 75+ 에서 정식 지원되며 시스템 공유 시트가 열린다 (카카오/인스타/
+  //   라인 등 설치된 앱이 모두 리스트에 표시). 이전의 "Play Store 리다이렉트"
+  //   이슈는 `text` 에 URL 을 넣을 때 특정 extension 이 link dispatcher 로
+  //   라우팅하는 문제였으므로, **files 만** 넘기면 그 문제는 재발하지 않는다.
   //
-  // FIX-KAKAO-PLAYSTORE-v2 (2026-04-24): when `text` contains a URL, some
-  //   iOS share extensions (KakaoTalk in particular) prefer the URL and route
-  //   through their *link* dispatcher, which on an un-installed receiving
-  //   device shows an App Store card that looks identical to the Android Play
-  //   Store redirect users are reporting. We now send **files only** — no
-  //   text, no title with caption — so the extension has nothing to disambig
-  //   away from the mp4.
-  if (env.ios && env.canShareFiles(file)) {
+  //   iOS/Android 공통 경로. in-app 브라우저(카톡 내부 웹뷰)는 canShareFiles 가
+  //   false 를 반환하므로 자동으로 아래 fallback 으로 떨어짐.
+  if (env.canShareFiles(file)) {
     try {
-      log('platform.ios.files.attempt', { platform, name: file.name });
+      log('platform.webshare.files.attempt', { platform, name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
       await (navigator as any).share({
         files: [file],
       });
-      log('platform.ios.files.ok', platform);
-      // Copy caption silently so the user can paste it after picking a chat.
+      log('platform.webshare.files.ok', platform);
       if (caption) { try { await copyToClipboard(caption); } catch {} }
       return { kind: 'web-share', message: '공유 시작됨', downloaded: false, captionCopied: !!caption };
     } catch (e: any) {
       if (e?.name === 'AbortError') {
-        log('platform.ios.cancelled', platform);
+        log('platform.webshare.cancelled', platform);
         return { kind: 'cancelled', message: '공유가 취소됐어요.', error: e };
       }
-      log('platform.ios.files.fail', e);
+      log('platform.webshare.files.fail', e);
       // fall through to download + toast
     }
   }

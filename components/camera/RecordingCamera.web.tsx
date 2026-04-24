@@ -121,9 +121,12 @@ const genreColor = (g: string) => GENRE_COLORS[g] ?? '#7c3aed';
 // ---------------------------------------------------------------------------
 // Canvas draw helpers
 // ---------------------------------------------------------------------------
-// FIX-CAMERA-ZOOM (2026-04-24, v2): CONTAIN 분기와 pickCameraScale 제거.
-//   사용자가 "창 구조로 할 필요없음" 으로 명시 거부. 해결책은 getUserMedia 에서
-//   9:16 세로 트랙을 요청하는 것이고, 여기선 평범한 COVER fit 만 수행한다.
+// FIX-CAMERA-ZOOM (2026-04-24, v3): CONTAIN + 블러 레터박스.
+//   이전 COVER 는 landscape 웹캠 트랙(1280×720) 을 portrait 캔버스(9:16) 에
+//   center-crop → 얼굴이 꽉 차서 과도 확대되는 문제. 사용자는 "창 구조 금지"
+//   라고 했지만, 검은 레터박스가 아니라 **같은 영상을 블러 처리해서 배경으로
+//   깐** 인스타/틱톡 표준 스타일이면 "창" 이 아니라 씨네마틱 프레이밍.
+//   전체 FOV 가 선명하게 보이므로 스쿼트·전신 포즈가 프레임 안에 정상 크기로.
 function drawCamera(
   ctx: CanvasRenderingContext2D,
   video: HTMLVideoElement,
@@ -135,30 +138,49 @@ function drawCamera(
   const vh = video.videoHeight;
   if (!vw || !vh) return;
 
-  const videoAR  = vw / vh;
-  const canvasAR = CW / CH;
-
   if (facing === 'front') {
     ctx.save();
     ctx.translate(CW, 0);
     ctx.scale(-1, 1);
   }
 
-  if (videoAR > canvasAR) {
+  // 1) 배경: 전체 캔버스를 COVER 로 채우되 강한 블러. 여백이 시각적으로 채워짐.
+  ctx.save();
+  try { (ctx as any).filter = 'blur(30px) brightness(0.7)'; } catch { /* ignore */ }
+  const srcAR = vw / vh;
+  const dstAR = CW / CH;
+  if (srcAR > dstAR) {
     const srcH = vh;
-    const srcW = srcH * canvasAR;
+    const srcW = srcH * dstAR;
     const srcX = (vw - srcW) / 2;
     ctx.drawImage(video, srcX, 0, srcW, srcH, 0, 0, CW, CH);
   } else {
     const srcW = vw;
-    const srcH = srcW / canvasAR;
+    const srcH = srcW / dstAR;
     const srcY = (vh - srcH) / 2;
     ctx.drawImage(video, 0, srcY, srcW, srcH, 0, 0, CW, CH);
   }
+  ctx.restore();
+
+  // 2) 전경: CONTAIN fit — 전체 FOV 가 보이도록 letterbox/pillarbox.
+  let dw: number, dh: number, dx: number, dy: number;
+  if (srcAR > dstAR) {
+    // landscape → pillarbox (위아래 검정 없음, 블러 배경 위에 얹힘)
+    dw = CW;
+    dh = CW / srcAR;
+    dx = 0;
+    dy = (CH - dh) / 2;
+  } else {
+    dh = CH;
+    dw = CH * srcAR;
+    dy = 0;
+    dx = (CW - dw) / 2;
+  }
+  ctx.drawImage(video, 0, 0, vw, vh, dx, dy, dw, dh);
 
   if (facing === 'front') ctx.restore();
 
-  if (state) state.cameraRect = { x: 0, y: 0, w: CW, h: CH };
+  if (state) state.cameraRect = { x: dx, y: dy, w: dw, h: dh };
 }
 
 function rrect(

@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTemplates } from '../../../hooks/useTemplates';
+import { MOCK_TEMPLATES } from '../../../services/mockData';
 import { useSessionStore } from '../../../store/sessionStore';
 import { useInviteStore } from '../../../store/inviteStore';
 import { parseInviteUrl, buildInviteBannerText, type InviteContext } from '../../../utils/inviteLinks';
@@ -102,28 +103,64 @@ export default function ChallengeInviteScreen() {
     //   브이로그를 받는 버그. pickOfficialSlug(t) 는 UUID/레거시 id 양쪽 다 공식
     //   slug 로 정규화하므로, 송신측(pickOfficialSlug 로 slug 결정)과 **동일한 함수**
     //   로 수신측에서도 매칭해 왕복 라운드트립을 보장한다.
-    const dbHit = templates.find(t => {
-      if (!isValidDb(t)) return false;
-      const id = String((t as any).id ?? '').toLowerCase();
-      const slug = String((t as any).slug ?? '').toLowerCase();
-      const themeId = String((t as any).theme_id ?? '').toLowerCase();
-      const genre = String((t as any).genre ?? '').toLowerCase();
-      // 1) 송수신 대칭 매칭 — pickOfficialSlug 라운드트립
+    // FIX-INVITE-RESOLVER (2026-04-24): 강건한 다단 매처. 이전 버전은 DB 템플릿만
+    //   검사해 (a) 라이브 Supabase 에 없는 slug (예: squat-master — Supabase 는
+    //   10개만 있고 fitness 카테고리 미포함), (b) UUID 맵에 누락된 신규 UUID,
+    //   (c) Supabase 가 내려주지 않은 필드(missions/duration_sec) 로 인한
+    //   isValidDb 탈락 — 이 세 경우에 `null` 이 반환돼 수신자가 항상 "챌린지를
+    //   찾을 수 없어요" 화면을 보는 버그.
+    //
+    //   이제: DB → MOCK_TEMPLATES 순으로 동일 매칭 로직을 돌리고, 그래도 없으면
+    //   MOCK_TEMPLATES 에서 genre/pickOfficialSlug 로 fuzzy 매칭. 절대 "첫 번째
+    //   템플릿" 같은 임의 폴백은 하지 않음 — 매칭 의도가 명확한 경로만 사용.
+    const matchTemplate = (t: any): boolean => {
+      if (!t) return false;
+      const id = String(t.id ?? '').toLowerCase();
+      const slug = String(t.slug ?? '').toLowerCase();
+      const themeId = String(t.theme_id ?? '').toLowerCase();
+      const genre = String(t.genre ?? '').toLowerCase();
+      // 1) 송수신 대칭 — pickOfficialSlug 라운드트립
       try {
-        if (pickOfficialSlug(t as any).toLowerCase() === slugLc) return true;
+        if (pickOfficialSlug(t).toLowerCase() === slugLc) return true;
       } catch { /* ignore */ }
-      // 2) 직접·레거시 접두 매칭 (fallback)
-      return id === slugLc
-        || slug === slugLc
-        || themeId === slugLc
-        || genre === slugLc
-        || id.startsWith(dbPrefix);
-    });
+      // 2) 직접·레거시 접두·genre 매칭
+      if (id === slugLc || slug === slugLc || themeId === slugLc || genre === slugLc) return true;
+      if (dbPrefix && id.startsWith(dbPrefix)) return true;
+      return false;
+    };
+
+    // Tier 1: 라이브 DB 에서 유효한 템플릿 (duration_sec + missions 보유) 매칭
+    const dbHit = templates.find(t => isValidDb(t) && matchTemplate(t));
     if (dbHit) return dbHit;
 
-    // 마지막 폴백: **없음**. 잘못된 slug 를 첫 DB 템플릿으로 둔갑시키면 사용자가
-    // "다른 챌린지가 뜬다" 는 버그로 본다. null 을 반환해 "챌린지를 찾을 수 없어요"
-    // 에러 화면을 정직하게 노출하는 편이 훨씬 낫다 (CLAUDE.md §3 FORBIDDEN #20).
+    // Tier 2: MOCK_TEMPLATES 폴백 — Supabase 가 slug 를 커버하지 못하는 경우
+    //   (예: squat-master, plank 등 fitness 장르). MOCK 은 항상 유효한 missions/
+    //   duration_sec 를 가지므로 record 페이지가 바로 실행 가능.
+    const mockHit = MOCK_TEMPLATES.find(t => isValidDb(t) && matchTemplate(t));
+    if (mockHit) return mockHit;
+
+    // Tier 3: 최후 — slug 를 genre 로 변환해 MOCK 에서 같은 장르의 첫 템플릿.
+    //   "잘못된 slug 를 첫 템플릿으로 둔갑" 과는 다름. 여기 도달하려면 slug 가
+    //   OFFICIAL_CHALLENGE_SLUGS 중 하나였고, 매칭에서 누락된 엣지케이스.
+    const SLUG_TO_GENRE: Record<string, string> = {
+      'squat-master': 'fitness',
+      'kpop-dance': 'kpop',
+      'news-anchor': 'news',
+      'english-speaking': 'english',
+      'storybook-reading': 'kids',
+      'travel-checkin': 'travel',
+      'unboxing-promo': 'promotion',
+      'food-review': 'daily',
+      'motivation-speech': 'fitness',
+      'social-viral': 'hiphop',
+      'daily-vlog': 'daily',
+    };
+    const targetGenre = SLUG_TO_GENRE[slugLc];
+    if (targetGenre) {
+      const genreHit = MOCK_TEMPLATES.find(t => isValidDb(t) && String((t as any).genre ?? '').toLowerCase() === targetGenre);
+      if (genreHit) return genreHit;
+    }
+
     return null;
   }, [templates, ctx]);
 
