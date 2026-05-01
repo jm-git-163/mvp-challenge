@@ -251,9 +251,17 @@ export async function shareVideo(opts: ShareVideoOpts): Promise<ShareResult> {
   if (env.canShareFiles(file)) {
     try {
       log('attempt.websrc.files', { name: file.name, ua: env.ios ? 'ios' : env.android ? 'android' : 'other' });
-      await (navigator as any).share({
-        files: [file],
-      });
+      // FIX-VIDEO-SHARE-HANG (2026-05-01): 동일한 hang 보고가 video 경로에서도 발생.
+      //   60초 타임아웃 — video 는 invite text 보다 업로드 시간이 길 수 있어 더 관대.
+      const sharePromise: Promise<void> = (navigator as any).share({ files: [file] });
+      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 60000));
+      const winner = await Promise.race([sharePromise.then(() => 'ok' as const), timeout]);
+      if (winner === 'timeout') {
+        log('attempt.websrc.files.timeout');
+        // Fall through to download fallback below — download still useful even
+        // though share is stuck.
+        throw new Error('share-timeout');
+      }
       log('result.web-share', 'ok');
       // 캡션은 클립보드로 조용히 넘겨, 사용자가 공유 시트에서 앱 선택 후 붙여넣기 가능.
       if (caption) { try { await copyToClipboard(caption); } catch {} }
@@ -344,13 +352,27 @@ export async function shareInvite(opts: ShareInviteOpts): Promise<ShareResult> {
   if (hasNavShare && !env.inAppBrowser) {
     try {
       log('invite.url.share.attempt', { url });
-      await (navigator as any).share({
+      // FIX-INVITE-HANG (2026-05-01): 사용자 보고 "친구 선택 후 전송이 끝나지 않음".
+      //   Android 11+ 의 일부 OEM 공유 시트가 KakaoTalk 선택 → "친구 골라 전송" 후
+      //   navigator.share Promise 를 resolve 도 reject 도 하지 않고 영구 hang.
+      //   45초 타임아웃 후 사용자에게 피드백 + 클립보드 폴백.
+      const sharePromise: Promise<void> = (navigator as any).share({
         title: `${templateName} 도전장`,
         // url 을 text 안에도 inline — 일부 메신저(구버전 라인 등)는 url 필드를
         // 드롭해도 text 는 유지하므로 안전망.
         text: `${shortCaption}\n\n${url}`,
         url,
       });
+      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 45000));
+      const winner = await Promise.race([sharePromise.then(() => 'ok' as const), timeout]);
+      if (winner === 'timeout') {
+        log('invite.url.share.timeout', { url });
+        try { await copyToClipboard(url); } catch {}
+        return {
+          kind: 'fallback',
+          message: '공유 시트가 응답하지 않아요 (45초 초과). 링크를 복사해뒀으니 카카오톡 채팅방에 직접 붙여넣어주세요.',
+        };
+      }
       log('result.web-share-text');
       return {
         kind: 'web-share-text',
@@ -565,7 +587,19 @@ export async function sharePlatform(opts: {
   // (5) Now resolve the share Promise (if any).
   if (sharePromise) {
     try {
-      await sharePromise;
+      // FIX-PLATFORM-SHARE-HANG (2026-05-01): 일부 OS 공유 시트가 친구 선택 후 hang.
+      //   60초 타임아웃 후 download/upload-tab 폴백 안내로 graceful 처리.
+      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 60000));
+      const winner = await Promise.race([sharePromise.then(() => 'ok' as const), timeout]);
+      if (winner === 'timeout') {
+        log('platform.webshare.timeout', platform);
+        return {
+          kind: 'fallback',
+          message:
+            `공유 시트가 응답하지 않았어요 (60초 초과). 영상은 기기에 저장됐으니 ${platformLabel(platform)} 를 직접 열어 갤러리에서 선택해주세요.`,
+          downloaded, captionCopied,
+        };
+      }
       log('platform.webshare.ok', platform);
       return {
         kind: 'web-share',

@@ -252,7 +252,23 @@ export function isInAppBrowserWithBrokenShare(): boolean {
   //   navigator.share 를 시도조차 안 했다 → "공유창이 안 뜨고 클립보드만 복사" 버그.
   //   확실히 깨진다고 검증된 KAKAOTALK 만 hard-block. 나머지는 navigator.share 를
   //   먼저 시도하고 실패 시 폴백 (utils/share.ts 의 catch 가 처리).
-  return ua.includes('kakaotalk');
+  // FIX-KAKAO-INAPP-VARIANTS (2026-05-01): KAKAOTALK UA 변종 모두 매칭. 카카오톡
+  //   앱은 버전·플랫폼별로 "KAKAOTALK 11.x.x", "KAKAOTALK/11.x.x (iOS;…)",
+  //   "kakaotalk-talk-share" 등 다양한 토큰을 쓰므로 prefix 매칭으로 일괄 처리.
+  //   또한 카톡이 외부 브라우저 인텐트로 열어도 동일 UA 가 일부 잔존하는 사례 보고.
+  return /kakaotalk/.test(ua);
+}
+
+/**
+ * FIX-KAKAO-INAPP-BANNER (2026-05-01): 카카오톡 in-app webview 단독 감지.
+ * challenge/[slug] 진입 시 "외부 브라우저로 열기" 배너를 띄울지 결정한다.
+ * iOS 의 카카오 webview 는 getUserMedia 가 막혀 있어 챌린지가 진행되지 않는다 —
+ * 사용자에게 명확한 안내가 필요.
+ */
+export function isKakaoInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = (navigator.userAgent || '').toLowerCase();
+  return /kakaotalk/.test(ua);
 }
 
 /**

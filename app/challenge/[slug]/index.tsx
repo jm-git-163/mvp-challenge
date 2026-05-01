@@ -29,6 +29,7 @@ import { getThumbnailUrl } from '../../../utils/thumbnails';
 //   user-gesture 스택을 이탈시켜 Kakao in-app / Chrome 에서 getUserMedia 가 조용히
 //   재프롬프트되는 원인. 모듈을 번들에 동봉해 await 없이 바로 호출 가능하게 한다.
 import { ensureMediaSession } from '../../../engine/session/mediaSession';
+import { isKakaoInAppBrowser } from '../../../utils/inviteShareCard';
 import type { Template } from '../../../types/template';
 
 export default function ChallengeInviteScreen() {
@@ -165,6 +166,10 @@ export default function ChallengeInviteScreen() {
   }, [templates, ctx]);
 
   const [accepting, setAccepting] = useState(false);
+  // FIX-KAKAO-INAPP-BANNER (2026-05-01): 카카오톡 webview 진입 감지.
+  //   iOS 카카오 webview 는 getUserMedia 차단 → 챌린지 진행 불가. 사용자가 외부
+  //   브라우저로 열어야 한다는 명시적 안내. UA 기반 1회 평가 — 이후 클릭으로 닫힘.
+  const [showKakaoBanner, setShowKakaoBanner] = useState<boolean>(() => isKakaoInAppBrowser());
 
   // 수신 시 스토어 세팅
   useEffect(() => {
@@ -301,6 +306,18 @@ export default function ChallengeInviteScreen() {
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.scroll}>
+        {showKakaoBanner ? (
+          <View style={s.kakaoBanner}>
+            <Text style={s.kakaoBannerTitle}>⚠ 카카오톡 인앱 브라우저</Text>
+            <Text style={s.kakaoBannerBody}>
+              카메라·마이크 권한이 차단돼 챌린지가 진행되지 않을 수 있어요.{'\n'}
+              우상단 ⋯ 메뉴 → "다른 브라우저로 열기" 를 선택해주세요.
+            </Text>
+            <Pressable style={s.kakaoBannerClose} onPress={() => setShowKakaoBanner(false)}>
+              <Text style={s.kakaoBannerCloseText}>그래도 진행</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View style={s.badge}>
           <Text style={s.badgeText}>🥊 도전장 도착</Text>
         </View>
@@ -388,4 +405,22 @@ const s = StyleSheet.create({
   errorBox: { padding: 24, alignItems: 'center', gap: 12 },
   errTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
   errBody: { color: '#A0A0B0', fontSize: 14, textAlign: 'center' },
+  kakaoBanner: {
+    backgroundColor: 'rgba(254,229,0,0.12)',
+    borderColor: '#FEE500',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+  },
+  kakaoBannerTitle: { color: '#FEE500', fontSize: 14, fontWeight: '800' },
+  kakaoBannerBody: { color: '#FFF', fontSize: 13, lineHeight: 19 },
+  kakaoBannerClose: {
+    alignSelf: 'flex-end',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  kakaoBannerCloseText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
 });
