@@ -610,6 +610,12 @@ export function useJudgement(): {
                   setSquatCount(squatCountRef.current);
                 }
                 hipGateRef.current.consume();
+                // FIX-FINAL-STAB (2026-05-01): 카운트 직후 candidate state machine 리셋.
+                //   안 하면 60fps rAF 에서 동일 stable='up' 이 다음 프레임 1개에 또 도달해
+                //   다음 down→up 사이클이 1 프레임만 짧게 들어와도 즉시 트리거되는 위험.
+                //   reset 후엔 새 'down' phase 가 DEBOUNCE_FRAMES(2) 만큼 다시 쌓여야 함.
+                squatCandidatePhaseRef.current = 'up';
+                squatCandidateFrames.current = 0;
                 // FIX-N: full-body 실제 무릎각도 기반 rep 완료 → 정밀 모드 확정.
                 if (squatSourceRef.current !== 'full-body') {
                   squatSourceRef.current = 'full-body';
@@ -734,9 +740,21 @@ export function useJudgement(): {
             //   슬롯이 안 끝나서 멍하니 기다리는 케이스 방지.
             const lineMs = mission.end_ms - mission.start_ms;
             const elapsedInMission = elapsedMs - mission.start_ms;
-            const minHoldMs = Math.max(2000, lineMs * 0.6);
+            // FIX-FINAL-STAB (2026-05-01): 자막 미션 조기 종료 조건 강화.
+            //   기존 (interim accuracy ≥ 0.80) 만으로는 사용자가 문장 절반만 읽었는데도
+            //   부분 음절 매칭 + 음운 그룹 0.5 가산점이 우연히 0.8 을 넘겨 다음 미션으로
+            //   넘어가버리는 회귀 발생. 이제는 다음 4 가지를 모두 만족해야 종료:
+            //     1) 누적 transcript 길이가 목표의 70% 이상
+            //     2) 최소 표시시간(슬롯의 70% 또는 2.5s) 경과
+            //     3) 정확도 0.85 이상
+            //     4) 슬롯 종료까지 300ms 이상 남음 (이미 끝나면 자연 종료)
+            const target = resolvedReadTextRef.current;
+            const transcript = voiceTranscriptRef.current;
+            const lengthRatio = target.length > 0 ? transcript.trim().length / target.length : 0;
+            const minHoldMs = Math.max(2500, lineMs * 0.7);
             if (
-              voiceAccuracyRef.current >= 0.80 &&
+              voiceAccuracyRef.current >= 0.85 &&
+              lengthRatio >= 0.7 &&
               elapsedInMission >= minHoldMs &&
               mission.end_ms > elapsedMs + 300
             ) {

@@ -28,8 +28,12 @@
 const MIN_REP_INTERVAL_MS = 600;
 const CALIBRATION_MS = 3000;
 const CALIBRATION_MIN_SAMPLES = 15;         // 약 1.5s @10fps 이상
-const NOSE_VIS_GATE = 0.30;                 // research §4.1 완화
-const SHOULDER_VIS_GATE = 0.30;
+// FIX-FINAL-STAB (2026-05-01): 사용자 제보 "안 했는데 카운트" → 0.30 → 0.40 으로 소폭 강화.
+//   0.30 은 nose/shoulder 가 부분적으로 가려지거나 추정값이 흔들릴 때도 통과시켜
+//   거짓 양성의 한 원인. 0.40 은 실기기 nose 신뢰도 분포 (대부분 0.5+) 의 안전 하한.
+//   더 올리면(0.5+) 첫 rep 누락 위험 — research §1.3 가설 C/D 참고.
+const NOSE_VIS_GATE = 0.40;
+const SHOULDER_VIS_GATE = 0.40;
 // FIX-CALIB (2026-04-22): 셀피 근접촬영에서 0.08 은 너무 빡빡해 사용자가
 //   완벽히 정지해도 MoveNet 랜드마크 지터만으로 σ/d0 > 8% 초과 → 캘리브가
 //   영원히 14% 근방에서 재시작 루프. 0.20 으로 완화 (연구 §4.1 관용).

@@ -125,7 +125,12 @@ export function textSimilarity(target: string, spoken: string): number {
   const wordScore   = wordsTarget.length > 0 ? wordMatches / wordsTarget.length : 0;
   const lenCoverage = Math.min(1, normSpoken.length / Math.max(1, normTarget.length));
 
-  return Math.min(1, Math.max(0, jamoScore * 0.6 + wordScore * 0.3 + lenCoverage * 0.1));
+  // FIX-FINAL-STAB (2026-05-01): CLAUDE.md §5 Script 공식 (레벤슈타인 60 + 완주율 20 + 시간 20)
+  //   에 맞춰 가중치 60/20/20 로 조정. 이전 60/30/10 은 짧은 단어 매칭에 과보상이 있었음.
+  //   시간 점수는 useJudgement 의 조기-종료 로직(end_ms 클램프)이 사실상 만점 처리.
+  //   wordScore 는 완주율(목표 단어 중 발화된 단어 비율) — 20% 비중 적합.
+  //   lenCoverage 는 시간 점수 비례 변수 — 사용자가 빨리 읽을수록 1.0 에 근접.
+  return Math.min(1, Math.max(0, jamoScore * 0.6 + wordScore * 0.2 + lenCoverage * 0.2));
 }
 
 // ── 전역 권한 pre-request ─────────────────────────────────────────────────────
