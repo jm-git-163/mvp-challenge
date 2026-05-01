@@ -158,6 +158,39 @@ export const zMissionEvent = z.object({
   hudBinding: z.string().optional(),
 }).refine((e) => e.endSec > e.startSec, { message: 'endSec must be > startSec' });
 
+// ── 미션 시퀀스 (Phase 5 wave2 — chaining) ─────────────────
+// 한 챌린지 = 미션 3~5개 연속. 각 미션 종료 → transitionMs 페이드 → 다음 미션.
+// 단일 MediaRecorder 세션 유지 (시퀀서는 점수·상태만 관리).
+export const zMissionSequenceStep = z.object({
+  id: z.string().min(1),
+  label: z.string().optional(),
+  spec: zMissionSpec,
+  hudBinding: z.string().optional(),
+  weight: z.number().min(0).default(1),
+});
+
+export const zTransitionConfig = z.object({
+  durationMs: z.number().min(0).default(1000),
+  kind: z.enum(['glow_fade', 'flash', 'none']).default('glow_fade'),
+});
+
+export const zMissionSequence = z.object({
+  steps: z.array(zMissionSequenceStep).min(2),
+  transitions: z.array(zTransitionConfig).optional(),
+  comboBonusPct: z.number().min(0).max(100).default(10),
+  comboBonusMaxPct: z.number().min(0).max(200).default(50),
+  passingScore: z.number().min(0).max(100).default(60),
+}).refine((s) => {
+  const ids = new Set<string>();
+  for (const st of s.steps) {
+    if (ids.has(st.id)) return false;
+    ids.add(st.id);
+  }
+  return true;
+}, { message: 'steps 내 id 중복' });
+
+export type MissionSequenceConfig = z.infer<typeof zMissionSequence>;
+
 // ── BGM ──────────────────────────────────────────────────────
 export const zBgmSpec = z.object({
   src: z.string().min(1),
@@ -246,6 +279,13 @@ export const zTemplate = z.object({
    * 자동 전환 아님 — 사용자가 🔄 버튼으로 직접 토글.
    */
   cameraPlan: zCameraPlan.optional(),
+
+  /**
+   * Phase 5 wave2 (2026-05-01): 미션 체이닝.
+   * 존재 시 missionTimeline 과 병행 가능 (시퀀서가 우선). 단일 녹화 세션 안에서
+   * 시퀀스가 종료되면 보너스 합산해 최종 점수에 반영.
+   */
+  missionSequence: zMissionSequence.optional(),
 }).superRefine((t, ctx) => {
   // scoreWeight 합 = 1.0 (±0.01 허용)
   const sum = t.missionTimeline.reduce((s, m) => s + m.scoreWeight, 0);

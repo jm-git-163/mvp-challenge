@@ -1,24 +1,49 @@
 /**
  * engine/composition/layers/face_sticker.ts
  *
- * Phase 5e — **얼굴 스티커 (AR)**.
+ * Phase 5e — **얼굴 스티커 (AR) — 정밀 트래킹**.
  *
- *   state.faceAnchor 에 있는 랜드마크 좌표에 이미지 또는 이모지 스티커를 붙인다.
- *   랜드마크 없으면 화면 중앙 상단 폴백 위치.
+ * Phase 5 wave2 (2026-05-01): OneEuroFilter 적용 + blendshapes 반응.
+ *   - 키 포인트(이마/양 볼/입꼬리/코끝) 좌표에 OneEuroFilter 적용 (지터 < 2px @ 30fps)
+ *   - blendshapes(mouthSmile/eyeBlink) 로 스티커 변형:
+ *       smile > 0.5 → scale 1.2 + 노란 글로우
+ *       blink > 0.7 → 가로 0.3 squash 100ms
+ *   - face roll: 양 볼 좌표로 계산 (faceAnchor.roll 우선, 없으면 cheeks 로 직접)
  *
  *   props:
- *     - asset : string     — URL 또는 이모지 문자. '/stickers/...' 이면 이미지 로드.
+ *     - asset : string     — URL 또는 이모지 문자.
  *     - sizePx : number    (default 80)
  *     - offsetX, offsetY : number (default 0)
+ *     - anchorPoint : 'forehead' | 'nose' | 'left_cheek' | 'right_cheek' |
+ *                     'mouth_left' | 'mouth_right' (default 'forehead')
+ *     - reactToBlendshapes : boolean (default true)
  *
- *   reactive.track.landmark 는 상위 reactiveBinding 에서 이미 해석되어
- *   state.__trackedPoint[layer.id] = {x,y,rot,scale} 로 전달될 수 있음.
- *   해당 값이 있으면 우선 사용, 없으면 face_anchor 기본 랜드마크 매핑.
+ *   state.faceAnchor: { nose, leftCheek, rightCheek, mouth, forehead, ..., roll, blendshapes }
+ *   state.__trackedPoint[layer.id]: 상위 reactiveBinding 결과 (있으면 우선 사용).
  */
 import type { BaseLayer } from '../../templates/schema';
+import { OneEuroFilter } from '../../ar/oneEuroFilter';
 
 // 이미지 캐시: URL → HTMLImageElement
 const _imgCache = new Map<string, { img: HTMLImageElement; ok: boolean; failed: boolean }>();
+
+// 레이어별 OneEuroFilter (x, y 독립).
+// docs/PERFORMANCE §4 권장값: minCutoff=1.0, beta=0.007, dCutoff=1.0
+interface FilterPair { x: OneEuroFilter; y: OneEuroFilter; lastBlinkMs: number; }
+const _filters = new Map<string, FilterPair>();
+
+function getFilters(layerId: string): FilterPair {
+  let f = _filters.get(layerId);
+  if (!f) {
+    f = {
+      x: new OneEuroFilter({ minCutoff: 1.0, beta: 0.007, dCutoff: 1.0 }),
+      y: new OneEuroFilter({ minCutoff: 1.0, beta: 0.007, dCutoff: 1.0 }),
+      lastBlinkMs: -Infinity,
+    };
+    _filters.set(layerId, f);
+  }
+  return f;
+}
 
 function getImage(url: string): { img: HTMLImageElement; ok: boolean; failed: boolean } | null {
   if (typeof Image === 'undefined') return null;
@@ -35,10 +60,32 @@ function getImage(url: string): { img: HTMLImageElement; ok: boolean; failed: bo
   return entry;
 }
 
-function resolvePoint(layer: BaseLayer, state: any, W: number, H: number): { x: number; y: number; rot: number; scale: number } {
-  // FIX-SHARE-CAMERA-FINAL (2026-04-24): camera_feed 가 축소 렌더될 경우
-  //   state.cameraRect = {x,y,w,h} 가 설정돼 있음. AR 스티커는 이 dest rect
-  //   기준으로 랜드마크를 매핑해야 얼굴 위에 정확히 뜬다. rect 없으면 풀스크린.
+interface AnchorPick { x: number; y: number; }
+
+function pickAnchorPoint(anchor: any, name: string): AnchorPick | null {
+  if (!anchor) return null;
+  switch (name) {
+    case 'forehead':    return anchor.forehead ?? null;
+    case 'nose':        return anchor.nose ?? null;
+    case 'left_cheek':  return anchor.leftCheek ?? null;
+    case 'right_cheek': return anchor.rightCheek ?? null;
+    case 'mouth_left':  return anchor.mouthLeft ?? anchor.mouth ?? null;
+    case 'mouth_right': return anchor.mouthRight ?? anchor.mouth ?? null;
+    default:            return anchor.forehead ?? anchor.nose ?? null;
+  }
+}
+
+function computeRoll(anchor: any): number {
+  if (anchor && Number.isFinite(anchor.roll)) return anchor.roll;
+  // cheeks 로 fallback 계산
+  const lc = anchor?.leftCheek, rc = anchor?.rightCheek;
+  if (lc && rc && Number.isFinite(lc.x) && Number.isFinite(rc.x)) {
+    return Math.atan2(rc.y - lc.y, rc.x - lc.x);
+  }
+  return 0;
+}
+
+function resolvePoint(layer: BaseLayer, state: any, W: number, H: number, timeMs: number, anchorName: string): { x: number; y: number; rot: number; scale: number; rawSrc: 'tracked' | 'anchor' | 'fallback' } {
   const rect = state?.cameraRect;
   const rx = rect && Number.isFinite(rect.x) ? rect.x : 0;
   const ry = rect && Number.isFinite(rect.y) ? rect.y : 0;
@@ -47,7 +94,6 @@ function resolvePoint(layer: BaseLayer, state: any, W: number, H: number): { x: 
 
   const tracked = state?.__trackedPoint?.[layer.id];
   if (tracked && Number.isFinite(tracked.x) && Number.isFinite(tracked.y)) {
-    // tracked 는 normalized(0..1) 일 수도, px 일 수도. 휴리스틱: |x|<=1 이면 normalized.
     const isNorm = Math.abs(tracked.x) <= 1 && Math.abs(tracked.y) <= 1;
     const px = isNorm ? rx + tracked.x * rw : tracked.x;
     const py = isNorm ? ry + tracked.y * rh : tracked.y;
@@ -55,34 +101,32 @@ function resolvePoint(layer: BaseLayer, state: any, W: number, H: number): { x: 
       x: px, y: py,
       rot: Number.isFinite(tracked.rot) ? tracked.rot : 0,
       scale: Number.isFinite(tracked.scale) ? tracked.scale : 1,
+      rawSrc: 'tracked',
     };
   }
-  // faceAnchor 랜드마크 직접 조회 — normalized(0..1) → camera rect 내 px.
   const anchor = state?.faceAnchor;
-  const lm = (layer as any).reactive?.track?.landmark;
-  if (anchor && lm && anchor[lm] && Number.isFinite(anchor[lm].x)) {
-    const nx = anchor[lm].x, ny = anchor[lm].y;
-    const isNorm = Math.abs(nx) <= 1 && Math.abs(ny) <= 1;
-    const px = isNorm ? rx + nx * rw : nx;
-    const py = isNorm ? ry + ny * rh : ny;
-    return { x: px, y: py, rot: anchor.roll ?? 0, scale: anchor.size ?? 1 };
+  // anchorPoint prop 우선, 없으면 reactive.track.landmark, 없으면 forehead.
+  const lm = anchorName ?? (layer as any).reactive?.track?.landmark ?? 'forehead';
+  const pt = pickAnchorPoint(anchor, lm);
+  if (anchor && pt && Number.isFinite(pt.x)) {
+    const isNorm = Math.abs(pt.x) <= 1 && Math.abs(pt.y) <= 1;
+    const px = isNorm ? rx + pt.x * rw : pt.x;
+    const py = isNorm ? ry + pt.y * rh : pt.y;
+    return { x: px, y: py, rot: computeRoll(anchor), scale: anchor.faceSize ? Math.max(0.5, Math.min(2, anchor.faceSize * 4)) : 1, rawSrc: 'anchor' };
   }
-  // 폴백: 카메라 rect 상단 중앙.
-  return { x: rx + rw / 2, y: ry + rh * 0.25, rot: 0, scale: 1 };
+  return { x: rx + rw / 2, y: ry + rh * 0.25, rot: 0, scale: 1, rawSrc: 'fallback' };
 }
 
 function isEmojiLike(s: string): boolean {
-  // URL 경로 감지 (/ 또는 http)
   if (!s) return true;
   if (s.startsWith('/') || s.startsWith('http') || s.startsWith('.')) return false;
-  // 길이 짧고 / 없으면 이모지로 간주
   return s.length <= 6;
 }
 
 export default function render(
   ctx: CanvasRenderingContext2D,
   layer: BaseLayer,
-  _timeMs: number,
+  timeMs: number,
   state: any,
 ): void {
   const props = (layer.props as any) || {};
@@ -90,29 +134,72 @@ export default function render(
   const sizePx = Math.max(8, (props.sizePx as number) ?? 80);
   const offX = (props.offsetX as number) ?? 0;
   const offY = (props.offsetY as number) ?? 0;
+  const anchorName = String(props.anchorPoint ?? 'forehead');
+  const reactBs = props.reactToBlendshapes !== false;
 
   const { width: W, height: H } = ctx.canvas;
-  const { x, y, rot, scale } = resolvePoint(layer, state, W, H);
+  const raw = resolvePoint(layer, state, W, H, timeMs, anchorName);
+
+  // OneEuroFilter — 키 포인트 좌표 스무딩 (지터 제거).
+  // tracked source 는 이미 외부에서 스무딩됐다고 가정, anchor source 만 적용.
+  const f = getFilters(layer.id);
+  const x = raw.rawSrc === 'anchor' ? f.x.filter(raw.x, timeMs) : raw.x;
+  const y = raw.rawSrc === 'anchor' ? f.y.filter(raw.y, timeMs) : raw.y;
+  const rot = raw.rot;
+  let scale = raw.scale;
+
+  // ── Blendshapes 반응 ───────────────────────────────────────
+  let glowYellow = false;
+  let squashX = 1;
+  if (reactBs) {
+    const bs = state?.faceAnchor?.blendshapes ?? state?.blendshapes;
+    if (bs) {
+      const smileL = Number(bs.mouthSmileLeft ?? 0);
+      const smileR = Number(bs.mouthSmileRight ?? 0);
+      const smile = Math.max(smileL, smileR);
+      if (smile > 0.5) {
+        scale *= 1.2;
+        glowYellow = true;
+      }
+      const blinkL = Number(bs.eyeBlinkLeft ?? 0);
+      const blinkR = Number(bs.eyeBlinkRight ?? 0);
+      const blink = Math.max(blinkL, blinkR);
+      if (blink > 0.7) {
+        f.lastBlinkMs = timeMs;
+      }
+      const sinceBlink = timeMs - f.lastBlinkMs;
+      if (sinceBlink >= 0 && sinceBlink < 100) {
+        // squash to 0.3 over 100ms (linear ease: peak at start, recover linearly)
+        const t = sinceBlink / 100;
+        const minSquash = 0.3;
+        squashX = minSquash + (1 - minSquash) * t;
+      }
+    }
+  }
 
   ctx.save();
   ctx.globalAlpha = layer.opacity ?? 1;
   ctx.translate(x + offX, y + offY);
   if (rot) ctx.rotate(rot);
   if (scale !== 1) ctx.scale(scale, scale);
+  if (squashX !== 1) ctx.scale(squashX, 1);
+
+  if (glowYellow) {
+    ctx.shadowColor = '#FFD23F';
+    ctx.shadowBlur = sizePx * 0.4;
+  }
 
   if (isEmojiLike(asset)) {
-    // 이모지 폴백
     ctx.font = `${sizePx}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    try { ctx.fillText(asset, 0, 0); } catch { /* 이모지 렌더 실패 조용 무시 */ }
+    try { ctx.fillText(asset, 0, 0); } catch { /* ignore */ }
   } else {
     const entry = getImage(asset);
     if (entry && entry.ok) {
       try {
         ctx.drawImage(entry.img, -sizePx / 2, -sizePx / 2, sizePx, sizePx);
       } catch {
-        // drawImage 실패 → 이모지 폴백
         ctx.font = `${sizePx}px "Apple Color Emoji", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -124,13 +211,13 @@ export default function render(
       ctx.textBaseline = 'middle';
       ctx.fillText('😎', 0, 0);
     }
-    // 로딩 중이면 아무것도 안 그림
   }
 
   ctx.restore();
 }
 
-/** 테스트 전용 — 이미지 캐시 초기화. */
+/** 테스트 전용 — 캐시 + 필터 초기화. */
 export function _resetFaceStickerCache(): void {
   _imgCache.clear();
+  _filters.clear();
 }
