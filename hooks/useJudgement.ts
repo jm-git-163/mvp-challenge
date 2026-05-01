@@ -25,6 +25,13 @@ import { similarityToTier, type JudgementTier } from '../utils/liveCaption';
 import type { NormalizedLandmark } from '../utils/poseUtils';
 import type { JudgementTag } from '../types/session';
 import type { Mission } from '../types/template';
+import { ScoreTimelineCollector } from '../engine/scoring/scoreTimeline';
+
+// 자동 큐레이션(하이라이트) 입력용 점수 시계열 — 모듈 레벨 싱글톤.
+//   judge() 매 프레임 호출 시 1초 단위로 압축 누적 → 녹화 종료 후 highlightSelector 가 소비.
+//   resetVoice() 와 함께 초기화.
+const _scoreTimeline = new ScoreTimelineCollector();
+export function getScoreTimeline(): ScoreTimelineCollector { return _scoreTimeline; }
 
 const THRESHOLD_PERFECT = 0.80;
 const THRESHOLD_GOOD    = 0.55;
@@ -938,6 +945,18 @@ export function useJudgement(): {
         lastAppendRef.current = now;
       }
 
+      // 자동 큐레이션(하이라이트) 시계열 수집.
+      try {
+        _scoreTimeline.pushFrame({
+          tMs: elapsedMs,
+          score,
+          missionId: mission ? `${mission.seq}:${mission.type}` : 'idle',
+          squatCount: squatCountRef.current,
+          judgementTier: latestJudgementRef.current?.tier ?? null,
+          judgementAt: latestJudgementRef.current?.at ?? null,
+        });
+      } catch {}
+
       return {
         score, tag, currentMission: mission,
         voiceTranscript: voiceTranscriptRef.current,
@@ -1031,6 +1050,8 @@ export function useJudgement(): {
     lastCountAtMsRef.current = 0;
     setSquatCount(0);
     setSquatMode('idle');
+    // 자동 큐레이션 시계열 리셋 — 다음 세션 fresh start.
+    try { _scoreTimeline.reset(); } catch {}
   }, []);
 
   return {
