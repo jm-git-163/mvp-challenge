@@ -34,6 +34,10 @@ import {
 } from '../../services/supabase';
 import { requestAutoEdit }  from '../../services/api';
 import { composeVideo, type CompositorProgress } from '../../utils/videoCompositor';
+import { composeHighlight, type HighlightProgress } from '../../utils/highlightCompositor';
+import { selectHighlights, totalDurationOf } from '../../engine/curation/highlightSelector';
+import { getScoreTimeline } from '../../hooks/useJudgement';
+import { stashHighlightVideo, stashScoreTimeline } from '../../utils/composedVideoStash';
 import { getVideoTemplate, VIDEO_TEMPLATES }     from '../../utils/videoTemplates';
 import { resolveLayeredTemplate }                 from '../../services/challengeTemplateMap';
 import type { JudgementTag, FrameTag } from '../../types/session';
@@ -580,6 +584,19 @@ export default function ResultScreen() {
   const [composeError, setComposeError] = useState<string | null>(null);
   const [progress,     setProgress]     = useState<CompositorProgress | null>(null);
 
+  // ─── 자동 큐레이션 (하이라이트) — 캡컷·캔바 차별 핵심 ───────────────────────
+  // 결정론적 점수 타임라인 → 성공/고득점 구간만 자동 추출 → 30초 짧은 mp4.
+  type ViewMode = 'full' | 'highlight';
+  const [viewMode, setViewMode] = useState<ViewMode>('full');
+  const [highlightUri, setHighlightUri]     = useState<string | null>(null);
+  const [highlightBlob, setHighlightBlob]   = useState<Blob | null>(null);
+  const [highlightBuilding, setHighlightBuilding] = useState(false);
+  const [highlightError, setHighlightError] = useState<string | null>(null);
+  const [highlightProgress, setHighlightProgress] = useState<HighlightProgress | null>(null);
+  const [highlightSegCount, setHighlightSegCount] = useState(0);
+  const [highlightDurMs, setHighlightDurMs]       = useState(0);
+  const highlightStartedRef = useRef(false);
+
   // UX state
   const [saving,       setSaving]       = useState(false);
   const [saved,        setSaved]        = useState(false);
@@ -716,9 +733,12 @@ export default function ResultScreen() {
   //   - 재진입 시 MediaPipe·MediaStream·AudioContext 유출 방지
   const composedUriRef = useRef<string | null>(null);
   useEffect(() => { composedUriRef.current = composedUri; }, [composedUri]);
+  const highlightUriRef = useRef<string | null>(null);
+  useEffect(() => { highlightUriRef.current = highlightUri; }, [highlightUri]);
   useEffect(() => () => {
     try {
       if (composedUriRef.current) URL.revokeObjectURL(composedUriRef.current);
+      if (highlightUriRef.current) URL.revokeObjectURL(highlightUriRef.current);
     } catch (e) { console.warn('[result] unmount cleanup: revokeObjectURL', e); }
     if (typeof window !== 'undefined') {
       const w = window as any;
@@ -770,6 +790,63 @@ export default function ResultScreen() {
       setComposing(false);
     }
   }, [videoTemplate, rawVideoUri, activeTemplate]);
+
+  // ─── 하이라이트 합성 (자동 큐레이션) ──────────────────────────────────────
+  const buildHighlight = useCallback(async () => {
+    if (highlightStartedRef.current || highlightUri) return;
+    if (!rawVideoUri) {
+      setHighlightError('원본 영상이 아직 준비되지 않았어요');
+      return;
+    }
+    highlightStartedRef.current = true;
+    setHighlightBuilding(true);
+    setHighlightError(null);
+    setHighlightProgress({ phase: '점수 분석', percent: 0.01 });
+    try {
+      const timeline = getScoreTimeline().build();
+      try { await stashScoreTimeline(timeline); } catch {}
+
+      // 원본 영상 길이 추정 — frameTags 마지막 timestamp 기준 (없으면 60초 폴백).
+      const totalDurationMs = frameTags.length > 0
+        ? frameTags[frameTags.length - 1].timestamp_ms + 1000
+        : (activeTemplate?.duration_sec ?? 60) * 1000;
+
+      const segments = selectHighlights(timeline, {
+        totalDurationMs,
+        targetTotalMs: 30_000,
+        toleranceMs: 5_000,
+      });
+      if (segments.length === 0) {
+        throw new Error('성공 구간을 찾지 못했어요. 더 도전해보세요!');
+      }
+      setHighlightSegCount(segments.length);
+      setHighlightDurMs(totalDurationOf(segments));
+
+      const resp = await fetch(rawVideoUri);
+      const sourceBlob = await resp.blob();
+
+      const result = await composeHighlight(sourceBlob, {
+        segments,
+        onProgress: (p) => setHighlightProgress(p),
+      });
+      const url = URL.createObjectURL(result.blob);
+      setHighlightBlob(result.blob);
+      setHighlightUri(url);
+      try { await stashHighlightVideo(result.blob, result.mime); } catch {}
+    } catch (e) {
+      setHighlightError(e instanceof Error ? e.message : '하이라이트 생성 실패');
+      highlightStartedRef.current = false;
+    } finally {
+      setHighlightBuilding(false);
+    }
+  }, [rawVideoUri, frameTags, activeTemplate, highlightUri]);
+
+  // 모드를 highlight 로 토글하는 순간 1회 자동 빌드.
+  useEffect(() => {
+    if (viewMode === 'highlight' && !highlightUri && !highlightBuilding) {
+      buildHighlight();
+    }
+  }, [viewMode, highlightUri, highlightBuilding, buildHighlight]);
 
   // FIX-AUTO-COMPOSE (2026-04-24): /result 진입 직후 합성을 자동 실행.
   //   - autoComposedRef 로 멱등 보장 (StrictMode 중복 실행·리렌더 재실행 차단).
@@ -945,7 +1022,12 @@ export default function ResultScreen() {
             transform: [{ translateY: headerAnim.interpolate({ inputRange: [0,1], outputRange: [-24, 0] }) }],
           },
         ]}>
-          <TouchableOpacity onPress={goHome} style={st.backBtn}>
+          <TouchableOpacity
+            onPress={goHome}
+            style={st.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="홈 화면으로 돌아가기"
+          >
             <Text style={st.backText}>←</Text>
           </TouchableOpacity>
           <View style={st.headerCenter}>
@@ -1061,6 +1143,74 @@ export default function ResultScreen() {
         ]}>
           <Text style={st.sectionTitle}>🎬 영상</Text>
 
+          {/* ── 모드 토글: 전체 / 하이라이트 (자동 큐레이션) ─────── */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, alignSelf: 'center' }}>
+            <TouchableOpacity
+              onPress={() => setViewMode('full')}
+              accessibilityRole="button"
+              accessibilityLabel="전체 영상 보기"
+              accessibilityState={{ selected: viewMode === 'full' }}
+              style={{
+                paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,
+                backgroundColor: viewMode === 'full' ? accentColor : 'rgba(0,0,0,0.06)',
+                // @ts-ignore web
+                boxShadow: viewMode === 'full' ? `0 4px 12px ${accentColor}44` : 'none',
+              }}
+            >
+              <Text style={{
+                color: viewMode === 'full' ? '#fff' : '#444',
+                fontSize: 13, fontWeight: '700',
+              }}>📼 전체 영상</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setViewMode('highlight')}
+              accessibilityRole="button"
+              accessibilityLabel="하이라이트 영상 보기 (자동 큐레이션)"
+              accessibilityState={{ selected: viewMode === 'highlight' }}
+              style={{
+                paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,
+                backgroundColor: viewMode === 'highlight' ? accentColor : 'rgba(0,0,0,0.06)',
+                // @ts-ignore web
+                boxShadow: viewMode === 'highlight' ? `0 4px 12px ${accentColor}44` : 'none',
+              }}
+            >
+              <Text style={{
+                color: viewMode === 'highlight' ? '#fff' : '#444',
+                fontSize: 13, fontWeight: '700',
+              }}>✨ 하이라이트</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 하이라이트 모드 진행/에러 표시 */}
+          {viewMode === 'highlight' && highlightBuilding && (
+            <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={accentColor} />
+              <Text style={{ marginTop: 8, fontSize: 12, color: '#555' }}>
+                {highlightProgress?.phase ?? '하이라이트 만드는 중...'}
+                {' '}
+                ({Math.round(((highlightProgress?.percent ?? 0) * 100))}%)
+              </Text>
+            </View>
+          )}
+          {viewMode === 'highlight' && highlightError && (
+            <View style={st.errorBox}>
+              <Text style={st.errorText}>⚠️ {highlightError}</Text>
+              <TouchableOpacity
+                style={st.retryBtn}
+                onPress={() => { highlightStartedRef.current = false; buildHighlight(); }}
+                accessibilityRole="button"
+                accessibilityLabel="하이라이트 다시 시도"
+              >
+                <Text style={st.retryBtnText}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {viewMode === 'highlight' && highlightUri && !highlightBuilding && (
+            <Text style={{ textAlign: 'center', fontSize: 12, color: '#555', marginBottom: 6 }}>
+              {highlightSegCount}개 구간 · 총 {(highlightDurMs / 1000).toFixed(1)}초
+            </Text>
+          )}
+
           {/* Empty state when there's literally no video yet */}
           {!composedUri && !rawVideoUri && !composing && (
             <View style={{
@@ -1075,12 +1225,14 @@ export default function ResultScreen() {
             </View>
           )}
 
-          {/* Video player: composed first, else raw */}
-          {(composedUri || rawVideoUri) && (
+          {/* Video player: highlight > composed > raw */}
+          {(composedUri || rawVideoUri || highlightUri) && (
             <View style={st.videoWrap}>
               {/* @ts-ignore */}
               <video
-                src={composedUri ?? rawVideoUri}
+                src={viewMode === 'highlight' && highlightUri
+                  ? highlightUri
+                  : (composedUri ?? rawVideoUri)}
                 controls
                 playsInline
                 style={{
@@ -1117,6 +1269,10 @@ export default function ResultScreen() {
                 onPress={handleCompose}
                 disabled={!rawVideoUri}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="완성 영상 합성 시작"
+                accessibilityHint="녹화 영상과 템플릿을 합성해 SNS 용 완성본을 만듭니다"
+                accessibilityState={{ disabled: !rawVideoUri }}
               >
                 <Text style={st.composeBtnText}>✨ 완성 영상 만들기</Text>
               </TouchableOpacity>
@@ -1130,7 +1286,12 @@ export default function ResultScreen() {
           {composeError && (
             <View style={st.errorBox}>
               <Text style={st.errorText}>⚠️ {composeError}</Text>
-              <TouchableOpacity style={st.retryBtn} onPress={handleCompose}>
+              <TouchableOpacity
+                style={st.retryBtn}
+                onPress={handleCompose}
+                accessibilityRole="button"
+                accessibilityLabel="영상 합성 다시 시도"
+              >
                 <Text style={st.retryBtnText}>다시 시도</Text>
               </TouchableOpacity>
             </View>
@@ -1145,6 +1306,10 @@ export default function ResultScreen() {
                 await doDownload(composedUri ?? rawVideoUri, activeTemplate?.name ?? 'challenge', composedBlob?.type).catch(() => false);
               }}
               disabled={!composedUri && !rawVideoUri}
+              accessibilityRole="button"
+              accessibilityLabel="영상 저장"
+              accessibilityHint="완성 영상을 기기 갤러리에 다운로드합니다"
+              accessibilityState={{ disabled: !composedUri && !rawVideoUri }}
             >
               <Text style={st.downloadText}>📥 저장</Text>
             </TouchableOpacity>
@@ -1159,6 +1324,9 @@ export default function ResultScreen() {
               onPress={() => setShowShareModal(true)}
               disabled={composing || (!composedUri && !rawVideoUri)}
               activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel={composing ? '영상 준비 중' : 'SNS 공유 메뉴 열기'}
+              accessibilityState={{ disabled: composing || (!composedUri && !rawVideoUri) }}
             >
               <Text style={st.shareText}>
                 {composing ? '⏳ 영상 준비 중...' : '📤 SNS 공유'}
@@ -1181,6 +1349,9 @@ export default function ResultScreen() {
               style={st.inviteBtn}
               onPress={handleSendInvite}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="친구에게 챌린지 도전장 보내기"
+              accessibilityHint="공유 시트를 열어 친구에게 도전장을 전송합니다"
             >
               <Text style={st.inviteBtnText}>
                 🥊 친구에게 챌린지 도전장 보내기
@@ -1211,6 +1382,9 @@ export default function ResultScreen() {
               onPress={handleSave}
               disabled={saving}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={saving ? '내 기록 저장 진행 중' : '내 기록 저장하기'}
+              accessibilityState={{ disabled: saving, busy: saving }}
             >
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
@@ -1222,7 +1396,14 @@ export default function ResultScreen() {
 
         {/* ── BOTTOM ACTIONS ───────────────────────────── */}
         <View style={st.bottomRow}>
-          <TouchableOpacity style={st.retakeBtn} onPress={doRetake} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={st.retakeBtn}
+            onPress={doRetake}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="다시 도전하기"
+            accessibilityHint="같은 챌린지를 처음부터 다시 시작합니다"
+          >
             <Text style={st.retakeText}>🔄 다시 도전</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1234,6 +1415,8 @@ export default function ResultScreen() {
             } as any]}
             onPress={goHome}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="홈으로 돌아가기"
           >
             <Text style={st.homeText}>🏠 홈으로</Text>
           </TouchableOpacity>
@@ -1300,7 +1483,7 @@ const st = StyleSheet.create({
   bigBarRow: {
     width: '100%', flexDirection: 'row', alignItems: 'center', gap: 10,
   },
-  bigBarLabel: { color: '#9ca3af', fontSize: 12, fontWeight: '600', width: 52 },
+  bigBarLabel: { color: '#D1D5DB', fontSize: 12, fontWeight: '600', width: 52 },
   bigBarPct:   { fontSize: 14, fontWeight: '800', width: 42, textAlign: 'right' },
 
   // Tag distribution
@@ -1386,7 +1569,7 @@ const st = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(239,68,68,0.35)', alignItems: 'center',
   },
   errorText:    { color: '#fca5a5', fontSize: 13, textAlign: 'center' },
-  retryBtn:     { backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 8, borderRadius: 10 },
+  retryBtn:     { backgroundColor: '#7c3aed', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 10, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   // Invite block (친구 초대)

@@ -30,6 +30,7 @@ import { TEMPLATE_THUMBNAILS } from '../../../services/templateThumbnails';
 import { SUPABASE_TEMPLATE_THUMBNAILS } from '../../../services/supabaseThumbnails';
 import PermissionWelcomeModal from '../../../components/permissions/PermissionWelcomeModal';
 import ResourceDebugOverlay from '../../../components/permissions/ResourceDebugOverlay';
+import A11ySettingsPanel from '../../../components/ui/A11ySettingsPanel';
 import { GZ, GZGradient, GZFont, GZRadius, GZShadow } from '../../../constants/genzPalette';
 
 // ─── Design tokens (Gen-Z 리브랜드 2026-04-23) ───────────────────────────────
@@ -115,6 +116,9 @@ function ChallengeCard({ item: t, width, onPress, onInvite }: CardProps) {
         { width },
         hovered && card.wrapHover,
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${t.name} 챌린지 시작, ${genreLabel} 장르, ${timeLabel} 길이`}
+      accessibilityHint="탭하면 챌린지를 시작합니다. 길게 누르면 친구에게 도전장을 보낼 수 있습니다"
     >
       {/* 16:9 thumbnail — real Unsplash image.
           FIX-THUMBS v12 (2026-04-23): key=uri 로 URL 이 바뀌면 RN Image 인스턴스가
@@ -160,6 +164,9 @@ function ChallengeCard({ item: t, width, onPress, onInvite }: CardProps) {
         <Pressable
           onPress={(e) => { e.stopPropagation?.(); onInvite(t); }}
           style={card.inviteChip}
+          accessibilityRole="button"
+          accessibilityLabel={`${t.name} 도전장 보내기`}
+          accessibilityHint="친구에게 공유 링크를 보냅니다"
         >
           <Text style={card.inviteChipText}>🥊 친구에게 도전장 보내기</Text>
         </Pressable>
@@ -284,8 +291,11 @@ const card = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(236,72,153,0.45)',
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   inviteChipText: {
     color: GZ.pink,
@@ -317,6 +327,9 @@ function GenreFilter({ selected, onSelect }: FilterProps) {
               key={g.value}
               onPress={() => onSelect(g.value)}
               style={[gf.item, active && gf.itemActive]}
+              accessibilityRole="tab"
+              accessibilityLabel={`${g.label} 장르 필터`}
+              accessibilityState={{ selected: active }}
             >
               <Text style={[gf.label, active ? gf.labelActive : gf.labelInactive]}>
                 {g.label}
@@ -340,7 +353,10 @@ const gf = StyleSheet.create({
   },
   item: {
     paddingHorizontal: 16,
-    paddingVertical: 9,
+    paddingVertical: 12,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: GZ.border,
@@ -491,8 +507,9 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => router.push('/(main)/profile')}
               style={s.iconBtn}
-              // @ts-ignore web
-              accessibilityLabel="Profile"
+              accessibilityRole="link"
+              accessibilityLabel="프로필 페이지 열기"
+              accessibilityHint="기록과 설정 화면으로 이동합니다"
             >
               <Text style={s.iconBtnText}>프로필</Text>
             </Pressable>
@@ -527,6 +544,9 @@ export default function HomeScreen() {
               <Pressable
                 style={s.inviteBanner}
                 onPress={() => router.push(`/challenge/${inviteContext.slug}` as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`${inviteContext.fromName}님의 도전장 수락 페이지로 이동`}
+                accessibilityHint="탭하여 챌린지 상세로 이동합니다"
               >
                 <Text style={s.inviteBannerText} numberOfLines={2}>
                   🥊 {inviteContext.fromName}님의 도전장이 대기 중
@@ -537,7 +557,9 @@ export default function HomeScreen() {
                 <Pressable
                   onPress={(e) => { e.stopPropagation?.(); clearInvite(); }}
                   style={s.inviteBannerClose}
+                  accessibilityRole="button"
                   accessibilityLabel="도전장 닫기"
+                  accessibilityHint="대기 중인 도전장을 무시하고 배너를 제거합니다"
                 >
                   <Text style={s.inviteBannerCloseText}>✕</Text>
                 </Pressable>
@@ -557,7 +579,12 @@ export default function HomeScreen() {
           ) : error ? (
             <View style={s.center}>
               <Text style={s.errorText}>{error}</Text>
-              <Pressable onPress={refetch} style={s.retryBtn}>
+              <Pressable
+                onPress={refetch}
+                style={s.retryBtn}
+                accessibilityRole="button"
+                accessibilityLabel="챌린지 목록 다시 불러오기"
+              >
                 <Text style={s.retryBtnText}>다시 시도</Text>
               </Pressable>
             </View>
@@ -572,17 +599,28 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => router.push('/selftest')}
             style={s.footerLink}
-            accessibilityLabel="SelfTest"
+            accessibilityRole="link"
+            accessibilityLabel="자가진단 열기"
+            accessibilityHint="카메라·마이크·네트워크 상태를 점검합니다"
           >
             <Text style={s.footerLinkText}>🩺 자가진단 열기</Text>
           </Pressable>
         }
       />
       {inviteToast ? (
-        <View style={s.inviteToast} pointerEvents="none">
+        <View
+          style={s.inviteToast}
+          pointerEvents="none"
+          // @ts-ignore web — 스크린리더가 토스트 내용을 즉시 알림
+          accessibilityLiveRegion="polite"
+          role="status"
+        >
           <Text style={s.inviteToastText}>{inviteToast}</Text>
         </View>
       ) : null}
+
+      {/* A11Y (2026-04-24): 접근성 설정 FAB — 고대비/자막/햅틱/글자크기. */}
+      <A11ySettingsPanel />
     </View>
   );
 }
@@ -618,8 +656,11 @@ const s = StyleSheet.create({
     alignSelf: 'center',
     marginTop: 24,
     marginBottom: 48,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
@@ -720,8 +761,12 @@ const s = StyleSheet.create({
     fontFamily: T.fontSans,
   },
   iconBtn: {
-    height: 36,
-    paddingHorizontal: 14,
+    minHeight: 44,
+    minWidth: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: GZ.borderStrong,
@@ -729,8 +774,6 @@ const s = StyleSheet.create({
     //   이전 GZ.surface(8% 흰색) 은 밝은 네온 mesh 위에서 거의 안 보임.
     //   검정 반투명 (65%) 으로 바꿔 두 모드 모두에서 선명.
     backgroundColor: 'rgba(15,10,31,0.65)',
-    alignItems: 'center',
-    justifyContent: 'center',
     // @ts-ignore web
     cursor: 'pointer',
     // @ts-ignore web
@@ -782,11 +825,11 @@ const s = StyleSheet.create({
   },
   inviteBannerClose: {
     position: 'absolute',
-    top: 6,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 4,
+    right: 4,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -838,7 +881,9 @@ const s = StyleSheet.create({
   },
   retryBtn: Platform.select({
     web: {
-      height: 40,
+      minHeight: 44,
+      minWidth: 44,
+      paddingVertical: 12,
       paddingHorizontal: 22,
       borderRadius: 999,
       alignItems: 'center',
@@ -851,7 +896,7 @@ const s = StyleSheet.create({
       cursor: 'pointer',
     } as any,
     default: {
-      height: 40, paddingHorizontal: 22, borderRadius: 999,
+      minHeight: 44, minWidth: 44, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 999,
       alignItems: 'center', justifyContent: 'center', backgroundColor: GZ.pink,
     },
   }) as any,

@@ -23,6 +23,7 @@ import { checkSpeechCapability } from '../../utils/speechUtils';
 import { useRecording }              from '../../hooks/useRecording';
 import { useSessionStore }           from '../../store/sessionStore';
 import { useInviteStore }            from '../../store/inviteStore';
+import { useSettingsStore }          from '../../store/settingsStore';
 import { playSound, initAudio, speakJudgement, createGameBGM, type BGMSpec } from '../../utils/soundUtils';
 import { getBgmPlayer, getBgmTrackUrl } from '../../utils/bgmLibrary';
 // prewarmMic 제거 — 별도 오디오 getUserMedia가 마이크 팝업 유발
@@ -36,6 +37,7 @@ import { PoseCalibration } from '../../components/record/PoseCalibration';
 import { RecognitionStatusPanel } from '../../components/record/RecognitionStatusPanel';
 import VoiceDebugOverlay from '../../components/record/VoiceDebugOverlay';
 import ResourceDebugOverlay from '../../components/permissions/ResourceDebugOverlay';
+import { SrOnly } from '../../utils/a11y';
 
 // ─── TTS ─────────────────────────────────────────────────────────────────────
 
@@ -1392,6 +1394,8 @@ export default function RecordScreen() {
   //   답장(reply) 기능은 제거됨 (back-channel 보장 불가). 자세한 내용은
   //   utils/share.ts 의 NOTE 참조.
   const inviteContext  = useInviteStore(s => s.inviteContext);
+  // A11Y (2026-04-24): 사용자 자막 설정 — off 면 TimingBar suppressSubtitle=true.
+  const captionsEnabled = useSettingsStore(s => s.captionsEnabled);
   // FIX-K (2026-04-21): 모바일 UX 에서 유저가 자기 자세를 실시간으로 확인해야
   //   스쿼트·표정·포즈 미션을 수행할 수 있다. 템플릿이 'normal' 로 기본 후면
   //   카메라를 지정해도, 셀피로 돌리면 내 모습이 안 보여 미션 자체가 불가능.
@@ -1656,7 +1660,19 @@ export default function RecordScreen() {
           stop(cameraRef.current);
         }
       } else if (e.code === 'Escape') {
+        // UX-NAV: recording/countdown 상태에서도 Esc 로 중단 시 확인 다이얼로그
         if (state === 'idle') router.back();
+        else if (state === 'recording' || state === 'countdown') {
+          Alert.alert(
+            '촬영을 중단하시겠어요?',
+            '지금 나가면 이번 챌린지 기록이 저장되지 않아요.',
+            [
+              { text: '계속 촬영', style: 'cancel' },
+              { text: '중단하고 나가기', style: 'destructive',
+                onPress: () => { try { if (cameraRef.current) stop(cameraRef.current); } catch {}; router.back(); } },
+            ],
+          );
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -1929,6 +1945,31 @@ export default function RecordScreen() {
   const isRecording = state === 'recording';
   const isIdle      = state === 'idle';
 
+  // UX-NAV (2026-04-24): 촬영 중·카운트다운 중 뒤로가기는 진행 상황을 잃게 되므로
+  //   확인 다이얼로그를 먼저 띄운다. idle 상태면 즉시 돌아간다.
+  const confirmBack = useCallback(() => {
+    if (isRecording || isCountdown) {
+      Alert.alert(
+        '촬영을 중단하시겠어요?',
+        '지금 나가면 이번 챌린지 기록이 저장되지 않아요.',
+        [
+          { text: '계속 촬영', style: 'cancel' },
+          {
+            text: '중단하고 나가기',
+            style: 'destructive',
+            onPress: () => {
+              try { if (cameraRef.current) stop(cameraRef.current); } catch {}
+              router.back();
+            },
+          },
+        ],
+        { cancelable: true },
+      );
+      return;
+    }
+    router.back();
+  }, [isRecording, isCountdown, stop, router]);
+
   // CAMERA-SWAP (2026-04-23): cameraPlan 다음 세그먼트 5초 전 토스트 힌트.
   //   자동 전환 아님 — 사용자가 🔄 버튼으로 직접 토글.
   //   activeTemplate.cameraPlan 은 zod 스키마 optional. 없으면 no-op.
@@ -1959,6 +2000,18 @@ export default function RecordScreen() {
 
   return (
     <View style={r.root}>
+      {/* A11Y: 스크린리더 전용 라이브 리전 — count/score/countdown 변경 시 자동 announce.
+          시각적으로는 숨겨지고(width:1,height:1,opacity:0), aria-live 로만 노출. */}
+      <SrOnly
+        text={`현재 ${squatCount}회, 점수 ${Math.round(currentScore * 100)}점`}
+        live="polite"
+      />
+      {state === 'countdown' && countdown > 0 && (
+        <SrOnly text={`${countdown}초 후 시작`} live="assertive" />
+      )}
+      {state === 'countdown' && countdown === 0 && (
+        <SrOnly text="챌린지 시작" live="assertive" />
+      )}
       <SafeAreaView style={r.safe} edges={['top','bottom']}>
         {debugOn && (() => {
           let srDiag: any = null;
@@ -2487,7 +2540,13 @@ export default function RecordScreen() {
                   {activeTemplate.camera_mode==='selfie' && (
                     <View style={r.selfieChip}><Text style={r.selfieText}>📱 전면 카메라 모드</Text></View>
                   )}
-                  <TouchableOpacity style={r.flipBtnIdle} onPress={() => setFacing(f => f==='front'?'back':'front')}>
+                  <TouchableOpacity
+                    style={r.flipBtnIdle}
+                    onPress={() => setFacing(f => f==='front'?'back':'front')}
+                    accessibilityRole="button"
+                    accessibilityLabel={`카메라 ${facing==='front'?'후면으로':'전면으로'} 전환`}
+                    accessibilityHint="사용 중인 카메라를 바꿉니다"
+                  >
                     <Text style={r.flipBtnIdleText}>🔄 {facing==='front'?'후면으로':'전면으로'} 전환</Text>
                   </TouchableOpacity>
                 </View>
@@ -2503,7 +2562,9 @@ export default function RecordScreen() {
               {(() => {
                 const hasVoiceRead = Array.isArray(activeTemplate?.missions) &&
                   activeTemplate.missions.some((m: any) => m?.type === 'voice_read');
-                const suppressSub = hasVoiceRead || currentMission?.type === 'voice_read';
+                // A11Y (2026-04-24): 사용자가 접근성 설정에서 자막을 꺼도 즉시 반영.
+                //   voice_read 중복 억제 규칙(hasVoiceRead)은 그대로 유지 — 상단 프롬프터와 충돌 방지.
+                const suppressSub = hasVoiceRead || currentMission?.type === 'voice_read' || !captionsEnabled;
                 return (
                   <>
                     <TemplateOverlay template={activeTemplate} elapsed={elapsed} isRecording={isRecording && !showIntro} suppressSubtitle={suppressSub} />
@@ -2524,7 +2585,14 @@ export default function RecordScreen() {
 
               {isRecording && !showIntro && (
                 <View style={r.stopArea}>
-                  <TouchableOpacity style={r.stopBtn} onPress={() => cameraRef.current && stop(cameraRef.current)} hitSlop={{top:16,bottom:16,left:16,right:16}}>
+                  <TouchableOpacity
+                    style={r.stopBtn}
+                    onPress={() => cameraRef.current && stop(cameraRef.current)}
+                    hitSlop={{top:16,bottom:16,left:16,right:16}}
+                    accessibilityRole="button"
+                    accessibilityLabel="녹화 중지"
+                    accessibilityHint="진행 중인 챌린지를 종료하고 결과 화면으로 이동합니다"
+                  >
                     <View style={r.stopIcon} />
                   </TouchableOpacity>
                   <Text style={r.stopHint}>탭하여 중지</Text>
@@ -2536,6 +2604,10 @@ export default function RecordScreen() {
                   <Pressable
                     style={[r.startBtn, !isReady && { opacity: 0.55 }]}
                     disabled={!isReady}
+                    accessibilityRole="button"
+                    accessibilityLabel={isReady ? '챌린지 시작' : '포즈 모델 로딩 중, 잠시만 기다리세요'}
+                    accessibilityState={{ disabled: !isReady }}
+                    accessibilityHint="카운트다운 후 녹화가 시작됩니다. 스페이스 키로도 시작 가능합니다"
                     onPress={() => {
                       if (!isReady) return;
                       // FIX-F: 모바일 Chrome 은 user gesture 스택 안에서 바로
@@ -2557,7 +2629,13 @@ export default function RecordScreen() {
                   {typeof window !== 'undefined' && (
                     <Text style={r.kbdHint}>Space = 시작 · Esc = 취소</Text>
                   )}
-                  <TouchableOpacity style={r.cancelBtn} onPress={() => router.back()} hitSlop={{top:12,bottom:12,left:24,right:24}}>
+                  <TouchableOpacity
+                    style={r.cancelBtn}
+                    onPress={confirmBack}
+                    hitSlop={{top:12,bottom:12,left:24,right:24}}
+                    accessibilityRole="button"
+                    accessibilityLabel="취소하고 이전 화면으로"
+                  >
                     <Text style={r.cancelText}>← 취소</Text>
                   </TouchableOpacity>
                 </View>
@@ -2588,10 +2666,20 @@ export default function RecordScreen() {
                 <Text style={r.poseErrorTitle}>포즈 엔진을 불러오지 못했습니다</Text>
                 <Text style={r.poseErrorDetail}>{poseError ?? '네트워크 연결을 확인하고 다시 시도해주세요.'}</Text>
                 <View style={r.poseErrorRow}>
-                  <TouchableOpacity style={r.poseErrorBtnPrimary} onPress={retryPose}>
+                  <TouchableOpacity
+                    style={r.poseErrorBtnPrimary}
+                    onPress={retryPose}
+                    accessibilityRole="button"
+                    accessibilityLabel="포즈 엔진 다시 불러오기"
+                  >
                     <Text style={r.poseErrorBtnPrimaryText}>다시 시도</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={r.poseErrorBtnGhost} onPress={() => router.back()}>
+                  <TouchableOpacity
+                    style={r.poseErrorBtnGhost}
+                    onPress={() => router.back()}
+                    accessibilityRole="button"
+                    accessibilityLabel="취소하고 이전 화면으로"
+                  >
                     <Text style={r.poseErrorBtnGhostText}>취소</Text>
                   </TouchableOpacity>
                 </View>

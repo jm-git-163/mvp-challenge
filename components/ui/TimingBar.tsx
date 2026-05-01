@@ -7,13 +7,14 @@
  *  - 미션 구간 타임라인 바
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
 } from 'react-native';
 import type { Template } from '../../types/template';
+import haptic from '../../utils/haptics';
 
 interface Props {
   template:    Template;
@@ -55,6 +56,18 @@ export default function TimingBar({ template, elapsedMs, suppressSubtitle = fals
   const totalSec   = template.duration_sec;
   const remaining  = Math.max(0, totalSec - elapsedSec);
 
+  // A11Y: 미션 진행률 50% 도달 시 햅틱 1회 — 시각 비의존 피드백.
+  const halfwayFiredRef = useRef(false);
+  useEffect(() => {
+    if (!halfwayFiredRef.current && progress >= 0.5 && progress < 1) {
+      halfwayFiredRef.current = true;
+      // expo-haptics 직접 의존 회피 — 통합 haptic 모듈 (utils/haptics) 사용.
+      // 모듈 내부에서 vibrate 미지원 환경은 자동 무음 폴백.
+      try { haptic.tick(); } catch { /* noop */ }
+    }
+    if (progress < 0.4) halfwayFiredRef.current = false;
+  }, [progress]);
+
   // 자막 스타일에 따른 색상
   const subtitleStyle = useMemo(() => {
     const style = currentSubtitle?.style ?? 'normal';
@@ -89,15 +102,26 @@ export default function TimingBar({ template, elapsedMs, suppressSubtitle = fals
       {!suppressSubtitle && (
         <View style={styles.subtitleArea}>
           {currentSubtitle ? (
-            <Text style={subtitleStyle} numberOfLines={2}>
+            <Text
+              style={subtitleStyle}
+              numberOfLines={2}
+              accessibilityLabel={`현재 자막: ${currentSubtitle.text}`}
+              accessibilityLiveRegion="polite"
+            >
               {currentSubtitle.text}
             </Text>
           ) : null}
         </View>
       )}
 
-      {/* 타임라인 바 */}
-      <View style={styles.timelineWrapper}>
+      {/* 타임라인 바 — A11Y: progressbar 역할 + accessibilityValue 로 % 노출. */}
+      <View
+        style={styles.timelineWrapper}
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel="미션 진행도"
+        accessibilityValue={{ now: Math.round(progress * 100), min: 0, max: 100 }}
+      >
         {/* 미션 구간 배경 */}
         {missionMarkers.map((m) => (
           <View
