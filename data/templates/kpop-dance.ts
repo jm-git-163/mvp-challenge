@@ -21,7 +21,8 @@ export const kpopDance: Template = {
   id: 'kpop-dance',
   title: 'K-POP 댄스',
   description: 'K-POP 뮤비. 전신 댄스 풀프레임.',
-  thumbnail: '/templates/kpop-dance/thumb.png',
+  // PIXABAY-ASSETS 2026-05-01: Pixabay 네온 스테이지 댄스 실루엣.
+  thumbnail: '/templates/idol-dance/thumb.jpg',
   duration: 20,
   aspectRatio: '9:16',
   canvasSize: { w: 1080, h: 1920 },
@@ -33,6 +34,15 @@ export const kpopDance: Template = {
     beatsJson: '/bgm/anomy5-neon-night-phonk-house-by-anomy5-178380.beats.json',
     loop: true,
     duckingDb: -7,
+  },
+
+  // PIXABAY-SFX 2026-05-01: K-POP 응원·시머·드롭.
+  sfx: {
+    cheer: '/sfx/kpop-cheer.mp3',
+    shimmer: '/sfx/kpop-shimmer.mp3',
+    drop: '/sfx/kpop-drop.mp3',
+    success: '/sfx/kpop-cheer.mp3',
+    transition: '/sfx/transition-whoosh.mp3',
   },
 
   // 전신 댄스 가시성 확보 — 풀스크린
@@ -76,7 +86,7 @@ export const kpopDance: Template = {
 
     // ── 아웃트로 (3) ───────────────────────────────────────────
     { id: 'outro_flash',   type: 'beat_flash',       zIndex: 74, opacity: 1, enabled: true, props: { color: CYAN, peakOpacity: 0.55 }, activeRange: { startSec: 17, endSec: 17.5 } },
-    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: '★ CUTE ★', fontSize: 92, color: PINK, strokeColor: CYAN, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 60 }, activeRange: { startSec: 17, endSec: 20 } },
+    { id: 'outro_title',   type: 'kinetic_text',     zIndex: 75, opacity: 1, enabled: true, props: { text: '당신은 진짜 아이돌!', fontSize: 76, color: PINK, strokeColor: CYAN, strokeWidth: 8, mode: 'pop', position: 'top-center', startMs: 17100, staggerMs: 60 }, activeRange: { startSec: 17, endSec: 20 } },
     { id: 'outro_flare',   type: 'lens_flare',       zIndex: 76, opacity: 0.55, enabled: true, props: { x: 540, y: 700, color: PINK, size: 320 }, activeRange: { startSec: 17, endSec: 20 } },
 
     // ── 해시태그 ───────────────────────────────────────────────

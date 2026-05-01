@@ -26,7 +26,8 @@ export const emojiExplosion: Template = {
   id: 'emoji-explosion',
   title: '이모지 폭발',
   description: '캔디 컬러 팝. 미소 → 피스 → 손들기 3씬.',
-  thumbnail: '/templates/emoji-explosion/thumb.png',
+  // PIXABAY-ASSETS 2026-05-01: Pixabay 다채로운 친구들 파티 이미지.
+  thumbnail: '/templates/emoji-explosion/thumb.jpg',
   previewVideo: '/templates/emoji-explosion/preview.mp4',
   duration: 18.5,
   aspectRatio: '9:16',
@@ -40,6 +41,14 @@ export const emojiExplosion: Template = {
     beatsJson: '/bgm/backgroundmusicforvideos-no-copyright-music-334863.beats.json',
     loop: true,
     duckingDb: -6,
+  },
+
+  // PIXABAY-SFX 2026-05-01: 컨페티·버블·웃음.
+  sfx: {
+    pop: '/sfx/pop-confetti.mp3',
+    bonus: '/sfx/pop-bubble.mp3',
+    success: '/sfx/pop-laugh.mp3',
+    transition: '/sfx/transition-whoosh.mp3',
   },
 
   cameraFraming: { kind: 'heart', centerX: 540, centerY: 960, size: 420 },

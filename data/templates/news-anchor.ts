@@ -11,7 +11,8 @@ export const newsAnchor: Template = {
   id: 'news-anchor',
   title: '뉴스 앵커',
   description: 'BBC/JTBC 시네마틱 뉴스룸에서 낭독 챌린지.',
-  thumbnail: '/templates/news-anchor/thumb.png',
+  // PIXABAY-ASSETS 2026-05-01: Pixabay 뉴스 앵커 데스크 사진.
+  thumbnail: '/templates/news-anchor/thumb.jpg',
   previewVideo: '/templates/news-anchor/preview.mp4',
   duration: 20,
   aspectRatio: '9:16',
@@ -25,6 +26,15 @@ export const newsAnchor: Template = {
     beatsJson: '/bgm/atlasaudio-jazz-490623.beats.json',
     loop: true,
     duckingDb: -10,
+  },
+
+  // PIXABAY-SFX 2026-05-01: 뉴스 징글·타이핑·딩.
+  sfx: {
+    jingle: '/sfx/news-jingle.mp3',
+    typing: '/sfx/news-typing.mp3',
+    ding: '/sfx/news-ding.mp3',
+    success: '/sfx/news-ding.mp3',
+    transition: '/sfx/transition-whoosh.mp3',
   },
 
   cameraFraming: { kind: 'rounded_rect', x: 120, y: 260, w: 840, h: 1120, radius: 16 },
@@ -51,7 +61,7 @@ export const newsAnchor: Template = {
     { id: 'intro_flash',   type: 'beat_flash',      zIndex: 28, opacity: 1, enabled: true, props: { color: '#FF3B5C', peakOpacity: 0.55 }, activeRange: { startSec: 0, endSec: 0.7 } },
     // FIX-Z25: center → top-center 얼굴 회피, fontSize 120→92
     { id: 'intro_title',   type: 'kinetic_text',    zIndex: 29, opacity: 1, enabled: true, props: { text: 'BREAKING NEWS', fontSize: 92, color: '#FFFFFF', strokeColor: '#FF3B5C', strokeWidth: 10, mode: 'pop', position: 'top-center', startMs: 200, staggerMs: 55 }, activeRange: { startSec: 0, endSec: 2.5 } },
-    { id: 'intro_sub',     type: 'kinetic_text',    zIndex: 30, opacity: 1, enabled: true, props: { text: '속보 · LIVE', fontSize: 54, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 900, staggerMs: 60 }, activeRange: { startSec: 0.4, endSec: 2.5 } },
+    { id: 'intro_sub',     type: 'kinetic_text',    zIndex: 30, opacity: 1, enabled: true, props: { text: '당신의 도전이 시작됩니다', fontSize: 44, color: '#D4AF37', strokeColor: '#0B1828', strokeWidth: 6, mode: 'drop', position: 'bottom-center', startMs: 900, staggerMs: 60 }, activeRange: { startSec: 0.4, endSec: 2.5 } },
     { id: 'intro_ticker',  type: 'news_ticker',     zIndex: 31, opacity: 1, enabled: true, props: { texts: ['속보 · BREAKING', '오늘의 주요 소식', '특파원 생중계', '실시간 업데이트'], speedPxPerSec: 260, fontSize: 42, bgColor: '#FF3B5C', color: '#FFFFFF', accentColor: '#D4AF37', position: 'top', labelText: 'LIVE', labelBg: '#D4AF37', labelColor: '#0B1828' }, activeRange: { startSec: 0.3, endSec: 2.5 } },
 
     // 뉴스 그래픽 (30~40)

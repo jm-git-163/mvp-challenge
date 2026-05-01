@@ -200,6 +200,25 @@ export const zBgmSpec = z.object({
   duckingDb: z.number().default(-8),
 });
 
+// ── SFX (PIXABAY-SFX 2026-05-01) ─────────────────────────────
+// 템플릿이 미션 이벤트 키별로 mp3 URL 을 직접 지정 (선택). 없으면 sfxPlayer 가
+// generated tone 폴백. 키 이름은 sfxPlayer.SfxKey 와 일치할 수도, 다를 수도 있다 —
+// 런타임에서 mission event → key → 이 매핑으로 URL 해석.
+export const zSfxSpec = z.object({
+  count: z.string().optional(),
+  success: z.string().optional(),
+  bonus: z.string().optional(),
+  fail: z.string().optional(),
+  transition: z.string().optional(),
+  cheer: z.string().optional(),
+  shimmer: z.string().optional(),
+  drop: z.string().optional(),
+  jingle: z.string().optional(),
+  ding: z.string().optional(),
+  typing: z.string().optional(),
+  pop: z.string().optional(),
+}).partial();
+
 // ── 포스트프로세스 ──────────────────────────────────────────
 export const zPostFx = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bloom'), intensity: z.number().nonnegative() }),
@@ -261,6 +280,8 @@ export const zTemplate = z.object({
   mood: zMoodToken,
 
   bgm: zBgmSpec,
+  /** 선택적 미션 이벤트별 SFX URL 매핑. 없으면 generated tone 폴백. */
+  sfx: zSfxSpec.optional(),
   cameraFraming: zCameraFraming,
   layers: z.array(zBaseLayer).min(1),
   missionTimeline: z.array(zMissionEvent).min(1),

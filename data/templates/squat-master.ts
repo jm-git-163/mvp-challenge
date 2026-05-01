@@ -22,7 +22,8 @@ export const squatMaster: Template = {
   id: 'squat-master',
   title: '스쿼트 마스터',
   description: '전신 운동 챌린지. HR·BPM·땀방울.',
-  thumbnail: '/templates/squat-master/thumb.png',
+  // PIXABAY-ASSETS 2026-05-01: Pixabay 이미지로 교체 (네온 짐 실루엣).
+  thumbnail: '/templates/squat-master/thumb.jpg',
   duration: 20,
   aspectRatio: '9:16',
   canvasSize: { w: 1080, h: 1920 },
@@ -34,6 +35,15 @@ export const squatMaster: Template = {
     beatsJson: '/bgm/anomy5-aggressive-sport-phonk-464391.beats.json',
     loop: true,
     duckingDb: -8,
+  },
+
+  // PIXABAY-SFX 2026-05-01: 미션 이벤트별 SFX. 파일 부재 시 generated tone 폴백.
+  sfx: {
+    count: '/sfx/fit-count.mp3',
+    success: '/sfx/fit-success.mp3',
+    bonus: '/sfx/fit-bonus.mp3',
+    fail: '/sfx/fit-fail.mp3',
+    transition: '/sfx/transition-whoosh.mp3',
   },
 
   // 전신 노출 — 풀 9:16 유지, 하단 1/3 바닥존 분할
@@ -64,7 +74,7 @@ export const squatMaster: Template = {
     { id: 'hud_counter',   type: 'counter_hud',      zIndex: 60, opacity: 1, enabled: true, props: { target: 10, format: '{n} / 10', fontSize: 72, position: 'bottom-center', fontFamily: '"JetBrains Mono"' } },
     { id: 'hud_timer',     type: 'timer_ring',       zIndex: 61, opacity: 1, enabled: true, props: { position: 'top-left', color: YELLOW } },
     { id: 'hud_score',     type: 'score_hud',        zIndex: 62, opacity: 1, enabled: true, props: { position: 'top-right', label: 'HR', suffix: ' BPM', color: RED } },
-    { id: 'hud_prompt',    type: 'mission_prompt',   zIndex: 63, opacity: 1, enabled: true, props: { text: '스쿼트 10회', color: YELLOW, position: 'top' }, activeRange: { startSec: 2.5, endSec: 5 } },
+    { id: 'hud_prompt',    type: 'mission_prompt',   zIndex: 63, opacity: 1, enabled: true, props: { text: '오늘의 미션 — 파워 스쿼트 10회 도전!', color: YELLOW, position: 'top' }, activeRange: { startSec: 2.5, endSec: 5 } },
 
     // ── 인트로 (2) ─────────────────────────────────────────────
     { id: 'intro_flash',   type: 'beat_flash',       zIndex: 28, opacity: 1, enabled: true, props: { color: YELLOW, peakOpacity: 0.5 }, activeRange: { startSec: 0, endSec: 0.6 } },
