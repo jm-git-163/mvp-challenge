@@ -37,6 +37,8 @@ import lens_flare        from './lens_flare';
 import chromatic_pulse   from './chromatic_pulse';
 // ── 2026-04-24 wave1: pulse_circle (squat-master 등에서 참조되나 미등록이었음)
 import pulse_circle      from './pulse_circle';
+// ── 2026-05-01 wave1: karaoke_caption (글자별 컬러 진행 자막)
+import karaoke_caption   from './karaoke_caption';
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -77,6 +79,7 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   lens_flare,
   chromatic_pulse,
   pulse_circle,
+  karaoke_caption,
 };
 
 /**
