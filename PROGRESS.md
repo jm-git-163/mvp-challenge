@@ -4,14 +4,6 @@
 
 ---
 
-## 2026-05-02 — Phase 5 production wiring (record path)
-- `utils/templateBridge.ts` 신규: 레거시 `Template` (sessionStore.activeTemplate) → 신형 layered `Template` (data/templates/*.ts) 룩업. id 직접 매칭 → genre 폴백 → null. 13개 템플릿 등록.
-- `components/camera/RecordingCamera.web.tsx` paintOnce: layered 템플릿 매칭 시 기존 `drawCamera` 대신 `renderLayeredFrame` 호출 — 17+ 레이어 (cam_feed 포함, video_bg, intro/outro activeRange, beat-reactive, AR layers) 한 캔버스 합성. captureStream 그대로 → 녹화본에 박힘. 미매칭 시 기존 단순 경로 fallback (회귀 0).
-- 비트 합성 폴백: 템플릿 bpm + duration 으로 `synthesizeBeats` 1회 캐시 → liveState.beatIntensity 푸시 → beat_flash·pulse_circle 등 반응.
-- AR 좌표 wiring: pose landmarks → `extractBodyAnchor` → state.bodyAnchor; faceAnchor 폴백은 nose 단일점 (FaceLandmarker 미통합 → 추후 정밀화).
-- intro/outro 자동 적용: squat-master 등 템플릿이 이미 activeRange 로 정의 → 별도 시퀀서 호출 불요.
-- video_bg 4개 템플릿(squat-master/kpop-dance/news-anchor/emoji-explosion) 자동 활성 (template.layers 의 video_bg 항목 그대로 렌더).
-
 ## Team RECOG — 모바일 인식 근본 복구 (2026-04-22)
 - `hooks/usePoseDetection.web.ts`: 프로덕션/모바일 UA 에서 mock 폴백 완전 제거 (FIX-Z13 철회). generateMockPose 가 landmark.score=0.92 로 visibility 게이트를 통과시켜 발생시키던 "가짜 평가"(스쿼트·점수 자동 상승) 근본 차단. dev 데스크톱에서만 mock 허용.
 - `components/record/PoseCalibration.tsx`: "건너뛰기 →" 시 기본 d0=0.15 를 주입하도록 onSkip 시그니처 확장. HeadShoulder/FullBody 모두 대응.
