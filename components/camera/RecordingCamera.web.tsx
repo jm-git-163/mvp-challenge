@@ -38,6 +38,15 @@ import {
   drawMicPermissionBanner,
   type JudgementTier,
 } from '../../utils/liveCaption';
+// 2026-05-02 Phase 5 production wiring: layerEngine 합성 경로.
+//   resolveLayeredTemplate(activeTemplate) 가 매칭되면 매 프레임 renderLayeredFrame
+//   으로 17+ 레이어를 한 캔버스에 그린다. cam_feed 레이어가 카메라 video 를 그려주므로
+//   기존 drawCamera 호출은 이 경로에서 스킵.
+import { renderLayeredFrame } from '../../utils/videoCompositor';
+import { resolveLayeredTemplate } from '../../utils/templateBridge';
+import { extractBodyAnchor } from '../../engine/ar/bodyAnchor';
+import { setBeatIntensity as setLiveBeatIntensity } from '../../engine/composition/liveState';
+import { synthesizeBeats } from '../../engine/beat/beatClock';
 
 // ---------------------------------------------------------------------------
 // Canvas dimensions (9:16 portrait)
@@ -1063,6 +1072,24 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
     missionScoreRef.current    = missionScore;
     landmarksRef.current       = landmarks;
     templateRef.current        = template;
+    // 2026-05-02 Phase 5 wiring: layered 템플릿 해석 결과를 ref 에 캐시.
+    //   매 프레임 새로 룩업하지 않도록 template 변경 시에만 갱신.
+    //   resolve 가 null 이면 layered 경로 비활성 → 기존 drawCamera fallback.
+    const layeredTemplateRef   = useRef<ReturnType<typeof resolveLayeredTemplate>>(null);
+    layeredTemplateRef.current = resolveLayeredTemplate(template);
+    // 비트 합성 폴백 (BGM 분석 JSON 없을 때) — template duration + bpm 로 1회 생성.
+    //   bpm hint 가 없으면 120, duration 없으면 30 사용. 안전한 기본값.
+    const synthBeatsRef = useRef<{ key: string; beats: number[] } | null>(null);
+    {
+      const lt = layeredTemplateRef.current;
+      const bpm = (lt as any)?.bgm?.bpm ?? (template as any)?.bpm ?? 120;
+      const dur = lt?.duration ?? (template as any)?.duration_sec ?? 30;
+      const key = `${lt?.id ?? '_none'}|${bpm}|${dur}`;
+      if (!synthBeatsRef.current || synthBeatsRef.current.key !== key) {
+        try { synthBeatsRef.current = { key, beats: synthesizeBeats(bpm, dur).beats }; }
+        catch { synthBeatsRef.current = { key, beats: [] }; }
+      }
+    }
     facingRef.current          = facing;
     currentTagRef.current      = currentTag;
     tagTimestampRef.current    = tagTimestamp;
@@ -1363,8 +1390,57 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
               CW / 2, CH / 2 + 110,
             );
           } else {
-            // FIX-CAMERA-ZOOM (2026-04-24, v2): COVER fullscreen, 세로 소스 요청으로 crop 0.
-            try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
+            // 2026-05-02 Phase 5 wiring: layered 템플릿이 매칭되면 17+ 레이어 합성.
+            //   cam_feed 레이어가 video 를 그리므로 drawCamera 호출은 생략.
+            //   매칭 안 되면 기존 단순 drawCamera 경로 (회귀 0).
+            const lt = layeredTemplateRef.current;
+            if (lt && isRecordingRef.current) {
+              // 비트 강도 계산 (synth 폴백) → liveState 에 푸시 → mergeLiveIntoState 로 레이어가 읽음.
+              try {
+                const tSec = elapsedRef.current / 1000;
+                const beats = synthBeatsRef.current?.beats ?? [];
+                let lastBeat = 0;
+                for (let i = 0; i < beats.length; i++) {
+                  if (beats[i] <= tSec) lastBeat = beats[i];
+                  else break;
+                }
+                const dt = tSec - lastBeat;
+                const intensity = Math.max(0, 1 - dt / 0.15);
+                setLiveBeatIntensity(intensity);
+              } catch { /* silent */ }
+
+              // AR 좌표 — pose landmarks → bodyAnchor (face_sticker 의 faceAnchor 유사 폴백).
+              //   FaceLandmarker 통합 전이라 정밀 얼굴 anchor 는 nose 포인트로 근사.
+              const lmsNow = landmarksRef.current;
+              const bodyAnchor = (lmsNow && lmsNow.length >= 33)
+                ? extractBodyAnchor(lmsNow as any)
+                : null;
+              const noseLm = (lmsNow && lmsNow.length > 0) ? lmsNow[0] : null;
+              const faceAnchorFallback = noseLm
+                ? { nose: { x: noseLm.x * CW, y: noseLm.y * CH }, forehead: { x: noseLm.x * CW, y: (noseLm.y - 0.06) * CH } }
+                : null;
+
+              try {
+                renderLayeredFrame(
+                  ctx,
+                  lt as any,
+                  elapsedRef.current,
+                  {
+                    videoEl: video,
+                    bodyAnchor: bodyAnchor as any,
+                    faceAnchor: faceAnchorFallback as any,
+                    landmarks: lmsNow as any,
+                    squatCount: squatCountRef.current,
+                    totalScore: missionScoreRef.current,
+                    scriptText: voiceTranscriptRef.current,
+                    facing: face,
+                  } as any,
+                );
+              } catch (e) { /* per-layer 격리는 renderLayeredFrame 내부에서 수행 */ }
+            } else {
+              // 기존 fallback — 단순 카메라 fullscreen.
+              try { drawCamera(ctx, video, face); } catch (e) { /* silent */ }
+            }
           }
 
           // CAMERA-SWAP (2026-04-23): 전환 중 오버레이. 캔버스 captureStream 은 계속
