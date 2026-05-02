@@ -406,8 +406,23 @@ export default function HomeScreen() {
   const clearInvite = useInviteStore(s => s.clearInvite);
   const [inviteToast, setInviteToast] = useState('');
 
-  const { templates, loading, error, refetch } = useTemplates(
+  const { templates: rawTemplates, loading, error, refetch } = useTemplates(
     selectedGenre !== 'all' ? { genre: selectedGenre as Template['genre'] } : undefined,
+  );
+
+  // FIX-WHITELIST (2026-05-02): 사용자가 명시한 13개 의도 챌린지만 노출.
+  //   mockData.ts 에는 22개가 있지만, 9개는 사용자가 시킨 적 없는 구버전·중복·세션 더미.
+  //   mockData 자체는 invite/test 등 다른 경로에서도 import 되므로 건드리지 않고,
+  //   home 진입 시점의 렌더 직전에 화이트리스트로 필터.
+  //   /templates 라우트는 현재 존재하지 않음 (홈 = 단일 노출 지점).
+  const ALLOWED_TEMPLATE_IDS = useMemo(() => new Set([
+    'daily-vlog-001','news-anchor-002','english-lesson-003','fairy-tale-004',
+    'travel-cert-005','product-unbox-006','kpop-idol-007','fitness-squat-master-008',
+    'english-speak-009','kids-story-010','travel-vlog-011','hiphop-cypher-012','dance-hiphop-001',
+  ]), []);
+  const templates = useMemo(
+    () => rawTemplates.filter(t => ALLOWED_TEMPLATE_IDS.has(t.id)),
+    [rawTemplates, ALLOWED_TEMPLATE_IDS],
   );
 
   // Responsive grid
