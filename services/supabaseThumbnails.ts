@@ -15,11 +15,8 @@
 
 import type { TemplateThumb } from './templateThumbnails';
 
-// FIX-THUMBS v13 (2026-05-02): 사용자 재제보 — "챌린지 썸네일 지난번 내가 이상하다는
-//   버전으로 돌아왔네". v12 이후 services/* 에는 변경이 없으나 Vercel CDN/브라우저 HTTP
-//   캐시가 옛 번들·옛 이미지 응답을 재사용했을 가능성. v13 으로 bump 하여 강제 무효화.
-//   templateThumbnails.ts 도 동일 BUILD_ID 로 cache-bust 적용 (이번 fix 에 신규 추가).
-const BUILD_ID = 'v13-20260502';
+// FIX-THUMBS v12: 빌드마다 새 값. 배포 시 이 숫자를 bump 하면 전 사용자 캐시가 무효화.
+const BUILD_ID = 'v12-20260423';
 
 function bust(url: string): string {
   if (!url) return url;

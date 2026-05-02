@@ -24,18 +24,7 @@ export interface TemplateThumb {
   pixabayId: number; // Pixabay 0 = Unsplash 출처
 }
 
-// FIX-THUMBS v13 (2026-05-02): 사용자 재제보 — 옛 썸네일이 다시 보이는 문제. v12 이후
-//   본 파일에 변경이 없었음에도 CDN/HTTP 캐시가 옛 응답을 재사용했을 가능성. supabaseThumbnails
-//   와 동일한 BUILD_ID cache-bust 메커니즘을 본 파일에도 신규 적용.
-const BUILD_ID = 'v13-20260502';
-function bustUrl(url: string): string {
-  if (!url) return url;
-  const clean = url.replace(/([?&])cb=[^&]*/g, '$1').replace(/[?&]$/, '');
-  const sep = clean.includes('?') ? '&' : '?';
-  return `${clean}${sep}cb=${BUILD_ID}`;
-}
-
-const RAW_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
+export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   // REVIEWED 2026-04-23 (v6) — 사용자 3차 재교체 요청 "주제와 맞게 다시".
   //   Unsplash 검증 "woman filming herself on a tripod in a living room" (photo KQ1Kv3awrHM).
   //   삼각대 + 스마트폰 셀프 촬영 = 전형적 일상 브이로그 셋업. HTTP 200 확인.
@@ -210,14 +199,4 @@ const RAW_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   }
-};
-
-// 런타임에 BUILD_ID cache-bust 를 끼워 export. 빌드/배포마다 URL 이 바뀌므로 RN Image /
-// HTML <img> 모두 새 src 로 인식 → 재요청 → 새 이미지. CDN HTTP 캐시도 우회.
-export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = Object.fromEntries(
-  Object.entries(RAW_TEMPLATE_THUMBNAILS).map(([k, v]) => [k, {
-    ...v,
-    url:      bustUrl(v.url),
-    largeURL: bustUrl(v.largeURL),
-  }]),
-);
+} as const;
