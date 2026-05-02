@@ -2739,33 +2739,11 @@ function layeredToLegacy(lt: LayeredTemplate): VideoTemplate {
 
 // FIX-Z22 (2026-04-22): 테스트에서 각 템플릿 시점별 합성 결과 차별화를
 // 검증하기 위해 export. 기존 내부 호출 경로에는 영향 없음.
-// FIX-VOICEREAD-OBSCURE (2026-05-02): voice_read 미션 활성 시 자막(상단 텔레프롬프터/
-//   karaoke_caption) 영역을 가리는 레이어 타입을 강제 비활성. 사용자 리포트 "자막 읽는
-//   챌린지에서 여러가지 화면 설정 관련 팝업이 많이 떠서 자막이 다 가려서 챌린지를 할 수가
-//   없네." 의 근본 원인. 카메라(camera_feed/camera_frame) + 배경(gradient_mesh/
-//   animated_grid/star_field/noise_pattern/floating_shapes/orbiting_ring/video_bg) +
-//   자막(karaoke_caption/subtitle_track/mission_prompt) 만 남기고 HUD/카운터/타이머/
-//   장식 텍스트/AR 스티커는 숨김.
-const VOICE_READ_SUPPRESSED_LAYER_TYPES = new Set<string>([
-  'score_hud',
-  'counter_hud',
-  'timer_ring',
-  'kinetic_text',
-  'news_ticker',
-  'face_sticker',
-  'hand_emoji',
-  'beat_flash',
-  'chromatic_pulse',
-  'lens_flare',
-  'particle_burst',
-  'audio_visualizer',
-]);
-
 export function renderLayeredFrame(
   ctx: CanvasRenderingContext2D,
   template: LayeredTemplate,
   tMs: number,
-  state: { videoEl?: HTMLVideoElement; missionType?: string }
+  state: { videoEl?: HTMLVideoElement }
 ): void {
   const { width, height } = ctx.canvas;
   ctx.clearRect(0, 0, width, height);
@@ -2776,14 +2754,9 @@ export function renderLayeredFrame(
   // 레이어 렌더러가 state 에서 읽을 수 있도록 주입. 호출자 state 키가 있으면 그 값이 우선.
   const mergedState = mergeLiveIntoState(state as Record<string, unknown>);
 
-  // voice_read 가림 가드 — 호출자가 missionType: 'voice_read' 를 넘기면 위 SET 의 타입은 스킵.
-  const isVoiceRead = (state as { missionType?: string })?.missionType === 'voice_read';
-
   for (const layer of sortedLayers) {
     if (!layer.enabled) continue;
-
-    if (isVoiceRead && VOICE_READ_SUPPRESSED_LAYER_TYPES.has(layer.type)) continue;
-
+    
     // Check active range
     if (layer.activeRange) {
       const tSec = tMs / 1000;
