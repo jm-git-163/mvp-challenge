@@ -46,11 +46,11 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — english lesson: 영어 사전·노트 정물. 수업 분위기 OK.
   "english-lesson-003": {
-    "url": "https://pixabay.com/get/gb09de625816925bc07b4b525e166f418a6cbdfbf129fd16e899796529f43c0701fabe87dcb1c28376a8a1ed82cbc540a8c82cc92bf64fb1a87cf66dd88a25c20_640.jpg",
-    "largeURL": "https://pixabay.com/get/gd1f5d894fe0a0e4a64cd4fd746aa62088342a6451d0a14c122d612f8ddd205cbacfd462a5d53827b22f127d689363b4d6f537569d1702a64899024bc7de6019e_1280.jpg",
-    "tags": "education, language learning, english, dictionary, book, notes",
-    "user": "akirEVarga",
-    "pixabayId": 4382169
+    "url": "https://pixabay.com/get/g0c34b55207762955b900890e412a613e658861cb04886c3e6bc86c41fcb8feebeff0717bbad9d32f5605ebc001f281aa903a7283db6c15ab16d8881dcbbe7bb0_640.jpg",
+    "largeURL": "https://pixabay.com/get/g23f9ab5ba90cfc70cfff753d675b1e7c87b2ac84c287a0be0471d4160c7567e9dc6745f696d9b72742ea9350925ebe9dcc68cdc0a617a57ed980b15955d6c984_1280.jpg",
+    "tags": "key, old, flower, nostalgic, beautiful flowers, vintage, marguerite, flower wallpaper, blossom, bloom, rust, metal, antique, dictionary, german-english, nature, flower background, translation, words, a book",
+    "user": "165106",
+    "pixabayId": 5105878
   },
   // REVIEWED 2026-04-23 — fairy tale: Pixabay 결과는 크리스마스 데스크탑 배경화면(mismatch).
   //   Unsplash 의 동화책/판타지 일러스트 톤 사진으로 교체. 따뜻한 색감.
@@ -66,19 +66,19 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — travel cert: 앙코르와트 전경. 여행 인증샷 톤 OK.
   "travel-cert-005": {
-    "url": "https://pixabay.com/get/g6571567ebd36cede014be5b68de1a5798ca272697828d0b34792a885a092eba5044056ed0d571720578d9f363b4b6c9ef9da6945f901ce8cc7eb6bd0c2c6bf24_640.jpg",
-    "largeURL": "https://pixabay.com/get/g8b17c15708fdf11be10d3395e243987fff3380dbf2f64a56b51781bb8e068bcede9635dee30befaa6db53c1595723ed95ee7e827560abed6bbe42236ca7b8068_1280.jpg",
-    "tags": "travel, temple, landmark, tourist, selfie",
-    "user": "Sushuti",
-    "pixabayId": 3741233
+    "url": "https://pixabay.com/get/g12e5ebee8f9df3e89459eb6868e917cf3b814560f1ebe851d728c324beec14cb07bac4bfb8559fac7fb7bb21c5cda6db0272ad6a86a40f97985da1fb5438f71c_640.jpg",
+    "largeURL": "https://pixabay.com/get/g662b0f6987ad93dbde25d3b3851226a7830a57edcbdc6b29d52a2f7e6e513ac3a58140cff4fc95fed0d2c01b00521573e7570ca5e40ac6cd1ca0b52b161b0816_1280.jpg",
+    "tags": "eiffel tower, france, landmark, map, miniature, navigation, paris, travel, close up, trip",
+    "user": "Pexels",
+    "pixabayId": 1839974
   },
   // REVIEWED 2026-04-23 — product unbox: 택배 상자. 언박싱 컨텍스트 OK.
   "product-unbox-006": {
-    "url": "https://pixabay.com/get/ga7b47737a84b243cc653d4cace24dac0e6ad0ce58c81d34ef3304ee92e3ed15e4e074e57fdfc99e047b6ba9e836b6cab6f068e960786f4e4a9f7b3efbfb5a1fa_640.jpg",
-    "largeURL": "https://pixabay.com/get/gbf0e1f5afba57fc0bee055c4443e0f7cba916dc536c3ba8188a1eba19a1e94720cfaf1d4c49ec45a6706fdee3aba89f899fad9283b26add9a717c785fc786723_1280.jpg",
-    "tags": "package, parcel, box, unboxing, delivery",
-    "user": "ha11ok",
-    "pixabayId": 4967335
+    "url": "https://pixabay.com/get/g9770619381da58ec5fbc7b3a6534e3c42000d6822dd80e86f876304cde00601305502d1883eeafd649718f684403e9b280b598880e536c50b0aeeecc8b7759ba_640.jpg",
+    "largeURL": "https://pixabay.com/get/gc26b7edda411e29c5bf022a659bf8af0191a7a78c8df00792844ad4356e777bd4fce4275cb1aa4f103df1c44f42b457577aac2f7e8866e760f4796cd1cc19487_1280.jpg",
+    "tags": "packages, delivery, delivery man, parcel, boxes, custom boxes, service",
+    "user": "romeosessions",
+    "pixabayId": 6153947
   },
   // REVIEWED 2026-04-23 — kpop idol: Pixabay 는 흑백 락밴드 공연(분위기 미스매치).
   //   Unsplash 의 네온 핑크/퍼플 콘서트 무대 사진으로 교체. K-pop 비주얼 매칭.
@@ -110,27 +110,27 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — kids story: 책 읽는 아이들. OK.
   "kids-story-010": {
-    "url": "https://pixabay.com/get/g156b9d4084ccd51f4d728c6bde76eccfe2450c2e33a0b5edd7a343450ddd2fa6089e2af4838d981d227270cf18ff91bfae032498f7da497f0cbfae59518f4140_640.jpg",
-    "largeURL": "https://pixabay.com/get/g864d063ffb85829de4329a4b0f44161c605566853605170e566caee3187a733142b5041bd90cab46839e17682138a9e1b81b7ba8b384e33e0dbe4eb59915e705_1280.jpg",
-    "tags": "children, books, reading, learning",
-    "user": "ParentiPacek",
-    "pixabayId": 4624899
+    "url": "https://pixabay.com/get/gb44e1cc125d1be32895a9e735f75783bd6639c94677ea0aca69b9d93e4b954c9c44d7b8a77971634fc0a643bad05a0872558514e23569881d32eb0bbadf6445d_640.jpg",
+    "largeURL": "https://pixabay.com/get/g8b00f1f87f44e84c1494543edf807c975b0842c7833aff0421e07609cdaa09dc17f17a223126d3548835b2be78f582728a1a8fce8fa4c2bddc6bf7ef3c23b66c_1280.jpg",
+    "tags": "boy, child, male, young, reading, kid, cute, summer, book, curiosity, attentive, pictures, children's book, childhood, adorable",
+    "user": "10302144",
+    "pixabayId": 4793110
   },
   // REVIEWED 2026-04-23 — travel vlog: 카메라 든 여성. OK (레트로 톤).
   "travel-vlog-011": {
-    "url": "https://pixabay.com/get/g7262c809b4747347ac8e0df19d6767467d0b5ba551fae8c277e8b46aa6a651f7d749b9304f4322296b2869159572b8fe_640.jpg",
-    "largeURL": "https://pixabay.com/get/gf953bab708f778a917d73ecfe90c7ad05073a75c666aaf21a89745088fd0ce03b8fc9b36f1004ef6999b3e7312e4000433f9a4902d29f4c650edea07bd53a0b1_1280.jpg",
-    "tags": "girl, camera, travel, photographer",
-    "user": "Alexsander-777",
-    "pixabayId": 549154
+    "url": "https://pixabay.com/get/g367650f4d2aad0a206f6e2cec6b7003fa76c8444a1af76864c2a2563560e11c413f69ca33a4f5ae916ca5034df39c9ffededdcfed72404cf847bcefaa53e7e68_640.jpg",
+    "largeURL": "https://pixabay.com/get/gc5fcba0415e5500718a9a4ede5f16b4d7bc443e329f52df2241ffcd6bb962ecbd5c1e88b76ad3cf94501fbe87bbb520a67051d1156d3c4bc91be6a2229934eb4_1280.jpg",
+    "tags": "suitcase, packaging, to travel, vacations, luggage, vacation, old suitcase, close up, piece of luggage, leather, tourism, vintage",
+    "user": "Tama66",
+    "pixabayId": 3297015
   },
   // REVIEWED 2026-04-23 — hiphop cypher: 래퍼 마이크. OK.
   "hiphop-cypher-012": {
-    "url": "https://pixabay.com/get/gc882e6ff8287d8a675b0b74ef0506fe28971529e68cc1f9a0d2dfd7e8cfaa9761a23d02dbdf59cc804c967d1578635a47f1d50b7a6753acc8c7f424965686ee5_640.jpg",
-    "largeURL": "https://pixabay.com/get/g86084680e87e11843c96d1cacdba0d496be98a024e7038c132f91edc2738e56033bd71ad825fd23e31af1a4f882b26fcb344b16e14919cff7e2bfdbcd9d98167_1280.jpg",
-    "tags": "rapper, microphone, recording, hip hop",
-    "user": "Pexels",
-    "pixabayId": 1845432
+    "url": "https://pixabay.com/get/g5b5ea82a97dbfdcce894ca8c7759abe598c40dbe1d495bf471577e8d0541b60b05c796cb24deb5a0db4d4b16d7e80d8ff6c33cc38d3fddefaac98c6962c1249d_640.png",
+    "largeURL": "https://pixabay.com/get/g25d5b6e2f984ec6ba60d3bb921fff80bed942ae0035885fd250c8c42a68f8ec157956b80d4cffd48c396a5712b91817be9223a7781644de93e6307e237495667_1280.png",
+    "tags": "wireless microphone, radio, microphone, sound, reportage, radio studio, broadcast, vintage, retro, nostalgia",
+    "user": "AlLes",
+    "pixabayId": 2907453
   },
   // REVIEWED 2026-04-23 — squat: Pixabay 결과는 다운워드 도그(요가, mismatch).
   //   Unsplash 의 실제 스쿼트 자세 사진으로 교체.
@@ -184,11 +184,11 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
   },
   // REVIEWED 2026-04-23 — hiphop dance: 스트리트 힙합 댄서. OK.
   "dance-hiphop-001": {
-    "url": "https://pixabay.com/get/g896004f4b1b6c23b29eb0391cf3a83aafb74156acb76cbfe541c3278f3a909df3b9bd8880565b884eb9c7751ae21bbc343ac27bd3e2f9ca3a4789a7e2b09006b_640.jpg",
-    "largeURL": "https://pixabay.com/get/g8dd7a5a0058dc1fbe6934c91d67a3feea3519e732fe9795a8dcc13757b334ecf2f889a62e88c9c9f3139623565d58e47ee3464acc2ec35add38755216016e156_1280.jpg",
-    "tags": "hip hop, dancer, street, urban",
-    "user": "tazzanderson",
-    "pixabayId": 2093990
+    "url": "https://pixabay.com/get/gf572e1b01cc92c8f7c0672ea160b25304a53fd216a560b7c80ed967e91636a58b723c2d92ce4c6ace4113e23b85c5a223974b70e7639fa7947cfe7f18b216127_640.jpg",
+    "largeURL": "https://pixabay.com/get/g71b6e5ca4f8d9f3f50719f1104423e419d25191d349b52133ff3c3b9384a6f0dbc2e74bd2af6bbe7ed2a0851009a0f00215ac08eb5ce45bb6ef9122e8e723991_1280.jpg",
+    "tags": "hooded, man, green, cool, person, human, masculine, hip hop, masculinity, bodyguard",
+    "user": "LoboStudioHamburg",
+    "pixabayId": 1171625
   },
   // REVIEWED 2026-04-23 — squat 50 challenge: Pixabay 는 트레드밀 스트레칭(mismatch).
   //   Unsplash 의 홈 스쿼트 챌린지 사진으로 교체.
