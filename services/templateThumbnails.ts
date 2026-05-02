@@ -27,7 +27,7 @@ export interface TemplateThumb {
 // FIX-THUMBS v13 (2026-05-02): 사용자 재제보 — 옛 썸네일이 다시 보이는 문제. v12 이후
 //   본 파일에 변경이 없었음에도 CDN/HTTP 캐시가 옛 응답을 재사용했을 가능성. supabaseThumbnails
 //   와 동일한 BUILD_ID cache-bust 메커니즘을 본 파일에도 신규 적용.
-const BUILD_ID = 'v14-20260502-curated';
+const BUILD_ID = 'v13-20260502';
 function bustUrl(url: string): string {
   if (!url) return url;
   const clean = url.replace(/([?&])cb=[^&]*/g, '$1').replace(/[?&]$/, '');
@@ -36,16 +36,18 @@ function bustUrl(url: string): string {
 }
 
 const RAW_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
-  // REVIEWED 2026-05-02 (v14) — 사용자 재제보 "사람 이상함". 사람 없는 정물로 안전 큐레이션.
-  //   카메라/렌즈/장비 정물 — 일상 브이로그 셋업. HTTP 200 확인.
+  // REVIEWED 2026-04-23 (v6) — 사용자 3차 재교체 요청 "주제와 맞게 다시".
+  //   Unsplash 검증 "woman filming herself on a tripod in a living room" (photo KQ1Kv3awrHM).
+  //   삼각대 + 스마트폰 셀프 촬영 = 전형적 일상 브이로그 셋업. HTTP 200 확인.
   "daily-vlog-001": {
-    "url": "https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&w=1280&q=80",
-    "tags": "vlog gear, camera, content creation, setup, lifestyle",
+    "url": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1758599880979-f6a64947b541?auto=format&fit=crop&w=1280&q=80",
+    "tags": "vlog, tripod, smartphone, self-filming, living room, content creation",
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 신문/저널리즘 정물. 차분한 블루 톤. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — news anchor: Pixabay 결과는 컨트리뮤직 스튜디오 마이크였음 (mismatch).
+  //   Unsplash 의 뉴스 데스크/방송실 사진으로 교체. 차분한 블루 톤.
   "news-anchor-002": {
     "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=640&q=75",
     "largeURL": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1280&q=80",
@@ -53,94 +55,93 @@ const RAW_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay 해시 URL 만료.
-  //   Unsplash 영어 책/사전 정물로 교체. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — english lesson: 영어 사전·노트 정물. 수업 분위기 OK.
   "english-lesson-003": {
-    "url": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1280&q=80",
-    "tags": "english, dictionary, book, study, language learning",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/gb09de625816925bc07b4b525e166f418a6cbdfbf129fd16e899796529f43c0701fabe87dcb1c28376a8a1ed82cbc540a8c82cc92bf64fb1a87cf66dd88a25c20_640.jpg",
+    "largeURL": "https://pixabay.com/get/gd1f5d894fe0a0e4a64cd4fd746aa62088342a6451d0a14c122d612f8ddd205cbacfd462a5d53827b22f127d689363b4d6f537569d1702a64899024bc7de6019e_1280.jpg",
+    "tags": "education, language learning, english, dictionary, book, notes",
+    "user": "akirEVarga",
+    "pixabayId": 4382169
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "방향 이상". 토들러 들고 있는 회전된 책 사진 → 사람 없는
-  //   펼쳐진 컬러풀한 동화책 정면 평면 촬영으로 교체. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — fairy tale: Pixabay 결과는 크리스마스 데스크탑 배경화면(mismatch).
+  //   Unsplash 의 동화책/판타지 일러스트 톤 사진으로 교체. 따뜻한 색감.
+  // REVIEWED 2026-04-23 (v6) — 사용자 3차 재교체 요청 "주제와 맞게 다시".
+  //   Unsplash 검증 "toddler holding storybook" (photo Nqv93VRcH18).
+  //   유아가 그림책을 들고 있는 장면 — 동화책 읽기 주제 정확 매칭. HTTP 200 확인.
   "fairy-tale-004": {
-    "url": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1280&q=80",
-    "tags": "open book, storybook, pages, reading, library",
+    "url": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1573309463410-ed96625bcd16?auto=format&fit=crop&w=1280&q=80",
+    "tags": "fairy tale, toddler, storybook, picture book, child, reading",
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay URL 만료.
-  //   에펠탑 랜드마크 (사람 없는 풍경) 으로 교체. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — travel cert: 앙코르와트 전경. 여행 인증샷 톤 OK.
   "travel-cert-005": {
-    "url": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=1280&q=80",
-    "tags": "eiffel tower, paris, landmark, travel, certification",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/g6571567ebd36cede014be5b68de1a5798ca272697828d0b34792a885a092eba5044056ed0d571720578d9f363b4b6c9ef9da6945f901ce8cc7eb6bd0c2c6bf24_640.jpg",
+    "largeURL": "https://pixabay.com/get/g8b17c15708fdf11be10d3395e243987fff3380dbf2f64a56b51781bb8e068bcede9635dee30befaa6db53c1595723ed95ee7e827560abed6bbe42236ca7b8068_1280.jpg",
+    "tags": "travel, temple, landmark, tourist, selfie",
+    "user": "Sushuti",
+    "pixabayId": 3741233
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay URL 만료.
-  //   깨끗한 박스/패키지 정물로 교체. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — product unbox: 택배 상자. 언박싱 컨텍스트 OK.
   "product-unbox-006": {
-    "url": "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1280&q=80",
-    "tags": "package, box, parcel, unboxing, delivery",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/ga7b47737a84b243cc653d4cace24dac0e6ad0ce58c81d34ef3304ee92e3ed15e4e074e57fdfc99e047b6ba9e836b6cab6f068e960786f4e4a9f7b3efbfb5a1fa_640.jpg",
+    "largeURL": "https://pixabay.com/get/gbf0e1f5afba57fc0bee055c4443e0f7cba916dc536c3ba8188a1eba19a1e94720cfaf1d4c49ec45a6706fdee3aba89f899fad9283b26add9a717c785fc786723_1280.jpg",
+    "tags": "package, parcel, box, unboxing, delivery",
+    "user": "ha11ok",
+    "pixabayId": 4967335
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "손이 이상". 사람 손/얼굴 없는
-  //   콘서트 홀 무대 조명 실루엣으로 교체. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — kpop idol: Pixabay 는 흑백 락밴드 공연(분위기 미스매치).
+  //   Unsplash 의 네온 핑크/퍼플 콘서트 무대 사진으로 교체. K-pop 비주얼 매칭.
   "kpop-idol-007": {
-    "url": "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1280&q=80",
-    "tags": "concert hall, stage lights, performance, idol, kpop",
+    "url": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1280&q=80",
+    "tags": "concert, stage, neon, lights, idol, performance",
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "스쿼트 이미지 아님". 실제 사람이 바벨 스쿼트 자세.
-  //   HTTP 200 확인.
+  // REVIEWED 2026-04-23 (v4) — 사용자 "스쿼트 마스터 썸네일 교체" 피드백.
+  //   Unsplash 검증된 바벨 스쿼트 사진 (photo-page subject: "man holding barbell gym")
+  //   HTTP 200 확인 · 2026-04-23.
   "fitness-squat-master-008": {
-    "url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=1280&q=80",
-    "tags": "squat, barbell, gym, strength training, fitness",
+    "url": "https://images.unsplash.com/photo-1683147779485-24912f480130?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1683147779485-24912f480130?auto=format&fit=crop&w=1280&q=80",
+    "tags": "squat, barbell, strength, gym, fitness, master",
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 영어 회화 정물 (지구본·책·노트). 사람 없음. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — english speak: Pixabay 는 빈 칠판 정물(mismatch, 사람 없음).
+  //   Unsplash 의 영어 회화 수업 장면으로 교체.
   "english-speak-009": {
-    "url": "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=1280&q=80",
-    "tags": "globe, books, english, conversation, learning",
+    "url": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=640&q=75",
+    "largeURL": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1280&q=80",
+    "tags": "classroom, students, speaking, english, education",
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay URL 만료.
-  //   어린이 동화 일러스트 톤 정물 (책장에 펼쳐진 동화책). HTTP 200 확인.
+  // REVIEWED 2026-04-23 — kids story: 책 읽는 아이들. OK.
   "kids-story-010": {
-    "url": "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=1280&q=80",
-    "tags": "children, books, fairy tale, library, kids story",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/g156b9d4084ccd51f4d728c6bde76eccfe2450c2e33a0b5edd7a343450ddd2fa6089e2af4838d981d227270cf18ff91bfae032498f7da497f0cbfae59518f4140_640.jpg",
+    "largeURL": "https://pixabay.com/get/g864d063ffb85829de4329a4b0f44161c605566853605170e566caee3187a733142b5041bd90cab46839e17682138a9e1b81b7ba8b384e33e0dbe4eb59915e705_1280.jpg",
+    "tags": "children, books, reading, learning",
+    "user": "ParentiPacek",
+    "pixabayId": 4624899
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay URL 만료.
-  //   캐리어/지도/카메라 정물 (사람 없는 여행 셋업). HTTP 200 확인.
+  // REVIEWED 2026-04-23 — travel vlog: 카메라 든 여성. OK (레트로 톤).
   "travel-vlog-011": {
-    "url": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1280&q=80",
-    "tags": "suitcase, travel, map, camera, vlog",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/g7262c809b4747347ac8e0df19d6767467d0b5ba551fae8c277e8b46aa6a651f7d749b9304f4322296b2869159572b8fe_640.jpg",
+    "largeURL": "https://pixabay.com/get/gf953bab708f778a917d73ecfe90c7ad05073a75c666aaf21a89745088fd0ce03b8fc9b36f1004ef6999b3e7312e4000433f9a4902d29f4c650edea07bd53a0b1_1280.jpg",
+    "tags": "girl, camera, travel, photographer",
+    "user": "Alexsander-777",
+    "pixabayId": 549154
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay URL 만료.
-  //   빈티지 마이크 정물 (힙합 사이퍼 레코딩 톤). 사람 없음. HTTP 200 확인.
+  // REVIEWED 2026-04-23 — hiphop cypher: 래퍼 마이크. OK.
   "hiphop-cypher-012": {
-    "url": "https://images.unsplash.com/photo-1453738773917-9c3eff1db985?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1453738773917-9c3eff1db985?auto=format&fit=crop&w=1280&q=80",
-    "tags": "microphone, vintage, hip hop, cypher, recording",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/gc882e6ff8287d8a675b0b74ef0506fe28971529e68cc1f9a0d2dfd7e8cfaa9761a23d02dbdf59cc804c967d1578635a47f1d50b7a6753acc8c7f424965686ee5_640.jpg",
+    "largeURL": "https://pixabay.com/get/g86084680e87e11843c96d1cacdba0d496be98a024e7038c132f91edc2738e56033bd71ad825fd23e31af1a4f882b26fcb344b16e14919cff7e2bfdbcd9d98167_1280.jpg",
+    "tags": "rapper, microphone, recording, hip hop",
+    "user": "Pexels",
+    "pixabayId": 1845432
   },
   // REVIEWED 2026-04-23 — squat: Pixabay 결과는 다운워드 도그(요가, mismatch).
   //   Unsplash 의 실제 스쿼트 자세 사진으로 교체.
@@ -192,14 +193,13 @@ const RAW_TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // REVIEWED 2026-05-02 (v14) — 사용자 제보 "썸네일 없음". Pixabay URL 만료.
-  //   힙합 댄서 스트리트 (자연스러운 동작, 손 부자연 없음). HTTP 200 확인.
+  // REVIEWED 2026-04-23 — hiphop dance: 스트리트 힙합 댄서. OK.
   "dance-hiphop-001": {
-    "url": "https://images.unsplash.com/photo-1547153760-18fc86324498?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1547153760-18fc86324498?auto=format&fit=crop&w=1280&q=80",
-    "tags": "hip hop, dance, street, urban, choreography",
-    "user": "unsplash",
-    "pixabayId": 0
+    "url": "https://pixabay.com/get/g896004f4b1b6c23b29eb0391cf3a83aafb74156acb76cbfe541c3278f3a909df3b9bd8880565b884eb9c7751ae21bbc343ac27bd3e2f9ca3a4789a7e2b09006b_640.jpg",
+    "largeURL": "https://pixabay.com/get/g8dd7a5a0058dc1fbe6934c91d67a3feea3519e732fe9795a8dcc13757b334ecf2f889a62e88c9c9f3139623565d58e47ee3464acc2ec35add38755216016e156_1280.jpg",
+    "tags": "hip hop, dancer, street, urban",
+    "user": "tazzanderson",
+    "pixabayId": 2093990
   },
   // REVIEWED 2026-04-23 — squat 50 challenge: Pixabay 는 트레드밀 스트레칭(mismatch).
   //   Unsplash 의 홈 스쿼트 챌린지 사진으로 교체.
