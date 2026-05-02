@@ -1921,10 +1921,18 @@ export default function RecordScreen() {
   const debugOn = (() => {
     if (typeof window === 'undefined') return false;
     try {
+      // USER-FEEDBACK (2026-05-02): "개발자만 확인하면 되는 온갖 설정 확인 창들이 너무 많아서
+      //   챌린지 하는데 방해" — 이전에 ?debug=1 로 켜놓은 유저들 강제로 한 번 끔.
+      //   마이그레이션 키 'motiq_debug_purge_v1' 가 없으면 motiq_debug 삭제 후 키 set.
+      if (!window.localStorage.getItem('motiq_debug_purge_v1')) {
+        window.localStorage.removeItem('motiq_debug');
+        window.localStorage.setItem('motiq_debug_purge_v1', '1');
+      }
       const q = window.location.search;
-      if (/[?&]debug=1\b/.test(q)) { window.localStorage.setItem('motiq_debug', '1'); return true; }
-      if (/[?&]debug=0\b/.test(q)) { window.localStorage.removeItem('motiq_debug'); return false; }
-      return window.localStorage.getItem('motiq_debug') === '1';
+      // ?debug=1 은 여전히 동작하지만 이전 sticky 동작은 제거: 페이지 떠나면 사라지도록
+      // localStorage 저장 X. 유저는 매번 ?debug=1 명시해야 함.
+      if (/[?&]debug=1\b/.test(q)) return true;
+      return false;
     } catch { return false; }
   })();
 
@@ -2155,8 +2163,10 @@ export default function RecordScreen() {
                 </View>
               )}
 
-              {/* CAMERA-SWAP (2026-04-23): cameraPlan 힌트 토스트 (다음 세그먼트 5초 전) */}
-              {planHint && (
+              {/* CAMERA-SWAP (2026-04-23): cameraPlan 힌트 토스트 (다음 세그먼트 5초 전).
+                  USER-FEEDBACK (2026-05-02): voice_read 챌린지에서 자막 위에 떠 가림 → 자막 미션
+                  진행 중에는 숨김. 카메라 전환 가이드보다 자막 가독성이 우선. */}
+              {planHint && !activeTemplate?.missions?.some((m: any) => m.type === 'voice_read' || m.type === 'voice') && (
                 <View style={r.planHintToast} pointerEvents="none">
                   <Text style={r.planHintText}>
                     5초 후 {planHint.facing === 'front' ? '전면' : '후면'} 전환 — {planHint.label}
