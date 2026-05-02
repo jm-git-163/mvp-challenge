@@ -2581,7 +2581,10 @@ export default function RecordScreen() {
                 );
               })()}
 
-              {isRecording && !showIntro && <JudgementBurst tag={burstTag} combo={combo} visible={burstVisible} />}
+              {/* FIX-VOICEREAD-OBSCURE (2026-05-02): voice_read 미션 중에는 JudgementBurst
+                   (화면 중앙의 큰 판정 텍스트/콤보)가 자막을 덮어 가린다는 사용자 리포트.
+                   voice_read 활성 동안 일시 숨김. */}
+              {isRecording && !showIntro && currentMission?.type !== 'voice_read' && <JudgementBurst tag={burstTag} combo={combo} visible={burstVisible} />}
 
               {isRecording && !showIntro && (
                 <View style={r.stopArea}>

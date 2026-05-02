@@ -1434,6 +1434,12 @@ const RecordingCameraWeb = forwardRef<RecordingCameraHandle, RecordingCameraWebP
                     totalScore: missionScoreRef.current,
                     scriptText: voiceTranscriptRef.current,
                     facing: face,
+                    // FIX-VOICEREAD-OBSCURE (2026-05-02): 자막 가림 레이어 억제용.
+                    //   videoCompositor.renderLayeredFrame 가 'voice_read' 일 때
+                    //   score_hud/counter_hud/timer_ring/kinetic_text/news_ticker/
+                    //   face_sticker/hand_emoji/beat_flash/chromatic_pulse/lens_flare/
+                    //   particle_burst/audio_visualizer 를 모두 스킵.
+                    missionType: currentMissionRef.current?.type,
                   } as any,
                 );
               } catch (e) { /* per-layer 격리는 renderLayeredFrame 내부에서 수행 */ }
