@@ -57,34 +57,28 @@ interface ToneDef {
   totalMs: number;
 }
 
+/**
+ * USER-FEEDBACK (2026-05-02): 합성된 wave 톤이 "기계음 같다"는 거부 반응.
+ *   → 길이 100ms 초과 톤(아르페지오·드롭·벨·triadic)은 모두 generated 비활성화.
+ *     mp3 자산 있으면 재생, 없으면 침묵. 짧은 한 음 블립(<=100ms)만 generated 허용.
+ *
+ * 정책:
+ *   - GENERATED_ALLOWED: 100ms 이하 단일 음, 클릭/팝 성격만. 게임 피드백상 침묵 어색.
+ *   - 그 외 키는 mp3 없으면 침묵 (`steps: []`). 사용자가 /public/sfx/<key>.mp3 추가 시만 소리.
+ *   - 전체 볼륨 기본도 0.4 → 0.25 로 낮춤.
+ */
 const TONES: Record<SfxKey, ToneDef> = {
-  squat_count:      { steps: [{ freq: 440, durMs: 100, type: 'sine', gain: 0.4 }], totalMs: 100 },
-  beat:             { steps: [{ freq: 1200, durMs: 30, type: 'square', gain: 0.18 }], totalMs: 30 },
-  countdown_tick:   { steps: [{ freq: 660, durMs: 80, type: 'triangle', gain: 0.35 }], totalMs: 80 },
-  countdown_go:     {
-    steps: [
-      { freq: 880, durMs: 90, type: 'sine', gain: 0.4 },
-      { freq: 1320, durMs: 130, type: 'sine', gain: 0.5 },
-    ],
-    totalMs: 220,
-  },
-  mission_success:  {
-    steps: [
-      { freq: 523, durMs: 80, type: 'triangle', gain: 0.35 },
-      { freq: 659, durMs: 80, type: 'triangle', gain: 0.4 },
-      { freq: 784, durMs: 120, type: 'triangle', gain: 0.45 },
-    ],
-    totalMs: 280,
-  },
-  mission_fail:     {
-    steps: [
-      { freq: 220, durMs: 140, type: 'sawtooth', gain: 0.35 },
-      { freq: 110, durMs: 180, type: 'sawtooth', gain: 0.3 },
-    ],
-    totalMs: 320,
-  },
-  caption_complete: { steps: [{ freq: 988, durMs: 220, type: 'sine', gain: 0.4 }], totalMs: 220 },
-  gesture_hit:      { steps: [{ freq: 1320, durMs: 80, type: 'square', gain: 0.3 }], totalMs: 80 },
+  // 짧은 클릭류 — generated 허용
+  squat_count:      { steps: [{ freq: 440, durMs: 80,  type: 'sine',     gain: 0.22 }], totalMs: 80 },
+  beat:             { steps: [{ freq: 1200, durMs: 25, type: 'sine',     gain: 0.12 }], totalMs: 25 },
+  countdown_tick:   { steps: [{ freq: 660, durMs: 70,  type: 'triangle', gain: 0.22 }], totalMs: 70 },
+  gesture_hit:      { steps: [{ freq: 1320, durMs: 60, type: 'sine',     gain: 0.18 }], totalMs: 60 },
+
+  // 긴/복합 톤 — generated 비활성화. mp3 없으면 침묵.
+  countdown_go:     { steps: [], totalMs: 0 },
+  mission_success:  { steps: [], totalMs: 0 },
+  mission_fail:     { steps: [], totalMs: 0 },
+  caption_complete: { steps: [], totalMs: 0 },
 };
 
 let ctxRef: AudioContext | null = null;
@@ -146,7 +140,9 @@ function playGenerated(key: SfxKey, opts: SfxOptions): void {
   if (!ctx) return;
   const def = TONES[key];
   if (!def) return;
-  const userVol = opts.volume ?? 0.4;
+  // USER-FEEDBACK: steps 비어있으면 (긴 톤 키) 침묵.
+  if (def.steps.length === 0) return;
+  const userVol = opts.volume ?? 0.25;
   let cursor = ctx.currentTime;
   for (const step of def.steps) {
     const osc = ctx.createOscillator();
