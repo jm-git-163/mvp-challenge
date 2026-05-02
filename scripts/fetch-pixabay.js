@@ -105,6 +105,25 @@ const ASSET_MANIFEST = [
     query: 'happy friends colorful party',       fallbackQuery: 'colorful party' },
   { destRel: 'templates/emoji-explosion/accent-confetti.png', kind: 'image',
     query: 'confetti rainbow transparent',       fallbackQuery: 'confetti rainbow' },
+
+  // ── 배경 비디오 (PIXABAY-VIDEO 2026-05-02) ─────────────────────
+  // 템플릿별 무빙 배경 (4) + 범용 BG 풀 (4). small mp4 (5MB 이하) 우선.
+  { destRel: 'templates/squat-master/bg-loop.mp4',     kind: 'video',
+    query: 'neon gym workout dark',     fallbackQuery: 'gym workout' },
+  { destRel: 'templates/idol-dance/bg-loop.mp4',       kind: 'video',
+    query: 'stage lights concert neon abstract', fallbackQuery: 'stage lights' },
+  { destRel: 'templates/news-anchor/bg-loop.mp4',      kind: 'video',
+    query: 'data abstract corporate blue', fallbackQuery: 'abstract blue' },
+  { destRel: 'templates/emoji-explosion/bg-loop.mp4',  kind: 'video',
+    query: 'confetti colorful abstract slow', fallbackQuery: 'confetti colorful' },
+  { destRel: 'bg/sky-loop.mp4',                        kind: 'video',
+    query: 'clouds time lapse',         fallbackQuery: 'clouds' },
+  { destRel: 'bg/particles-loop.mp4',                  kind: 'video',
+    query: 'abstract particles blue',   fallbackQuery: 'abstract particles' },
+  { destRel: 'bg/intro-burst.mp4',                     kind: 'video',
+    query: 'burst light flash',         fallbackQuery: 'light flash' },
+  { destRel: 'bg/outro-celebration.mp4',               kind: 'video',
+    query: 'fireworks celebration',     fallbackQuery: 'fireworks' },
 ];
 
 async function readKeyFromTxt() {
@@ -186,7 +205,9 @@ async function tryDownload(spec, query, apiKey, outRoot) {
   const isPng = spec.destRel.toLowerCase().endsWith('.png');
   const endpoint = spec.kind === 'music'
     ? `https://pixabay.com/api/music/?key=${apiKey}&q=${encodeURIComponent(query)}&per_page=15`
-    : `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&per_page=15&image_type=${isPng ? 'illustration' : 'photo'}${isPng ? '' : '&orientation=vertical'}`;
+    : spec.kind === 'video'
+      ? `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(query)}&per_page=20`
+      : `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&per_page=15&image_type=${isPng ? 'illustration' : 'photo'}${isPng ? '' : '&orientation=vertical'}`;
 
   console.log(`  [fetch] ${spec.destRel}  ← "${query}"`);
   const res = await fetch(endpoint);
@@ -208,7 +229,46 @@ async function tryDownload(spec, query, apiKey, outRoot) {
   }
   const json = await res.json();
 
-  if (spec.kind === 'music') {
+  if (spec.kind === 'video') {
+    const hits = json.hits || [];
+    if (!hits.length) { console.warn(`    no video hits for "${query}"`); return false; }
+    // Prefer small (≤5MB target). Fallback medium → tiny.
+    // Sort hits by popularity, then pick smallest acceptable variant per hit.
+    const sorted = hits.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
+    const MAX_BYTES = 50 * 1024 * 1024; // git push hard limit
+    const PREF_BYTES = 8 * 1024 * 1024; // soft preference
+    for (const hit of sorted) {
+      const variants = hit.videos || {};
+      // Order: small → tiny → medium (skip large/4k entirely)
+      const order = ['small', 'tiny', 'medium'];
+      let chosen = null;
+      for (const k of order) {
+        const v = variants[k];
+        if (!v || !v.url) continue;
+        if (v.size && v.size > MAX_BYTES) continue;
+        chosen = { url: v.url, size: v.size, variant: k };
+        if (!v.size || v.size <= PREF_BYTES) break;
+      }
+      if (!chosen) continue;
+      try {
+        const r = await fetch(chosen.url);
+        if (!r.ok) { console.warn(`    video fetch HTTP ${r.status} for ${spec.destRel}`); continue; }
+        const bin = await r.arrayBuffer();
+        if (bin.byteLength > MAX_BYTES) { console.warn(`    video too large (${(bin.byteLength/1024/1024).toFixed(1)}MB), trying next hit`); continue; }
+        const dest = path.join(outRoot, spec.destRel);
+        await fs.mkdir(path.dirname(dest), { recursive: true });
+        await fs.writeFile(dest, Buffer.from(bin));
+        await appendAttribution(spec, hit);
+        console.log(`    ✓ saved ${(bin.byteLength / 1024 / 1024).toFixed(2)} MB (${chosen.variant}) → ${spec.destRel}`);
+        return true;
+      } catch (e) {
+        console.warn(`    video download error: ${e.message}`);
+        continue;
+      }
+    }
+    console.warn(`    no acceptable video variant under ${MAX_BYTES} bytes for "${query}"`);
+    return false;
+  } else if (spec.kind === 'music') {
     const hit = pickBestMusic(json.hits, spec);
     if (!hit) { console.warn(`    no music hits for "${spec.query}"`); return false; }
     // Pixabay music hits expose audio URL under various keys. Try in order.

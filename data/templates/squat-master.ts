@@ -56,6 +56,8 @@ export const squatMaster: Template = {
     { id: 'bg_grid',       type: 'animated_grid',    zIndex: 2, opacity: 0.30, enabled: true, props: { color: YELLOW, perspective: true, scrollPerBarPx: 48 }, reactive: { onBeat: { every: 4, property: 'opacity', amount: 0.1, easing: 'easeOut', durationMs: 240 } } },
     { id: 'bg_sweat',      type: 'particle_ambient', zIndex: 3, opacity: 0.28, enabled: true, props: { preset: 'electric_blue_rise', count: 18 } },
     { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4, opacity: 0.20, enabled: true, props: { shapes: ['star'], yBand: [120, 420], tint: YELLOW, sizeJitter: 0.4 } },
+    // PIXABAY-VIDEO 2026-05-02: 무빙 네온 짐 배경 (gradient_mesh 위, 카메라 아래)
+    { id: 'bg_video',      type: 'video_bg',         zIndex: 5, opacity: 0.50, enabled: true, props: { src: '/templates/squat-master/bg-loop.mp4', blur: 2, blendMode: 'screen', fit: 'cover' } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
     { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true, props: { scale: 1.0 } },

@@ -39,6 +39,8 @@ import chromatic_pulse   from './chromatic_pulse';
 import pulse_circle      from './pulse_circle';
 // ── 2026-05-01 wave1: karaoke_caption (글자별 컬러 진행 자막)
 import karaoke_caption   from './karaoke_caption';
+// ── 2026-05-02: video_bg (Pixabay 무빙 배경 비디오) ───────────
+import video_bg          from './video_bg';
 
 /** 렌더러 공통 시그니처. 모든 타입 렌더러가 준수. */
 export type LayerRenderFn = (
@@ -80,6 +82,7 @@ export const LAYER_REGISTRY: Record<string, LayerRenderFn> = {
   chromatic_pulse,
   pulse_circle,
   karaoke_caption,
+  video_bg,
 };
 
 /**

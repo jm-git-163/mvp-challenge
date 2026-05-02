@@ -48,6 +48,8 @@ export const newsAnchor: Template = {
     // FIX-Z25: 골드 파티클 (스튜디오 조명 먼지)
     { id: 'bg_studio_dust', type: 'particle_ambient', zIndex: 4, opacity: 0.45, enabled: true, props: { preset: 'glitter_down', count: 18 } },
     { id: 'bg_grain',    type: 'noise_pattern',   zIndex: 5, opacity: 0.12, enabled: true },
+    // PIXABAY-VIDEO 2026-05-02: 데이터 추상 코퍼레이트 무빙 배경
+    { id: 'bg_video',    type: 'video_bg',        zIndex: 7, opacity: 0.50, enabled: true, props: { src: '/templates/news-anchor/bg-loop.mp4', blur: 2, blendMode: 'screen', fit: 'cover' } },
     // FIX-Z25: 상단 속보 스크롤바 (스튜디오 모니터에 떠있는 느낌) — 2.8s 이전 인트로 배경
     { id: 'bg_scroll_top', type: 'news_ticker',   zIndex: 6, opacity: 0.55, enabled: true, props: { texts: ['오늘의 주요 뉴스', '속보', '특보', '생방송 중'], speedPxPerSec: 140, fontSize: 22, bgColor: 'rgba(11,24,40,0.6)', color: '#D4AF37', accentColor: '#FF3B5C', position: { y: 80 } } },
 

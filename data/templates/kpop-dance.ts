@@ -54,6 +54,8 @@ export const kpopDance: Template = {
     { id: 'bg_stars',      type: 'star_field',       zIndex: 2,  opacity: 0.5,  enabled: true, props: { count: 80, driftPxPerSec: 6 } },
     { id: 'bg_glitter',    type: 'particle_ambient', zIndex: 3,  opacity: 0.45, enabled: true, props: { preset: 'glitter_down', count: 30, tint: CYAN } },
     { id: 'bg_shapes',     type: 'floating_shapes',  zIndex: 4,  opacity: 0.35, enabled: true, props: { shapes: ['heart', 'star'], yBand: [100, 400], tint: PINK, sizeJitter: 0.4 } },
+    // PIXABAY-VIDEO 2026-05-02: 무빙 콘서트 스테이지 라이트 배경
+    { id: 'bg_video',      type: 'video_bg',         zIndex: 5,  opacity: 0.50, enabled: true, props: { src: '/templates/idol-dance/bg-loop.mp4', blur: 2, blendMode: 'screen', fit: 'cover' } },
 
     // ── 카메라 (2) ─────────────────────────────────────────────
     { id: 'cam_feed',      type: 'camera_feed',      zIndex: 20, opacity: 1,    enabled: true, props: { scale: 1.0 } },

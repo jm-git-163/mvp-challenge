@@ -43,7 +43,7 @@ export const zCameraFraming = z.discriminatedUnion('kind', [
 // ── 레이어 타입 (docs/COMPOSITION §3) ────────────────────────
 export const zLayerType = z.enum([
   // 배경
-  'gradient_mesh', 'animated_grid', 'star_field', 'noise_pattern', 'image_bg',
+  'gradient_mesh', 'animated_grid', 'star_field', 'noise_pattern', 'image_bg', 'video_bg',
   // 기하
   'floating_shapes', 'orbiting_ring', 'pulse_circle',
   // 파티클

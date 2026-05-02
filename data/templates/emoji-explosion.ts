@@ -63,6 +63,8 @@ export const emojiExplosion: Template = {
     { id: 'bg_clouds_bot', type: 'floating_shapes',zIndex: 4, opacity: 0.8,  enabled: true, props: { shapes: ['heart', 'star', 'cloud', 'star'], yBand: [1460, 1800], tint: LAVENDER, sizeJitter: 0.3 } },
     { id: 'bg_cheer',    type: 'particle_ambient', zIndex: 5, opacity: 0.8,  enabled: true, props: { preset: 'small_hearts_up', count: 28 } },
     { id: 'bg_glitter',  type: 'particle_ambient', zIndex: 6, opacity: 0.85, enabled: true, props: { preset: 'glitter_down', count: 40 } },
+    // PIXABAY-VIDEO 2026-05-02: 컨페티 컬러풀 무빙 배경
+    { id: 'bg_video',    type: 'video_bg',         zIndex: 7, opacity: 0.45, enabled: true, props: { src: '/templates/emoji-explosion/bg-loop.mp4', blur: 2, blendMode: 'screen', fit: 'cover' } },
 
     // 카메라 (20~30)
     { id: 'cam_feed',    type: 'camera_feed',      zIndex: 20, opacity: 1, enabled: true },
