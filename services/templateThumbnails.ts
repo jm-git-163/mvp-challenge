@@ -26,7 +26,11 @@ export interface TemplateThumb {
   pixabayId: number; // Pixabay 0 = Unsplash 출처
 }
 
-export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
+// CACHE-BUST 2026-05-10: 사용자 폰 브라우저·SW 캐시가 옛 외부 URL 응답을 그대로 들고 있어
+//   로컬 경로로 갱신해도 새 이미지가 안 보이는 케이스. 모든 url 끝에 ?v=BUILD 자동 부착해서
+//   캐시 키 강제로 새로 만든다. 빌드마다 BUILD 값 갱신 시 한 줄만 bump.
+const BUILD = '20260510-local';
+const RAW_TEMPLATE_THUMBS: Record<string, TemplateThumb> = {
   // LOCAL 2026-05-09 — Pixabay search "smartphone gimbal coffee" (fallback). 카페·스마트폰 정물.
   "daily-vlog-001": {
     url: "/thumbs/daily-vlog-001.jpg",
@@ -191,3 +195,18 @@ export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = {
     "pixabayId": 0
   }
 } as const;
+
+// CACHE-BUST: 모든 url/largeURL 끝에 ?v=BUILD 자동 부착. 외부 URL 은 ? 가 이미 있으면 &v= 로 합침.
+function bust(u: string): string {
+  if (!u) return u;
+  if (u.startsWith('/')) {
+    // 로컬 경로 — 단순 ?v= 부착
+    return `${u}?v=${BUILD}`;
+  }
+  const sep = u.includes('?') ? '&' : '?';
+  return `${u}${sep}v=${BUILD}`;
+}
+
+export const TEMPLATE_THUMBNAILS: Record<string, TemplateThumb> = Object.fromEntries(
+  Object.entries(RAW_TEMPLATE_THUMBS).map(([k, v]) => [k, { ...v, url: bust(v.url), largeURL: bust(v.largeURL) }])
+) as Record<string, TemplateThumb>;
