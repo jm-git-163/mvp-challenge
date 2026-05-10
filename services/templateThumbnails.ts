@@ -87,13 +87,14 @@ const RAW_TEMPLATE_THUMBS: Record<string, TemplateThumb> = {
     user: "Pixabay/Simoneph",
     pixabayId: 3272504,
   },
-  // LOCAL 2026-05-09 — Pixabay "barbell weight gym". 바벨·역기 정물.
+  // USER-REVERT 2026-05-10 — 사용자 "이전 썸네일이 더 낫다" → cca0a57 직전 Unsplash URL 복귀.
+  //   Unsplash 는 영구 안정 URL 이라 만료 우려 없음.
   "fitness-squat-master-008": {
-    url: "/thumbs/fitness-squat-master-008.jpg",
-    largeURL: "/thumbs/fitness-squat-master-008-1280.jpg",
-    tags: "weightlifting, power, fitness, gym, workout, training, exercise, weight, strength",
-    user: "Pixabay/TheDigitalArtist",
-    pixabayId: 2427475,
+    url: "https://images.unsplash.com/photo-1683147779485-24912f480130?auto=format&fit=crop&w=640&q=75",
+    largeURL: "https://images.unsplash.com/photo-1683147779485-24912f480130?auto=format&fit=crop&w=1280&q=80",
+    tags: "squat, barbell, strength, gym, fitness, master",
+    user: "unsplash",
+    pixabayId: 0,
   },
   // LOCAL 2026-05-09 — Pixabay "open dictionary book" (fallback). 펼친 책 + 커피.
   "english-speak-009": {
@@ -177,13 +178,14 @@ const RAW_TEMPLATE_THUMBS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // LOCAL 2026-05-09 — Pixabay "graffiti wall street" (fallback). 자전거 + 그래피티 벽.
+  // USER-REVERT 2026-05-10 — 사용자 "이전 썸네일이 더 낫다" → Pixabay ID 1171625 (LoboStudioHamburg
+  //   hooded hip hop) 로컬 다운 후 사용. 외부 URL 만료 영향 없도록 로컬 호스팅 유지.
   "dance-hiphop-001": {
     url: "/thumbs/dance-hiphop-001.jpg",
     largeURL: "/thumbs/dance-hiphop-001-1280.jpg",
-    tags: "bicycle, graffiti, art, wall art, paint, wall, vintage, street, background",
-    user: "Pixabay/Engin_Akyurt",
-    pixabayId: 3045580,
+    tags: "hooded, man, cool, hip hop, masculine",
+    user: "Pixabay/LoboStudioHamburg",
+    pixabayId: 1171625,
   },
   // REVIEWED 2026-04-23 — squat 50 challenge: Pixabay 는 트레드밀 스트레칭(mismatch).
   //   Unsplash 의 홈 스쿼트 챌린지 사진으로 교체.
