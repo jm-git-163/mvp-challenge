@@ -152,12 +152,15 @@ const RAW_TEMPLATE_THUMBS: Record<string, TemplateThumb> = {
   // REVIEWED 2026-04-23 (v6) — 사용자 3차 재교체 요청 "주제와 맞게 다시".
   //   Unsplash 검증 "group of people standing on stage" (photo MwYbVO00m6w).
   //   조명이 강조된 무대 위 그룹 — K-pop 콘서트 비주얼 매칭. HTTP 200 확인.
+  // USER-FEEDBACK 2026-05-11 — 사용자 "K-POP 댄스에 서양 사람들이 어색" → 사람 없는
+  //   무대(마이크+스모크) 정물로 교체. Pixabay ID 2574511 (StockSnap, "spotlight empty stage").
+  //   로컬 호스팅으로 URL 만료 영향 없음.
   "dance-kpop-001": {
-    "url": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=640&q=75",
-    "largeURL": "https://images.unsplash.com/photo-1620244822399-3e22cba4e628?auto=format&fit=crop&w=1280&q=80",
-    "tags": "dance, kpop, stage, lights, group performance, concert",
-    "user": "unsplash",
-    "pixabayId": 0
+    url: "/thumbs/dance-kpop-001.jpg",
+    largeURL: "/thumbs/dance-kpop-001-1280.jpg",
+    tags: "stage, microphone, smoke, lights, performance, no-people",
+    user: "Pixabay/StockSnap",
+    pixabayId: 2574511,
   },
   // REVIEWED 2026-04-23 — meditation: 명상 자세 여성. OK (소프트 파스텔).
   // REVIEWED 2026-04-23 (v4) — 사용자 "명상 썸네일 교체" 피드백. 이전 Pixabay 해시 URL 400.
@@ -178,14 +181,15 @@ const RAW_TEMPLATE_THUMBS: Record<string, TemplateThumb> = {
     "user": "unsplash",
     "pixabayId": 0
   },
-  // USER-REVERT 2026-05-10 — 사용자 "이전 썸네일이 더 낫다" → Pixabay ID 1171625 (LoboStudioHamburg
-  //   hooded hip hop) 로컬 다운 후 사용. 외부 URL 만료 영향 없도록 로컬 호스팅 유지.
+  // USER-FEEDBACK 2026-05-11 — 사용자 "후드맨이 댄서 같지 않고 노숙자 같다" → 힙합 상징인
+  //   빈티지 붐박스(boombox) 정물로 교체. Pixabay ID 5693151 (teisco, "boombox vintage").
+  //   사람 없음, 힙합 카테고리 강한 비주얼 시그널. 로컬 호스팅.
   "dance-hiphop-001": {
     url: "/thumbs/dance-hiphop-001.jpg",
     largeURL: "/thumbs/dance-hiphop-001-1280.jpg",
-    tags: "hooded, man, cool, hip hop, masculine",
-    user: "Pixabay/LoboStudioHamburg",
-    pixabayId: 1171625,
+    tags: "boombox, ghetto blaster, hip hop, vintage, music, no-people",
+    user: "Pixabay/teisco",
+    pixabayId: 5693151,
   },
   // REVIEWED 2026-04-23 — squat 50 challenge: Pixabay 는 트레드밀 스트레칭(mismatch).
   //   Unsplash 의 홈 스쿼트 챌린지 사진으로 교체.
