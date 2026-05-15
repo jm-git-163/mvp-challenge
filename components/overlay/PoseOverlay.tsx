@@ -63,7 +63,7 @@ export default function PoseOverlay({
     return POSE_CONNECTIONS.map(([ai, bi]) => {
       const a = userPose[ai];
       const b = userPose[bi];
-      if (!a || !b || a.score < MIN_CONFIDENCE || b.score < MIN_CONFIDENCE) return null;
+      if (!a || !b || (a.score ?? a.visibility ?? 1) < MIN_CONFIDENCE || (b.score ?? b.visibility ?? 1) < MIN_CONFIDENCE) return null;
       return {
         x1: a.x * width,  y1: a.y * height,
         x2: b.x * width,  y2: b.y * height,
@@ -73,7 +73,7 @@ export default function PoseOverlay({
 
   const userJoints = useMemo(() => {
     return userPose
-      .filter(lm => lm.score >= MIN_CONFIDENCE)
+      .filter(lm => (lm.score ?? lm.visibility ?? 1) >= MIN_CONFIDENCE)
       .map(lm => ({ cx: lm.x * width, cy: lm.y * height }));
   }, [userPose, width, height]);
 

@@ -1,16 +1,58 @@
 {
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npm run build:web",
+  "installCommand": "npm ci --legacy-peer-deps",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/share/challenge/:slug",
+      "destination": "/api/share/challenge/:slug"
+    },
+    {
+      "source": "/((?!api/|share/|bgm/|assets/|stickers/|templates/|audio/|images/|_expo/|favicon\\.ico|robots\\.txt|.*\\.(?:mp3|wav|ogg|m4a|mp4|webm|png|jpg|jpeg|svg|gif|webp|ico|json|task|tflite|wasm|onnx|glb|gltf|ttf|otf|woff|woff2|map|xml|txt|csv)).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate, s-maxage=0" },
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "Pragma",        "value": "no-cache" },
+        { "key": "Expires",       "value": "0" }
+      ]
+    },
+    {
+      "source": "/((?!.*\\.(?:mp3|wav|ogg|m4a|mp4|webm|png|jpg|jpeg|svg|gif|webp|ico|json|task|tflite|wasm|onnx|glb|gltf|ttf|otf|woff|woff2|map|xml|txt|csv|js|css|html)$).*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate, s-maxage=0" },
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "Pragma",        "value": "no-cache" },
+        { "key": "Expires",       "value": "0" }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate, s-maxage=0" },
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "Pragma",        "value": "no-cache" },
+        { "key": "Expires",       "value": "0" }
+      ]
+    },
+    {
+      "source": "/_expo/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cross-Origin-Opener-Policy",   "value": "same-origin" },
-        { "key": "Cross-Origin-Embedder-Policy",  "value": "require-corp" },
         { "key": "Cross-Origin-Resource-Policy",  "value": "cross-origin" }
       ]
     }

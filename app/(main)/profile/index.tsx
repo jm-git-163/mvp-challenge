@@ -20,6 +20,7 @@ import {
 import { useUserStore }   from '../../../store/userStore';
 import { fetchUserSessions, fetchUserProfile } from '../../../services/supabase';
 import type { UserSession } from '../../../types/session';
+import { Claude, ClaudeFont } from '../../../constants/claudeTheme';
 
 const GENRE_LABEL: Record<string, string> = {
   kpop: 'K-POP', hiphop: '힙합', fitness: '피트니스',
@@ -74,6 +75,17 @@ export default function ProfileScreen() {
     ? Object.values(successRates).reduce((a, b) => a + b, 0) /
       Object.values(successRates).length
     : 0;
+  const bestScore = sessions.length
+    ? Math.max(...sessions.map(s => s.avg_score))
+    : 0;
+  const bestStreak = (() => {
+    // consecutive sessions with avg_score >= 0.6 starting from most recent
+    let streak = 0;
+    for (const s of sessions) {
+      if (s.avg_score >= 0.6) streak++; else break;
+    }
+    return streak;
+  })();
 
   return (
     <SafeAreaView style={styles.root}>
@@ -104,10 +116,25 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>평균 성공률</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{preferredGenres.length}</Text>
-            <Text style={styles.statLabel}>장르</Text>
+            <Text style={[styles.statValue, { color: '#fbbf24' }]}>
+              {Math.round(bestScore * 100)}
+            </Text>
+            <Text style={styles.statLabel}>🏆 최고점</Text>
           </View>
         </View>
+
+        {/* ── 연속 성공 스트릭 ──────────────────── */}
+        {bestStreak > 0 && (
+          <View style={styles.streakCard}>
+            <Text style={styles.streakEmoji}>🔥</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.streakTitle}>{bestStreak}회 연속 성공</Text>
+              <Text style={styles.streakSub}>
+                최근 {bestStreak}개 세션이 모두 60점 이상
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ── 선호 장르 ────────────────────────── */}
         {preferredGenres.length > 0 && (
@@ -186,11 +213,15 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0f0e17',
+    backgroundColor: Claude.paper,
+    // @ts-ignore web
+    backgroundImage:
+      'radial-gradient(120% 80% at 50% -10%, #FBF7EE 0%, #F7F3EB 55%, #EEE6D5 100%)',
   },
   scroll: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 48,
+    gap: 4,
   },
   center: {
     flex: 1,
@@ -205,21 +236,31 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#e94560',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Claude.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Claude.amber,
+    // @ts-ignore web
+    boxShadow: '0 14px 30px -12px rgba(63,42,31,0.55), inset 0 1px 0 rgba(255,255,255,0.15)',
   },
   avatarText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '900',
+    color: Claude.paper,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   userId: {
-    color: '#aaa',
-    fontSize: 13,
+    color: Claude.inkFaint,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'] as any,
   },
   // ── 통계 ──
   statsRow: {
@@ -229,20 +270,31 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 16,
     alignItems: 'center',
-    padding: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Claude.hairline,
+    // @ts-ignore web
+    boxShadow: '0 10px 24px -14px rgba(63,42,31,0.35)',
   },
   statValue: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '900',
+    color: Claude.ink,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   statLabel: {
-    color: '#888',
-    fontSize: 11,
-    marginTop: 2,
+    color: Claude.inkFaint,
+    fontSize: 10,
+    marginTop: 4,
+    letterSpacing: 1.2,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   // ── 섹션 ──
   section: {
@@ -250,9 +302,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: Claude.ink,
+    fontSize: 18,
+    fontWeight: '800',
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   // ── 장르 칩 ──
   chipRow: {
@@ -261,17 +315,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(204,120,92,0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: '#e94560',
+    borderColor: Claude.hairlineStrong,
   },
   chipText: {
-    color: '#e94560',
-    fontSize: 13,
-    fontWeight: '600',
+    color: Claude.amberDeep,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   // ── 성공률 바 ──
   rateRow: {
@@ -280,61 +335,91 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rateId: {
-    color: '#aaa',
+    color: Claude.inkMuted,
     fontSize: 11,
     width: 80,
+    fontWeight: '600',
   },
   rateTrack: {
     flex: 1,
-    height: 6,
-    backgroundColor: '#333',
-    borderRadius: 3,
+    height: 7,
+    backgroundColor: 'rgba(161,98,68,0.14)',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   rateBar: {
     height: '100%',
-    backgroundColor: '#e94560',
-    borderRadius: 3,
+    backgroundColor: Claude.amber,
+    borderRadius: 4,
+    // @ts-ignore web
+    backgroundImage: `linear-gradient(90deg, ${Claude.amberDeep}, ${Claude.amber})`,
   },
   ratePct: {
-    color: '#fff',
+    color: Claude.ink,
     fontSize: 11,
     width: 32,
     textAlign: 'right',
+    fontWeight: '800',
   },
   // ── 세션 목록 ──
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1a1a2e',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Claude.hairline,
   },
   sessionInfo: {
     gap: 2,
   },
   sessionDate: {
-    color: '#fff',
+    color: Claude.ink,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   sessionMeta: {
-    color: '#888',
+    color: Claude.inkFaint,
     fontSize: 11,
+    fontWeight: '600',
   },
   sessionScore: {
     fontSize: 20,
     fontWeight: '900',
   },
+  // 연속 성공 스트릭
+  streakCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: 'rgba(204,120,92,0.1)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: Claude.hairlineStrong,
+    marginBottom: 24,
+    // @ts-ignore web
+    boxShadow: '0 10px 22px -14px rgba(204,120,92,0.5)',
+  },
+  streakEmoji: { fontSize: 34 },
+  streakTitle: { color: Claude.ink, fontSize: 15, fontWeight: '800', letterSpacing: 0.3,
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif },
+  streakSub:   { color: Claude.inkMuted, fontSize: 12, marginTop: 2, fontWeight: '600' },
   emptyText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: Claude.ink,
+    fontSize: 17,
+    fontWeight: '800',
+    // @ts-ignore web
+    fontFamily: ClaudeFont.serif,
   },
   emptySubtext: {
-    color: '#888',
+    color: Claude.inkMuted,
     fontSize: 13,
     textAlign: 'center',
+    fontWeight: '600',
   },
 });

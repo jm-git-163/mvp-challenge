@@ -2,9 +2,9 @@
  * TimingBar.tsx
  *
  * 하단 타이밍 바 + 자막 표시 (화면 하단 20%)
- *  - 미션 시퀀스 진행 바
- *  - 현재 자막 (subtitle_timeline 기반)
- *  - Phase 2에서 비트 동기화 추가 예정
+ *  - 미션 진행 도트 (상단)
+ *  - 현재 자막 (subtitle_timeline 기반, 더 크게)
+ *  - 미션 구간 타임라인 바
  */
 
 import React, { useMemo } from 'react';
@@ -18,40 +18,83 @@ import type { Template } from '../../types/template';
 interface Props {
   template:    Template;
   elapsedMs:   number;
+  /**
+   * FIX-VOICE-READ-TIMINGBAR (2026-04-23): voice_read 미션 중엔 subtitle_timeline 자막이
+   *   상단 텔레프롬프터(VoiceTranscriptOverlay)와 중복되어 "하단 자막이 또 있다"는 사용자
+   *   피드백(6회 반복) 의 핵심 원인. 이 플래그가 true 면 subtitleArea 자체를 숨긴다.
+   *   타이밍 바/도트/시계는 그대로 유지 (게임 메타 정보는 필요).
+   */
+  suppressSubtitle?: boolean;
 }
 
-export default function TimingBar({ template, elapsedMs }: Props) {
+export default function TimingBar({ template, elapsedMs, suppressSubtitle = false }: Props) {
   const totalMs = template.duration_sec * 1000;
   const progress = Math.min(elapsedMs / totalMs, 1);
 
   // 현재 자막
   const currentSubtitle = useMemo(() => {
+    if (suppressSubtitle) return undefined;
     return template.subtitle_timeline.find(
       (cue) => elapsedMs >= cue.start_ms && elapsedMs < cue.end_ms
     );
-  }, [template.subtitle_timeline, elapsedMs]);
+  }, [template.subtitle_timeline, elapsedMs, suppressSubtitle]);
 
   // 미션 구간 마커 위치 계산
   const missionMarkers = useMemo(() => {
     return template.missions.map((m) => ({
-      seq:   m.seq,
-      left:  (m.start_ms / totalMs) * 100,
-      width: ((m.end_ms - m.start_ms) / totalMs) * 100,
+      seq:       m.seq,
+      left:      (m.start_ms / totalMs) * 100,
+      width:     ((m.end_ms - m.start_ms) / totalMs) * 100,
+      active:    elapsedMs >= m.start_ms && elapsedMs < m.end_ms,
+      completed: elapsedMs >= m.end_ms,
+      emoji:     m.guide_emoji,
     }));
-  }, [template.missions, totalMs]);
+  }, [template.missions, totalMs, elapsedMs]);
 
   const elapsedSec = Math.floor(elapsedMs / 1000);
   const totalSec   = template.duration_sec;
   const remaining  = Math.max(0, totalSec - elapsedSec);
 
+  // 자막 스타일에 따른 색상
+  const subtitleStyle = useMemo(() => {
+    const style = currentSubtitle?.style ?? 'normal';
+    if (style === 'highlight') return styles.subtitleHighlight;
+    if (style === 'bold') return styles.subtitleBold;
+    return styles.subtitle;
+  }, [currentSubtitle]);
+
   return (
     <View style={styles.container}>
-      {/* 자막 */}
-      <View style={styles.subtitleArea}>
-        {currentSubtitle ? (
-          <Text style={styles.subtitle}>{currentSubtitle.text}</Text>
-        ) : null}
+      {/* 미션 진행 도트 */}
+      <View style={styles.dotsRow}>
+        {missionMarkers.map((m) => (
+          <View
+            key={m.seq}
+            style={[
+              styles.missionDot,
+              m.completed && styles.missionDotCompleted,
+              m.active && styles.missionDotActive,
+            ]}
+          >
+            {m.emoji ? (
+              <Text style={styles.missionDotEmoji}>{m.emoji}</Text>
+            ) : (
+              <Text style={styles.missionDotNum}>{m.seq}</Text>
+            )}
+          </View>
+        ))}
       </View>
+
+      {/* 자막 — 크고 눈에 잘 띄게. voice_read 중엔 subtitleArea 자체를 제거해 빈 공간도 없앰. */}
+      {!suppressSubtitle && (
+        <View style={styles.subtitleArea}>
+          {currentSubtitle ? (
+            <Text style={subtitleStyle} numberOfLines={2}>
+              {currentSubtitle.text}
+            </Text>
+          ) : null}
+        </View>
+      )}
 
       {/* 타임라인 바 */}
       <View style={styles.timelineWrapper}>
@@ -62,6 +105,8 @@ export default function TimingBar({ template, elapsedMs }: Props) {
             style={[
               styles.missionSegment,
               { left: `${m.left}%`, width: `${m.width}%` },
+              m.active && styles.missionSegmentActive,
+              m.completed && styles.missionSegmentCompleted,
             ]}
           />
         ))}
@@ -98,21 +143,77 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingBottom: 8,
-    gap: 6,
+    gap: 5,
   },
-  subtitleArea: {
-    height: 28,
+  // ── 미션 도트 ──
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  missionDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#2a2a3e',
+    borderWidth: 1.5,
+    borderColor: '#4a4a6a',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  missionDotActive: {
+    backgroundColor: '#e94560',
+    borderColor: '#ff8a9b',
+    transform: [{ scale: 1.18 }],
+  },
+  missionDotCompleted: {
+    backgroundColor: '#1a3a20',
+    borderColor: '#4caf50',
+  },
+  missionDotEmoji: {
+    fontSize: 14,
+  },
+  missionDotNum: {
+    color: '#aaa',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  // ── 자막 ──
+  subtitleArea: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
   subtitle: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
     textShadowColor: '#000',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
+  subtitleBold: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    textShadowColor: '#000',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  subtitleHighlight: {
+    color: '#ffd700',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    textShadowColor: '#000',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+  },
+  // ── 타임라인 ──
   timelineWrapper: {
     height: 12,
     backgroundColor: '#2a2a3e',
@@ -127,6 +228,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e3a5f',
     borderRightWidth: 1,
     borderRightColor: '#4a4a6a',
+  },
+  missionSegmentActive: {
+    backgroundColor: '#3a1e3a',
+    borderRightColor: '#e94560',
+  },
+  missionSegmentCompleted: {
+    backgroundColor: '#1a3a20',
+    borderRightColor: '#4caf50',
   },
   progressBar: {
     position: 'absolute',
